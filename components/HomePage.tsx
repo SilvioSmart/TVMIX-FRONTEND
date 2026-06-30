@@ -1,26 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import {
-  entertainment,
-  liveChannels,
-  mostWatched,
-  type MediaItem,
-} from "@/lib/content";
+import type { HomeContent } from "@/lib/api";
+import type { MediaItem } from "@/lib/content";
 import { ContentRail } from "./ContentRail";
 import { Footer } from "./Footer";
 import { HeroSlider } from "./HeroSlider";
 import { Navbar } from "./Navbar";
 import { PlayerModal } from "./PlayerModal";
 
-const initialMedia: MediaItem = {
-  id: "senza-filtri",
-  title: "Senza Filtri",
-  image: "/images/senza-filtri-hero.png",
+type HomePageProps = {
+  content: HomeContent;
 };
 
-export function HomePage() {
-  const [selectedMedia, setSelectedMedia] = useState<MediaItem>(initialMedia);
+export function HomePage({ content }: HomePageProps) {
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem>(content.featured);
   const [playerOpen, setPlayerOpen] = useState(false);
 
   const openPlayer = (item: MediaItem) => {
@@ -32,24 +26,27 @@ export function HomePage() {
     <>
       <Navbar />
       <main>
-        <HeroSlider onPlay={() => openPlayer(initialMedia)} />
+        <HeroSlider
+          featured={content.featured}
+          onPlay={() => openPlayer(content.featured)}
+        />
         <div className="-mt-7 relative z-20 pb-4 sm:-mt-14">
           <ContentRail
             id="programmi"
             title="I più visti"
-            items={mostWatched}
+            items={content.mostWatched}
             onSelect={openPlayer}
           />
           <ContentRail
             id="live"
             title="Canali Live"
-            items={liveChannels}
+            items={content.liveChannels}
             onSelect={openPlayer}
           />
           <ContentRail
             id="categorie"
             title="Intrattenimento"
-            items={entertainment}
+            items={content.entertainment}
             onSelect={openPlayer}
           />
         </div>
@@ -60,6 +57,7 @@ export function HomePage() {
         onClose={() => setPlayerOpen(false)}
         title={selectedMedia.title}
         poster={selectedMedia.image}
+        src={selectedMedia.hlsUrl}
       />
     </>
   );

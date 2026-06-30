@@ -2,29 +2,42 @@
 
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Info, Play } from "lucide-react";
-import { useEffect, useState } from "react";
-import { heroSlides } from "@/lib/content";
+import { useEffect, useMemo, useState } from "react";
+import { heroSlides, type MediaItem } from "@/lib/content";
 
 type HeroSliderProps = {
+  featured: MediaItem;
   onPlay: () => void;
 };
 
-export function HeroSlider({ onPlay }: HeroSliderProps) {
+export function HeroSlider({ featured, onPlay }: HeroSliderProps) {
+  const slides = useMemo(
+    () => [
+      {
+        id: featured.id,
+        title: featured.title,
+        subtitle: featured.subtitle ?? "TVMIX",
+        description:
+          featured.description ??
+          "Guarda ora il contenuto selezionato dalla redazione TVMIX.",
+        image: featured.image,
+      },
+      ...heroSlides.filter((slide) => slide.id !== featured.id),
+    ],
+    [featured],
+  );
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(
-      () => setActive((current) => (current + 1) % heroSlides.length),
+      () => setActive((current) => (current + 1) % slides.length),
       7000,
     );
     return () => window.clearInterval(timer);
-  }, []);
+  }, [slides.length]);
 
   const changeSlide = (direction: number) => {
-    setActive(
-      (current) =>
-        (current + direction + heroSlides.length) % heroSlides.length,
-    );
+    setActive((current) => (current + direction + slides.length) % slides.length);
   };
 
   return (
@@ -33,7 +46,7 @@ export function HeroSlider({ onPlay }: HeroSliderProps) {
       aria-label="Contenuti in evidenza"
       className="relative min-h-[620px] overflow-hidden sm:min-h-[700px] lg:min-h-[790px]"
     >
-      {heroSlides.map((slide, index) => (
+      {slides.map((slide, index) => (
         <div
           key={slide.id}
           aria-hidden={index !== active}
@@ -61,13 +74,13 @@ export function HeroSlider({ onPlay }: HeroSliderProps) {
             TVMIX Original
           </p>
           <h1 className="whitespace-pre-line text-[3.5rem] font-black leading-[0.83] tracking-[-0.075em] text-white sm:text-[5.6rem] lg:text-[7rem]">
-            {heroSlides[active].title}
+            {slides[active].title}
           </h1>
           <p className="mt-5 text-lg font-bold text-white sm:text-2xl">
-            {heroSlides[active].subtitle}
+            {slides[active].subtitle}
           </p>
           <p className="mt-3 max-w-lg text-sm leading-6 text-white/72 sm:text-base sm:leading-7">
-            {heroSlides[active].description}
+            {slides[active].description}
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
@@ -108,7 +121,7 @@ export function HeroSlider({ onPlay }: HeroSliderProps) {
       </button>
 
       <div className="absolute bottom-12 left-5 z-20 flex gap-2 sm:bottom-14 sm:left-1/2 sm:-translate-x-1/2">
-        {heroSlides.map((slide, index) => (
+        {slides.map((slide, index) => (
           <button
             key={slide.id}
             type="button"

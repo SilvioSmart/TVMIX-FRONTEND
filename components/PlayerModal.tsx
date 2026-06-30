@@ -15,6 +15,7 @@ type PlayerModalProps = {
   onClose: () => void;
   title: string;
   poster?: string;
+  src?: string;
 };
 
 export function PlayerModal({
@@ -22,6 +23,7 @@ export function PlayerModal({
   onClose,
   title,
   poster,
+  src,
 }: PlayerModalProps) {
   if (!open) return null;
 
@@ -49,12 +51,13 @@ export function PlayerModal({
             <X />
           </button>
         </div>
-        <VideoPlayer
-          src="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
-          poster={poster}
-          title={title}
-          autoPlay
-        />
+        {src ? (
+          <VideoPlayer src={src} poster={poster} title={title} autoPlay />
+        ) : (
+          <div className="grid aspect-video place-items-center bg-black px-6 text-center text-white/70">
+            Questo contenuto non ha ancora uno stream HLS pubblicato.
+          </div>
+        )}
       </div>
     </div>
   );

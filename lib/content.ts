@@ -3,6 +3,8 @@ export type MediaItem = {
   title: string;
   subtitle?: string;
   image: string;
+  description?: string;
+  hlsUrl?: string;
   live?: boolean;
   progress?: number;
 };
