@@ -14,7 +14,7 @@ type ApiVideo = {
   title: string;
   description?: string | null;
   thumbnailUrl?: string | null;
-  hlsUrl: string;
+  hlsUrl?: string | null;
   category?: {
     name: string;
     slug: string;
@@ -61,7 +61,7 @@ function mapVideo(video: ApiVideo): MediaItem {
     subtitle: video.category?.name ?? "On demand",
     description: video.description ?? undefined,
     image: video.thumbnailUrl || FALLBACK_POSTER,
-    hlsUrl: video.hlsUrl,
+    hlsUrl: video.hlsUrl ?? undefined,
   };
 }
 
