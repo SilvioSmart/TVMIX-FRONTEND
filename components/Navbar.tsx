@@ -2,12 +2,22 @@
 
 import { Menu, Search, X } from "lucide-react";
 import { useState } from "react";
+import type { NavigationItem } from "@/lib/api";
 import { Logo } from "./Logo";
 
-const links = ["Live", "Programmi", "Categorie"];
+const fallbackLinks: NavigationItem[] = [
+  { id: "live", label: "Live", url: "#live", external: false },
+  { id: "programmi", label: "Programmi", url: "#programmi", external: false },
+  { id: "categorie", label: "Categorie", url: "#categorie", external: false },
+];
 
-export function Navbar() {
+type NavbarProps = {
+  links?: NavigationItem[];
+};
+
+export function Navbar({ links = fallbackLinks }: NavbarProps) {
   const [open, setOpen] = useState(false);
+  const navLinks = links.length > 0 ? links : fallbackLinks;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-ink/75 backdrop-blur-xl">
@@ -20,13 +30,15 @@ export function Navbar() {
         </a>
 
         <div className="hidden items-center gap-9 md:flex">
-          {links.map((link) => (
+          {navLinks.map((link) => (
             <a
-              key={link}
-              href={`#${link.toLowerCase()}`}
+              key={link.id}
+              href={link.url}
+              target={link.external ? "_blank" : undefined}
+              rel={link.external ? "noreferrer" : undefined}
               className="text-sm font-semibold text-white/78 transition hover:text-white"
             >
-              {link}
+              {link.label}
             </a>
           ))}
         </div>
@@ -54,14 +66,16 @@ export function Navbar() {
       {open ? (
         <div className="border-t border-white/10 bg-ink px-5 py-5 md:hidden">
           <div className="flex flex-col gap-1">
-            {links.map((link) => (
+            {navLinks.map((link) => (
               <a
-                key={link}
-                href={`#${link.toLowerCase()}`}
+                key={link.id}
+                href={link.url}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer" : undefined}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-3 text-base font-semibold text-white/85 hover:bg-white/5"
               >
-                {link}
+                {link.label}
               </a>
             ))}
           </div>

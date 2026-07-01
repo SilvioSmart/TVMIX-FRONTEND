@@ -1,7 +1,20 @@
 import { Facebook, Instagram, Youtube } from "lucide-react";
+import type { NavigationItem } from "@/lib/api";
 import { Logo } from "./Logo";
 
-export function Footer() {
+const fallbackLinks: NavigationItem[] = [
+  { id: "live", label: "Live", url: "#live", external: false },
+  { id: "programmi", label: "Programmi", url: "#programmi", external: false },
+  { id: "categorie", label: "Categorie", url: "#categorie", external: false },
+];
+
+type FooterProps = {
+  links?: NavigationItem[];
+};
+
+export function Footer({ links = fallbackLinks }: FooterProps) {
+  const footerLinks = links.length > 0 ? links : fallbackLinks;
+
   return (
     <footer className="mt-16 border-t border-white/10 bg-[#030a14]">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-5 py-12 sm:grid-cols-2 sm:px-8 lg:grid-cols-4 lg:px-12 lg:py-16">
@@ -27,9 +40,17 @@ export function Footer() {
         <div>
           <h3 className="text-sm font-extrabold">Esplora</h3>
           <div className="mt-4 flex flex-col gap-3 text-sm text-white/55">
-            <a href="#live" className="hover:text-white">Live</a>
-            <a href="#programmi" className="hover:text-white">Programmi</a>
-            <a href="#categorie" className="hover:text-white">Categorie</a>
+            {footerLinks.map((link) => (
+              <a
+                key={link.id}
+                href={link.url}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer" : undefined}
+                className="hover:text-white"
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
         </div>
 

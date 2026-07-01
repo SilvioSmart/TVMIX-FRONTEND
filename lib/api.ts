@@ -30,8 +30,54 @@ type ApiLiveChannel = {
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
 };
 
+type ApiMenuItem = {
+  id: string;
+  label: string;
+  url: string;
+  placements?: Array<"HEADER" | "FOOTER" | "MOBILE">;
+  placement?: "HEADER" | "FOOTER" | "MOBILE";
+  sortOrder: number;
+  external: boolean;
+  parentId?: string | null;
+};
+
+type ApiCarouselSlide = {
+  id: string;
+  eyebrow?: string | null;
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  imageUrl: string;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  sortOrder: number;
+  video?: ApiVideo | null;
+};
+
+export type NavigationItem = {
+  id: string;
+  label: string;
+  url: string;
+  external: boolean;
+};
+
+export type HeroSlide = {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  image: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  media?: MediaItem;
+};
+
 export type HomeContent = {
   featured: MediaItem;
+  heroSlides: HeroSlide[];
+  headerMenu: NavigationItem[];
+  footerMenu: NavigationItem[];
   mostWatched: MediaItem[];
   liveChannels: MediaItem[];
   entertainment: MediaItem[];
@@ -77,18 +123,58 @@ function mapLiveChannel(channel: ApiLiveChannel): MediaItem {
   };
 }
 
+function mapMenuItem(item: ApiMenuItem): NavigationItem {
+  return {
+    id: item.id,
+    label: item.label,
+    url: item.url,
+    external: item.external,
+  };
+}
+
+function hasPlacement(item: ApiMenuItem, placement: "HEADER" | "FOOTER" | "MOBILE"): boolean {
+  return item.placements?.includes(placement) || item.placement === placement;
+}
+
+function mapCarouselSlide(slide: ApiCarouselSlide): HeroSlide {
+  const media = slide.video ? mapVideo(slide.video) : undefined;
+
+  return {
+    id: slide.id,
+    eyebrow: slide.eyebrow ?? undefined,
+    title: slide.title,
+    subtitle: slide.subtitle ?? media?.subtitle,
+    description: slide.description ?? media?.description,
+    image: slide.imageUrl || media?.image || FALLBACK_POSTER,
+    ctaLabel: slide.ctaLabel ?? "Guarda ora",
+    ctaUrl: slide.ctaUrl ?? undefined,
+    media,
+  };
+}
+
 export async function getHomeContent(): Promise<HomeContent> {
-  const [videoResponse, liveResponse] = await Promise.all([
+  const [videoResponse, liveResponse, menuResponse, carouselResponse] = await Promise.all([
     fetchJson<ApiCollection<ApiVideo>>("/api/v1/videos?limit=24"),
     fetchJson<ApiCollection<ApiLiveChannel>>("/api/v1/live-channels"),
+    fetchJson<ApiCollection<ApiMenuItem>>("/api/v1/menu"),
+    fetchJson<ApiCollection<ApiCarouselSlide>>("/api/v1/carousel"),
   ]);
 
   const apiVideos = videoResponse?.data?.map(mapVideo) ?? [];
   const apiLiveChannels = liveResponse?.data?.map(mapLiveChannel) ?? [];
-  const featured = apiVideos[0] ?? mostWatched[0] ?? entertainment[0];
+  const apiMenu = menuResponse?.data ?? [];
+  const apiHeroSlides = carouselResponse?.data?.map(mapCarouselSlide) ?? [];
+  const featured =
+    apiHeroSlides.find((slide) => slide.media)?.media ??
+    apiVideos[0] ??
+    mostWatched[0] ??
+    entertainment[0];
 
   return {
     featured,
+    heroSlides: apiHeroSlides,
+    headerMenu: apiMenu.filter((item) => hasPlacement(item, "HEADER")).map(mapMenuItem),
+    footerMenu: apiMenu.filter((item) => hasPlacement(item, "FOOTER")).map(mapMenuItem),
     mostWatched: apiVideos.length > 0 ? apiVideos : mostWatched,
     liveChannels: apiLiveChannels.length > 0 ? apiLiveChannels : liveChannels,
     entertainment: apiVideos.length > 0 ? apiVideos.slice(0, 12) : entertainment,

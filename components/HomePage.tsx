@@ -24,10 +24,11 @@ export function HomePage({ content }: HomePageProps) {
 
   return (
     <>
-      <Navbar />
+      <Navbar links={content.headerMenu} />
       <main>
         <HeroSlider
           featured={content.featured}
+          slides={content.heroSlides}
           onPlay={() => openPlayer(content.featured)}
         />
         <div className="-mt-7 relative z-20 pb-4 sm:-mt-14">
@@ -51,7 +52,7 @@ export function HomePage({ content }: HomePageProps) {
           />
         </div>
       </main>
-      <Footer />
+      <Footer links={content.footerMenu} />
       <PlayerModal
         open={playerOpen}
         onClose={() => setPlayerOpen(false)}
