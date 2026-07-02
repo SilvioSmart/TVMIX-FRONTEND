@@ -85,7 +85,7 @@ export function HeroSlider({ featured, slides: apiSlides = [], onPlay }: HeroSli
       <div className="absolute inset-0 bg-[linear-gradient(90deg,#020711_0%,rgba(2,7,17,.91)_24%,rgba(2,7,17,.34)_60%,rgba(2,7,17,.05)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(0deg,#020711_0%,transparent_44%,rgba(2,7,17,.36)_100%)]" />
 
-      <div className="relative z-10 mx-auto flex min-h-[620px] max-w-[1440px] items-end px-5 pb-24 pt-28 sm:min-h-[700px] sm:items-center sm:px-8 sm:pb-16 lg:min-h-[790px] lg:px-12">
+      <div className="relative z-10 flex min-h-[620px] w-full items-end px-4 pb-24 pt-28 sm:min-h-[700px] sm:items-center sm:px-5 sm:pb-16 lg:min-h-[790px] lg:px-6 xl:px-8">
         <div className="max-w-[610px]">
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-cyan sm:text-base">
             {activeSlide?.eyebrow ?? "TVMIX Original"}
