@@ -18,11 +18,6 @@ type HomeModulesProps = {
   onSelect: (item: MediaItem) => void;
 };
 
-const hasDisplayContent = (module: HomeModule) => {
-  if (module.type === "LIVE_EPG") return Boolean(module.liveStream || module.epg.length);
-  return module.items.length > 0;
-};
-
 function RailButton({
   label,
   onClick,
@@ -82,6 +77,14 @@ function ModuleShell({
 
       {children}
     </section>
+  );
+}
+
+function EmptyModuleNotice({ text = "Nessun contenuto pubblicato per questo modulo." }: { text?: string }) {
+  return (
+    <div className="min-w-[260px] rounded-md border border-dashed border-white/15 bg-white/[0.035] p-5 text-sm leading-6 text-white/55 sm:min-w-[360px]">
+      {text}
+    </div>
   );
 }
 
@@ -169,9 +172,13 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
       <div className="flex gap-4 overflow-hidden px-[3%]">
         <FeaturedPlayer item={featured} onSelect={onSelect} />
         <div ref={railRef} className="no-scrollbar flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:gap-4">
-          {(items.length > 0 ? items : module.items).map((item) => (
-            <MediaThumbnail key={item.id} item={item} onSelect={onSelect} />
-          ))}
+          {module.items.length > 0 ? (
+            (items.length > 0 ? items : module.items).map((item) => (
+              <MediaThumbnail key={item.id} item={item} onSelect={onSelect} />
+            ))
+          ) : (
+            <EmptyModuleNotice />
+          )}
         </div>
       </div>
     </ModuleShell>
@@ -187,9 +194,13 @@ function PosterRailModule({ module, onSelect }: { module: HomeModule; onSelect: 
     <ModuleShell module={module} onPrev={() => scroll(-1)} onNext={() => scroll(1)}>
       <div className="px-[3%]">
         <div ref={railRef} className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:gap-4">
-          {module.items.map((item) => (
-            <MediaThumbnail key={item.id} item={item} poster onSelect={onSelect} />
-          ))}
+          {module.items.length > 0 ? (
+            module.items.map((item) => (
+              <MediaThumbnail key={item.id} item={item} poster onSelect={onSelect} />
+            ))
+          ) : (
+            <EmptyModuleNotice />
+          )}
         </div>
       </div>
     </ModuleShell>
@@ -219,7 +230,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
       <div className="flex gap-4 overflow-hidden px-[3%]">
         <FeaturedPlayer item={liveItem} onSelect={onSelect} />
         <div ref={railRef} className="no-scrollbar flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-          {module.epg.map((item) => {
+          {module.epg.length > 0 ? module.epg.map((item) => {
             const start = new Date(item.startsAt).getTime();
             const end = new Date(item.endsAt).getTime();
             const progress = now >= start && now <= end ? ((now - start) / (end - start)) * 100 : 0;
@@ -242,7 +253,9 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
                 </span>
               </article>
             );
-          })}
+          }) : (
+            <EmptyModuleNotice text="Nessun evento EPG programmato per questa diretta." />
+          )}
         </div>
       </div>
     </ModuleShell>
@@ -250,8 +263,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
 }
 
 export function HomeModules({ modules, fallbackModules, onSelect }: HomeModulesProps) {
-  const populatedModules = modules.filter(hasDisplayContent);
-  const visibleModules = populatedModules.length > 0 ? populatedModules : fallbackModules;
+  const visibleModules = modules.length > 0 ? modules : fallbackModules;
 
   return (
     <div className="-mt-7 relative z-20 pb-4 sm:-mt-14">
