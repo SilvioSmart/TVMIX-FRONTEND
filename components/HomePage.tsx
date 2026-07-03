@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { HomeContent } from "@/lib/api";
+import type { HomeContent, HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
-import { ContentRail } from "./ContentRail";
 import { Footer } from "./Footer";
 import { HeroSlider } from "./HeroSlider";
+import { HomeModules } from "./HomeModules";
 import { Navbar } from "./Navbar";
 import { PlayerModal } from "./PlayerModal";
 
@@ -22,6 +22,46 @@ export function HomePage({ content }: HomePageProps) {
     setPlayerOpen(true);
   };
 
+  const fallbackModules: HomeModule[] = [
+    {
+      id: "programmi",
+      title: "I più visti",
+      type: "CAROUSEL_SLIDER",
+      queryType: "LATEST",
+      sortOrder: 10,
+      items: content.mostWatched,
+      epg: [],
+    },
+    {
+      id: "live",
+      title: "Canali Live",
+      type: "LIVE_EPG",
+      queryType: "LIVE",
+      sortOrder: 20,
+      items: [],
+      liveStream: content.liveChannels[0]
+        ? {
+            id: content.liveChannels[0].id,
+            name: content.liveChannels[0].title,
+            slug: content.liveChannels[0].id,
+            hlsUrl: content.liveChannels[0].hlsUrl ?? "",
+            posterUrl: content.liveChannels[0].image,
+            status: content.liveChannels[0].live ? "LIVE" : "OFFLINE",
+          }
+        : null,
+      epg: [],
+    },
+    {
+      id: "categorie",
+      title: "Locandine",
+      type: "POSTER_RAIL",
+      queryType: "LATEST",
+      sortOrder: 30,
+      items: content.entertainment,
+      epg: [],
+    },
+  ];
+
   return (
     <>
       <Navbar links={content.headerMenu} />
@@ -29,28 +69,13 @@ export function HomePage({ content }: HomePageProps) {
         <HeroSlider
           featured={content.featured}
           slides={content.heroSlides}
-          onPlay={() => openPlayer(content.featured)}
+          onPlay={openPlayer}
         />
-        <div className="-mt-7 relative z-20 pb-4 sm:-mt-14">
-          <ContentRail
-            id="programmi"
-            title="I più visti"
-            items={content.mostWatched}
-            onSelect={openPlayer}
-          />
-          <ContentRail
-            id="live"
-            title="Canali Live"
-            items={content.liveChannels}
-            onSelect={openPlayer}
-          />
-          <ContentRail
-            id="categorie"
-            title="Intrattenimento"
-            items={content.entertainment}
-            onSelect={openPlayer}
-          />
-        </div>
+        <HomeModules
+          modules={content.modules}
+          fallbackModules={fallbackModules}
+          onSelect={openPlayer}
+        />
       </main>
       <Footer links={content.footerMenu} />
       <PlayerModal

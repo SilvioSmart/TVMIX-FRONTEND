@@ -30,6 +30,41 @@ type ApiLiveChannel = {
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
 };
 
+export type EpgItem = {
+  id: string;
+  title: string;
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  thumbnailUrl?: string | null;
+};
+
+export type LiveModuleStream = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  hlsUrl: string;
+  posterUrl?: string | null;
+  status: "OFFLINE" | "LIVE" | "SCHEDULED";
+};
+
+export type HomeModule = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  type: "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL";
+  queryType: "LATEST" | "CATEGORY" | "PROGRAM" | "SEASON" | "MANUAL" | "LIVE";
+  sortOrder: number;
+  items: MediaItem[];
+  liveStream?: LiveModuleStream | null;
+  epg: EpgItem[];
+};
+
+type ApiHomeModule = Omit<HomeModule, "items"> & {
+  items?: ApiVideo[];
+};
+
 type ApiMenuItem = {
   id: string;
   label: string;
@@ -78,6 +113,7 @@ export type HomeContent = {
   heroSlides: HeroSlide[];
   headerMenu: NavigationItem[];
   footerMenu: NavigationItem[];
+  modules: HomeModule[];
   mostWatched: MediaItem[];
   liveChannels: MediaItem[];
   entertainment: MediaItem[];
@@ -152,18 +188,28 @@ function mapCarouselSlide(slide: ApiCarouselSlide): HeroSlide {
   };
 }
 
+function mapHomeModule(module: ApiHomeModule): HomeModule {
+  return {
+    ...module,
+    items: module.items?.map(mapVideo) ?? [],
+    epg: module.epg ?? [],
+  };
+}
+
 export async function getHomeContent(): Promise<HomeContent> {
-  const [videoResponse, liveResponse, menuResponse, carouselResponse] = await Promise.all([
+  const [videoResponse, liveResponse, menuResponse, carouselResponse, moduleResponse] = await Promise.all([
     fetchJson<ApiCollection<ApiVideo>>("/api/v1/videos?limit=24"),
     fetchJson<ApiCollection<ApiLiveChannel>>("/api/v1/live-channels"),
     fetchJson<ApiCollection<ApiMenuItem>>("/api/v1/menu"),
     fetchJson<ApiCollection<ApiCarouselSlide>>("/api/v1/carousel"),
+    fetchJson<ApiCollection<ApiHomeModule>>("/api/v1/modules"),
   ]);
 
   const apiVideos = videoResponse?.data?.map(mapVideo) ?? [];
   const apiLiveChannels = liveResponse?.data?.map(mapLiveChannel) ?? [];
   const apiMenu = menuResponse?.data ?? [];
   const apiHeroSlides = carouselResponse?.data?.map(mapCarouselSlide) ?? [];
+  const apiModules = moduleResponse?.data?.map(mapHomeModule) ?? [];
   const featured =
     apiHeroSlides.find((slide) => slide.media)?.media ??
     apiVideos[0] ??
@@ -175,6 +221,7 @@ export async function getHomeContent(): Promise<HomeContent> {
     heroSlides: apiHeroSlides,
     headerMenu: apiMenu.filter((item) => hasPlacement(item, "HEADER")).map(mapMenuItem),
     footerMenu: apiMenu.filter((item) => hasPlacement(item, "FOOTER")).map(mapMenuItem),
+    modules: apiModules,
     mostWatched: apiVideos.length > 0 ? apiVideos : mostWatched,
     liveChannels: apiLiveChannels.length > 0 ? apiLiveChannels : liveChannels,
     entertainment: apiVideos.length > 0 ? apiVideos.slice(0, 12) : entertainment,

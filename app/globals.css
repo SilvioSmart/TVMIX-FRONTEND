@@ -50,6 +50,85 @@ a:focus-visible {
   contain-intrinsic-size: 360px;
 }
 
+.carousel-mask-reveal {
+  clip-path: inset(0 100% 0 0);
+  opacity: 0;
+  transform: translateX(-12px);
+  transition:
+    clip-path 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 320ms ease,
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: clip-path, opacity, transform;
+}
+
+.carousel-card:hover .carousel-mask-reveal,
+.carousel-card:focus-visible .carousel-mask-reveal {
+  clip-path: inset(0 0 0 0);
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.carousel-static-reveal {
+  animation: carousel-mask-open 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  clip-path: inset(0 100% 0 0);
+  opacity: 0;
+  transform: translateX(-12px);
+}
+
+@keyframes carousel-mask-open {
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .carousel-mask-reveal,
+  .carousel-static-reveal {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: none;
+    animation: none;
+    transition: none;
+  }
+}
+
 input[type="range"] {
   accent-color: #03a9f4;
+}
+
+@layer components {
+  .admin-panel {
+    @apply rounded-[10px] border border-[#203248] bg-[#071321];
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
+  }
+
+  .admin-section-title {
+    @apply text-[15px] font-bold tracking-[-0.015em] text-white;
+  }
+
+  .admin-label {
+    @apply block text-xs font-semibold text-slate-300;
+  }
+
+  .admin-input {
+    @apply h-10 w-full rounded-lg border border-[#31445a] bg-[#06111d] px-3 text-[13px] text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-[#22bdf3] focus:ring-2 focus:ring-[#22bdf3]/10;
+  }
+
+  .admin-primary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#16b9f4] px-4 text-[13px] font-bold text-[#00111d] transition hover:bg-[#35c5f7] active:translate-y-px;
+  }
+
+  .admin-secondary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#31445a] bg-[#091827] px-3.5 text-[12px] font-semibold text-slate-200 transition hover:border-[#49627c] hover:bg-[#102238];
+  }
+
+  .admin-icon-button {
+    @apply grid size-9 place-items-center rounded-lg text-slate-400 transition hover:bg-white/5 hover:text-white;
+  }
+
+  .admin-text-button {
+    @apply text-xs font-semibold text-[#22bdf3] transition hover:text-[#6bd6fa];
+  }
 }
