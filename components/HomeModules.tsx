@@ -18,6 +18,11 @@ type HomeModulesProps = {
   onSelect: (item: MediaItem) => void;
 };
 
+const hasDisplayContent = (module: HomeModule) => {
+  if (module.type === "LIVE_EPG") return Boolean(module.liveStream || module.epg.length);
+  return module.items.length > 0;
+};
+
 function RailButton({
   label,
   onClick,
@@ -245,7 +250,8 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
 }
 
 export function HomeModules({ modules, fallbackModules, onSelect }: HomeModulesProps) {
-  const visibleModules = modules.length > 0 ? modules : fallbackModules;
+  const populatedModules = modules.filter(hasDisplayContent);
+  const visibleModules = populatedModules.length > 0 ? populatedModules : fallbackModules;
 
   return (
     <div className="-mt-7 relative z-20 pb-4 sm:-mt-14">
