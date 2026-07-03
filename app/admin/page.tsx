@@ -1,10 +1,16 @@
-import { AdminModulesManager } from "@/components/admin/AdminModulesManager";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { AdminDashboard } from "@/components/admin/AdminDashboard";
+import { getAdminSession } from "@/lib/admin-auth";
 
-export const metadata = {
-  title: "Aspetto - Moduli | TVMIX Admin",
-  description: "Gestione dei moduli della home TVMIX.",
+export const metadata: Metadata = {
+  title: "Configurazione piattaforma | TVMIX",
+  description: "Pannello di amministrazione della piattaforma TVMIX.",
 };
 
-export default function AdminPage() {
-  return <AdminModulesManager />;
+export default async function AdminPage() {
+  const user = await getAdminSession();
+  if (!user) redirect("/login");
+
+  return <AdminDashboard user={user} />;
 }

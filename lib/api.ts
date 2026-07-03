@@ -55,6 +55,7 @@ export type HomeModule = {
   subtitle?: string | null;
   type: "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL";
   queryType: "LATEST" | "CATEGORY" | "PROGRAM" | "SEASON" | "MANUAL" | "LIVE";
+  sortMethod?: "RECENT" | "OLDEST" | "TITLE_ASC";
   sortOrder: number;
   items: MediaItem[];
   liveStream?: LiveModuleStream | null;
