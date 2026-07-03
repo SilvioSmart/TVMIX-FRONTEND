@@ -34,6 +34,12 @@ type VideoForm = {
   file: File | null;
 };
 
+type BackgroundUpload = {
+  fileName: string;
+  progress: number;
+  status: "uploading" | "done" | "failed";
+};
+
 const blank: VideoForm = {
   title: "",
   slug: "",
@@ -71,6 +77,7 @@ export function ContentSection({ onNotify }: Props) {
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcodingId, setTranscodingId] = useState<string | null>(null);
+  const [backgroundUploads, setBackgroundUploads] = useState<Record<string, BackgroundUpload>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,6 +130,58 @@ export function ContentSection({ onNotify }: Props) {
     }
   }
 
+  function setBackgroundUpload(videoId: string, patch: Partial<BackgroundUpload>) {
+    setBackgroundUploads((current) => ({
+      ...current,
+      [videoId]: {
+        fileName: patch.fileName ?? current[videoId]?.fileName ?? "",
+        progress: patch.progress ?? current[videoId]?.progress ?? 0,
+        status: patch.status ?? current[videoId]?.status ?? "uploading",
+      },
+    }));
+  }
+
+  async function uploadInBackground(videoId: string, file: File) {
+    setBackgroundUpload(videoId, { fileName: file.name, progress: 0, status: "uploading" });
+    try {
+      await adminRequest(`videos/${videoId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ processingStatus: "UPLOADING", processingError: null }),
+      });
+      const uploaded = await uploadFileToR2(file, (progress) => {
+        setBackgroundUpload(videoId, { progress, status: "uploading" });
+      }, videoId);
+      await adminRequest(`videos/${videoId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          sourceObjectKey: uploaded.objectKey,
+          originalFileName: uploaded.originalFileName,
+          processingStatus: "UPLOADED",
+          processingError: null,
+        }),
+      });
+      setBackgroundUpload(videoId, { progress: 100, status: "done" });
+      onNotify("Upload completato in background");
+      await load();
+      window.setTimeout(() => {
+        setBackgroundUploads((current) => {
+          const next = { ...current };
+          delete next[videoId];
+          return next;
+        });
+      }, 3500);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Upload background non riuscito";
+      await adminRequest(`videos/${videoId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ processingStatus: "FAILED", processingError: message }),
+      }).catch(() => undefined);
+      setBackgroundUpload(videoId, { status: "failed" });
+      setError(message);
+      await load();
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Header title="Libreria contenuti" description="Gestisci video, catalogo, upload, conversione HLS e metadati tecnici.">
@@ -140,6 +199,7 @@ export function ContentSection({ onNotify }: Props) {
             <ContentCard
               key={video.id}
               video={video}
+              backgroundUpload={backgroundUploads[video.id]}
               transcoding={transcodingId === video.id}
               onEdit={() => setEditing(video)}
               onDelete={() => void remove(video.id)}
@@ -161,12 +221,8 @@ export function ContentSection({ onNotify }: Props) {
             setSaving(true);
             setUploadProgress(0);
             try {
-              const uploaded = form.file
-                ? await uploadFileToR2(form.file, setUploadProgress, editing?.id)
-                : null;
               const selectedSeason = findSeason(catalog, form.seasonId);
               const body = {
-                ...(!editing && uploaded ? { id: uploaded.uploadId } : {}),
                 title: form.title,
                 slug: form.slug.replace(/^#/, ""),
                 description: form.description || null,
@@ -178,20 +234,16 @@ export function ContentSection({ onNotify }: Props) {
                 episodeNumber: form.episodeNumber ? Number(form.episodeNumber) : null,
                 episodeCode: form.episodeCode || null,
                 published: form.published,
-                ...(uploaded && {
-                  sourceObjectKey: uploaded.objectKey,
-                  originalFileName: uploaded.originalFileName,
-                  processingStatus: "UPLOADED",
-                  processingError: null,
-                }),
+                ...(form.file ? { processingStatus: "UPLOADING", processingError: null } : {}),
               };
-              await adminRequest(editing ? `videos/${editing.id}` : "videos", {
+              const saved = await adminRequest<{ data: Video }>(editing ? `videos/${editing.id}` : "videos", {
                 method: editing ? "PATCH" : "POST",
                 body: JSON.stringify(body),
               });
               setEditing(undefined);
-              onNotify(editing ? "Video aggiornato" : "Video creato");
+              onNotify(form.file ? "Contenuto salvato, upload avviato in background" : editing ? "Video aggiornato" : "Video creato");
               await load();
+              if (form.file) void uploadInBackground(saved.data.id, form.file);
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito");
             } finally {
@@ -207,12 +259,14 @@ export function ContentSection({ onNotify }: Props) {
 
 function ContentCard({
   video,
+  backgroundUpload,
   transcoding,
   onEdit,
   onDelete,
   onTranscode,
 }: {
   video: Video;
+  backgroundUpload?: BackgroundUpload;
   transcoding: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -244,6 +298,11 @@ function ContentCard({
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-white">{video.title}</h3>
           <StatusPill status={video.processingStatus} />
+          {backgroundUpload ? (
+            <span className="rounded border border-[#22bdf3]/40 px-2 py-0.5 text-[10px] text-[#22bdf3]">
+              Upload {backgroundUpload.progress}%
+            </span>
+          ) : null}
           {ready ? (
             <span className="inline-flex items-center gap-1 rounded border border-emerald-400/40 px-2 py-0.5 text-[10px] text-emerald-300">
               <CheckCircle2 size={12} /> Convertito
@@ -272,12 +331,20 @@ function ContentCard({
           <Meta label="Tracce audio" value={audioSummary} />
         </div>
         {video.processingError ? <p className="mt-3 rounded border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">{video.processingError}</p> : null}
+        {backgroundUpload ? (
+          <div className="mt-3">
+            <Progress
+              value={backgroundUpload.progress}
+              label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload in background"} · ${backgroundUpload.fileName}`}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-1 xl:justify-end">
         <button
           type="button"
-          disabled={transcoding || !video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
+          disabled={transcoding || Boolean(backgroundUpload) || !video.sourceObjectKey || ["UPLOADING", "QUEUED", "PROCESSING"].includes(video.processingStatus)}
           onClick={onTranscode}
           className="admin-secondary-button"
           title={!video.sourceObjectKey ? "Carica prima il file sorgente" : "Avvia conversione HLS"}
