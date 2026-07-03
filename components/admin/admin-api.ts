@@ -241,16 +241,17 @@ export async function uploadFileToR2(
   });
 }
 
-export async function uploadSlideMediaToR2(
+export async function uploadMediaAssetToR2(
   file: File,
   onProgress: (percentage: number) => void,
+  scope: "slide" | "thumbnail" | "locandina",
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", "/api/admin/uploads/file");
     request.setRequestHeader("Content-Type", file.type);
     request.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
-    request.setRequestHeader("X-Upload-Scope", "slide");
+    request.setRequestHeader("X-Upload-Scope", scope);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
@@ -282,12 +283,19 @@ export async function uploadSlideMediaToR2(
           originalFileName: payload.originalFileName,
         });
       } else {
-        reject(new Error(payload.error ?? `Upload media slide non riuscito (${request.status})`));
+        reject(new Error(payload.error ?? `Upload media ${scope} non riuscito (${request.status})`));
       }
     };
     request.onerror = () => reject(new Error("Connessione al servizio upload interrotta"));
     request.send(file);
   });
+}
+
+export async function uploadSlideMediaToR2(
+  file: File,
+  onProgress: (percentage: number) => void,
+): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
+  return uploadMediaAssetToR2(file, onProgress, "slide");
 }
 
 export async function adminRequest<T>(
