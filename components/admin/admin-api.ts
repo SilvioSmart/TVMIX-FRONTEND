@@ -32,12 +32,20 @@ export type Video = {
     | "FAILED";
   processingError: string | null;
   duration: number | null;
+  mediaFormat: string | null;
+  videoQuality: string | null;
+  audioTracks: unknown;
+  convertedObjectKey: string | null;
   published: boolean;
   publishedAt: string | null;
   updatedAt: string;
+  createdAt: string;
   categoryId: string;
   category: Pick<Category, "id" | "name" | "slug">;
   season: CatalogSeason | null;
+  seasonId: string | null;
+  episodeNumber: number | null;
+  episodeCode: string | null;
 };
 
 export type CatalogEpisode = {
@@ -54,6 +62,7 @@ export type CatalogSeason = {
   number: number;
   title: string | null;
   programId: string;
+  program?: Pick<CatalogProgram, "id" | "name" | "slug" | "categoryId">;
   episodes: CatalogEpisode[];
 };
 
@@ -63,6 +72,7 @@ export type CatalogProgram = {
   slug: string;
   description: string | null;
   categoryId: string;
+  category?: Pick<Category, "id" | "name" | "slug">;
   seasons: CatalogSeason[];
 };
 
