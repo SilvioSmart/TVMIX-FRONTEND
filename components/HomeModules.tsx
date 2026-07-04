@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Clock, Play } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
 
@@ -160,28 +160,173 @@ function FeaturedPlayer({
   );
 }
 
+function SonicPlaylistFeatured({
+  item,
+  module,
+  onSelect,
+}: {
+  item?: MediaItem;
+  module: HomeModule;
+  onSelect: (item: MediaItem) => void;
+}) {
+  if (!item) {
+    return (
+      <div className="sonicplaylist__player aspect-video w-full rounded-[18px] border border-white/10 bg-white/[0.04]" />
+    );
+  }
+
+  return (
+    <article className="sonicplaylist__player group/player relative aspect-video w-full overflow-hidden rounded-[18px] border border-white/10 bg-black shadow-[0_28px_80px_rgba(0,0,0,0.42)]">
+      {item.hlsUrl ? (
+        <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
+      ) : (
+        <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 58vw, 94vw" className="object-cover" />
+      )}
+
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.26)_42%,rgba(0,0,0,0.08)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/44 to-transparent" />
+
+      <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 lg:p-8">
+        <div className="max-w-[620px]">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">
+            {item.subtitle || module.subtitle || "TVMIX"}
+          </p>
+          <h3 className="mt-2 text-[clamp(1.75rem,4vw,4.25rem)] font-black uppercase leading-[0.9] tracking-[-0.06em] text-white drop-shadow-2xl">
+            {item.title}
+          </h3>
+          <p className="mt-3 line-clamp-2 max-w-[540px] text-sm font-medium leading-6 text-white/74 sm:text-[15px]">
+            {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
+          </p>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onSelect(item)}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black uppercase tracking-[-0.01em] text-black shadow-2xl transition hover:scale-[1.02] hover:bg-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan"
+            >
+              <Play size={16} fill="currentColor" />
+              Guarda ora
+            </button>
+            <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/70 backdrop-blur">
+              {module.title}
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SonicPlaylistThumbnail({
+  item,
+  active,
+  onPreview,
+  onSelect,
+}: {
+  item: MediaItem;
+  active: boolean;
+  onPreview: () => void;
+  onSelect: (item: MediaItem) => void;
+}) {
+  return (
+    <article
+      className={`sonicplaylist__thumb group/thumb relative aspect-video w-[46vw] min-w-[190px] max-w-[230px] shrink-0 snap-start overflow-hidden rounded-[14px] border bg-black text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[30vw] lg:w-[14.5vw] ${
+        active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
+      }`}
+      onMouseEnter={onPreview}
+    >
+      <button type="button" onClick={onPreview} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
+      <Image
+        src={item.image}
+        alt=""
+        fill
+        loading="lazy"
+        sizes="230px"
+        className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/18 to-transparent" />
+      <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
+        <span className="rounded-full bg-black/55 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white/78 backdrop-blur">
+          {item.subtitle || "On demand"}
+        </span>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(item);
+          }}
+          className="relative z-20 grid size-8 place-items-center rounded-full bg-white text-black opacity-0 shadow-xl transition group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100"
+          aria-label={`Guarda ${item.title}`}
+        >
+          <Play size={13} fill="currentColor" />
+        </button>
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 p-3">
+        <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
+          {item.title}
+        </p>
+        <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-white/62">
+          {item.description || item.subtitle || "Disponibile ora"}
+        </p>
+      </div>
+    </article>
+  );
+}
+
 function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
-  const featured = module.items[0];
-  const items = module.items.slice(1);
+  const [activeId, setActiveId] = useState<string | null>(module.items[0]?.id ?? null);
+  const featured = module.items.find((item) => item.id === activeId) ?? module.items[0];
+  const items = module.items;
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <ModuleShell module={module} onPrev={() => scroll(-1)} onNext={() => scroll(1)}>
-      <div className="flex gap-4 overflow-hidden px-[3%]">
-        <FeaturedPlayer item={featured} onSelect={onSelect} />
-        <div ref={railRef} className="no-scrollbar flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:gap-4">
+    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative overflow-hidden py-8 sm:py-10 lg:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
+      <div className="relative z-10 px-[3%]">
+        <div className="mb-5 flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end">
+          <div>
+            <p className="carousel-static-reveal text-[11px] font-black uppercase tracking-[0.22em] text-cyan/85">
+              Playlist
+            </p>
+            <h2 className="carousel-static-reveal mt-1 max-w-4xl text-[clamp(1.55rem,3.2vw,3.35rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
+              {module.title}
+            </h2>
+            {module.subtitle ? (
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p>
+            ) : null}
+          </div>
+
+          <div className="carousel-static-reveal flex items-center gap-2">
+            <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
+            <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(560px,4fr)_minmax(0,3fr)] xl:grid-cols-[minmax(680px,4fr)_minmax(0,3fr)]">
+          <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
+          <div
+            ref={railRef}
+            className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 lg:items-start lg:pt-1 xl:gap-4"
+          >
           {module.items.length > 0 ? (
-            (items.length > 0 ? items : module.items).map((item) => (
-              <MediaThumbnail key={item.id} item={item} onSelect={onSelect} />
+            items.map((item) => (
+              <SonicPlaylistThumbnail
+                key={item.id}
+                item={item}
+                active={item.id === featured?.id}
+                onPreview={() => setActiveId(item.id)}
+                onSelect={onSelect}
+              />
             ))
           ) : (
             <EmptyModuleNotice />
           )}
+          </div>
         </div>
       </div>
-    </ModuleShell>
+    </section>
   );
 }
 
