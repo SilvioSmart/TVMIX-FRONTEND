@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { CheckCircle2, Clapperboard, FileVideo, Folder, Pencil, PlayCircle, Plus, Search, Trash2, Upload, Wand2 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Hls from "hls.js";
+import { Camera, CheckCircle2, FileVideo, Pause, Pencil, Play, PlayCircle, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
   formatDate,
@@ -78,6 +79,7 @@ export function ContentSection({ onNotify }: Props) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcodingId, setTranscodingId] = useState<string | null>(null);
   const [backgroundUploads, setBackgroundUploads] = useState<Record<string, BackgroundUpload>>({});
+  const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,6 +206,7 @@ export function ContentSection({ onNotify }: Props) {
               onEdit={() => setEditing(video)}
               onDelete={() => void remove(video.id)}
               onTranscode={() => void startTranscode(video)}
+              onOpenPlayer={() => setPlayingVideo(video)}
             />
           ))}
         </section>
@@ -253,6 +256,19 @@ export function ContentSection({ onNotify }: Props) {
           }}
         />
       ) : null}
+
+      {playingVideo ? (
+        <VideoPlayerModal
+          video={playingVideo}
+          onClose={() => setPlayingVideo(null)}
+          onNotify={onNotify}
+          onUpdated={async (updated) => {
+            setVideos((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+            setPlayingVideo(updated);
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -264,6 +280,7 @@ function ContentCard({
   onEdit,
   onDelete,
   onTranscode,
+  onOpenPlayer,
 }: {
   video: Video;
   backgroundUpload?: BackgroundUpload;
@@ -271,6 +288,7 @@ function ContentCard({
   onEdit: () => void;
   onDelete: () => void;
   onTranscode: () => void;
+  onOpenPlayer: () => void;
 }) {
   const ready = video.processingStatus === "READY" && Boolean(video.hlsUrl);
   const originalFolder = folderOf(video.sourceObjectKey);
@@ -280,17 +298,9 @@ function ContentCard({
   return (
     <article className="grid gap-4 p-4 xl:grid-cols-[180px_1fr_auto] xl:items-start sm:px-5">
       <div className="relative aspect-video overflow-hidden rounded-lg bg-[#102238]">
-        {video.hlsUrl ? (
-          <video src={video.hlsUrl} poster={video.thumbnailUrl ?? undefined} muted preload="metadata" className="h-full w-full object-cover" />
-        ) : video.thumbnailUrl ? (
-          <Image src={video.thumbnailUrl} alt="" fill sizes="180px" className="object-cover" />
-        ) : (
-          <div className="grid h-full place-items-center text-slate-600">
-            <FileVideo size={30} />
-          </div>
-        )}
+        <HoverVideoPreview video={video} onOpen={onOpenPlayer} />
         <span className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
-          Anteprima
+          {video.hlsUrl ? "Hover play · Click player" : "Anteprima"}
         </span>
       </div>
 
@@ -360,6 +370,251 @@ function ContentCard({
         </ConfirmButton>
       </div>
     </article>
+  );
+}
+
+function attachHls(video: HTMLVideoElement, src: string): Hls | null {
+  video.crossOrigin = "anonymous";
+  if (Hls.isSupported() && src.endsWith(".m3u8")) {
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+    hls.loadSource(src);
+    hls.attachMedia(video);
+    return hls;
+  }
+  video.src = src;
+  return null;
+}
+
+function HoverVideoPreview({ video, onOpen }: { video: Video; onOpen: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !video.hlsUrl) return;
+    hlsRef.current = attachHls(element, video.hlsUrl);
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      element.removeAttribute("src");
+      element.load();
+    };
+  }, [video.hlsUrl]);
+
+  function playPreview() {
+    const element = videoRef.current;
+    if (!element || !video.hlsUrl) return;
+    element.muted = true;
+    void element.play().catch(() => undefined);
+  }
+
+  function pausePreview() {
+    const element = videoRef.current;
+    if (!element) return;
+    element.pause();
+  }
+
+  if (video.hlsUrl) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        onMouseEnter={playPreview}
+        onMouseLeave={pausePreview}
+        onFocus={playPreview}
+        onBlur={pausePreview}
+        className="group/preview block h-full w-full text-left"
+        aria-label={`Apri player ${video.title}`}
+      >
+        <video
+          ref={videoRef}
+          poster={video.thumbnailUrl ?? undefined}
+          muted
+          playsInline
+          preload="metadata"
+          className="h-full w-full object-cover transition duration-300 group-hover/preview:scale-[1.03]"
+        />
+        <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-70" />
+        <span className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-black opacity-0 shadow-xl transition group-hover/preview:opacity-100 group-focus/preview:opacity-100">
+          <Play size={18} fill="currentColor" />
+        </span>
+      </button>
+    );
+  }
+
+  if (video.thumbnailUrl) {
+    return (
+      <button type="button" onClick={onOpen} className="block h-full w-full" aria-label={`Apri player ${video.title}`}>
+        <Image src={video.thumbnailUrl} alt="" fill sizes="180px" className="object-cover" />
+      </button>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onOpen} className="grid h-full w-full place-items-center text-slate-600" aria-label={`Apri player ${video.title}`}>
+      <FileVideo size={30} />
+    </button>
+  );
+}
+
+function VideoPlayerModal({
+  video,
+  onClose,
+  onNotify,
+  onUpdated,
+}: {
+  video: Video;
+  onClose: () => void;
+  onNotify: (message: string) => void;
+  onUpdated: (video: Video) => Promise<void>;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(video.duration ?? 0);
+  const [grabbing, setGrabbing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !video.hlsUrl) return;
+
+    hlsRef.current = attachHls(element, video.hlsUrl);
+    const syncPlay = () => setPlaying(!element.paused);
+    const syncTime = () => setCurrentTime(element.currentTime);
+    const syncDuration = () => {
+      if (Number.isFinite(element.duration)) setDuration(element.duration);
+    };
+
+    element.addEventListener("play", syncPlay);
+    element.addEventListener("pause", syncPlay);
+    element.addEventListener("timeupdate", syncTime);
+    element.addEventListener("loadedmetadata", syncDuration);
+    element.addEventListener("durationchange", syncDuration);
+
+    return () => {
+      element.pause();
+      element.removeEventListener("play", syncPlay);
+      element.removeEventListener("pause", syncPlay);
+      element.removeEventListener("timeupdate", syncTime);
+      element.removeEventListener("loadedmetadata", syncDuration);
+      element.removeEventListener("durationchange", syncDuration);
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      element.removeAttribute("src");
+      element.load();
+    };
+  }, [video.hlsUrl]);
+
+  function seek(value: number) {
+    const element = videoRef.current;
+    if (!element) return;
+    const next = Math.max(0, Math.min(value, duration || value));
+    element.currentTime = next;
+    setCurrentTime(next);
+  }
+
+  function togglePlay() {
+    const element = videoRef.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => undefined);
+    else element.pause();
+  }
+
+  async function grabFrame() {
+    const element = videoRef.current;
+    if (!element || !video.hlsUrl) return;
+    setError(null);
+    setGrabbing(true);
+    try {
+      const saved = await adminRequest<{ data: Video }>(`videos/${video.id}/frame-grab`, {
+        method: "POST",
+        body: JSON.stringify({ time: element.currentTime }),
+      });
+      onNotify("Frame salvato su R2 e copertina aggiornata");
+      await onUpdated(saved.data);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Frame grabber non riuscito";
+      setError(message);
+      onNotify(message);
+    } finally {
+      setGrabbing(false);
+    }
+  }
+
+  return (
+    <AdminModal title={`Player · ${video.title}`} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="relative aspect-video overflow-hidden rounded-xl border border-[#203248] bg-black">
+          {video.hlsUrl ? (
+            <video
+              ref={videoRef}
+              poster={video.thumbnailUrl ?? undefined}
+              playsInline
+              crossOrigin="anonymous"
+              preload="metadata"
+              className="h-full w-full object-contain"
+            />
+          ) : video.thumbnailUrl ? (
+            <Image src={video.thumbnailUrl} alt="" fill sizes="80vw" className="object-contain" />
+          ) : (
+            <div className="grid h-full place-items-center text-slate-500">
+              <FileVideo size={54} />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/70 text-white backdrop-blur transition hover:bg-white hover:text-black"
+            aria-label="Chiudi player"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-[#203248] bg-[#06111d] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={togglePlay} disabled={!video.hlsUrl} className="admin-primary-button">
+              {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+              {playing ? "Pausa" : "Play"}
+            </button>
+            <button type="button" onClick={() => seek(currentTime - 10)} disabled={!video.hlsUrl} className="admin-secondary-button">
+              <RotateCcw size={15} /> -10s
+            </button>
+            <button type="button" onClick={() => seek(currentTime + 10)} disabled={!video.hlsUrl} className="admin-secondary-button">
+              <RotateCw size={15} /> +10s
+            </button>
+            <button type="button" onClick={() => void grabFrame()} disabled={!video.hlsUrl || grabbing} className="admin-secondary-button">
+              <Camera size={16} />
+              {grabbing ? "Salvataggio..." : "Cattura frame"}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-2">
+            <input
+              type="range"
+              min={0}
+              max={Math.max(duration, 1)}
+              step={0.05}
+              value={Math.min(currentTime, Math.max(duration, 1))}
+              onChange={(event) => seek(Number(event.target.value))}
+              disabled={!video.hlsUrl}
+              className="w-full"
+              aria-label="Scorri video avanti e indietro"
+            />
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>{formatDuration(Math.round(currentTime))}</span>
+              <span>{formatDuration(Math.round(duration))}</span>
+            </div>
+          </div>
+
+          {grabbing ? <p className="mt-3 text-xs font-semibold text-[#22bdf3]">Genero il frame e lo salvo su Cloudflare R2...</p> : null}
+          {error ? <p className="mt-3 rounded border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">{error}</p> : null}
+          {!video.hlsUrl ? <p className="mt-3 text-xs text-slate-500">Converti prima il media in HLS per usare player e frame grabber.</p> : null}
+        </div>
+      </div>
+    </AdminModal>
   );
 }
 
