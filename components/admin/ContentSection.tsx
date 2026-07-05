@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Hls from "hls.js";
-import { Camera, CheckCircle2, FileVideo, Pause, Pencil, Play, PlayCircle, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
+import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, Play, PlayCircle, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
@@ -80,6 +80,8 @@ export function ContentSection({ onNotify }: Props) {
   const [transcodingId, setTranscodingId] = useState<string | null>(null);
   const [backgroundUploads, setBackgroundUploads] = useState<Record<string, BackgroundUpload>>({});
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
+  const [infoVideo, setInfoVideo] = useState<Video | null>(null);
+  const [vastVideo, setVastVideo] = useState<Video | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,20 +198,17 @@ export function ContentSection({ onNotify }: Props) {
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun contenuto presente." : undefined} />
 
       {!loading && !error && videos.length ? (
-        <section className="admin-panel divide-y divide-[#1b2b3d] overflow-hidden">
-          {videos.map((video) => (
-            <ContentCard
-              key={video.id}
-              video={video}
-              backgroundUpload={backgroundUploads[video.id]}
-              transcoding={transcodingId === video.id}
-              onEdit={() => setEditing(video)}
-              onDelete={() => void remove(video.id)}
-              onTranscode={() => void startTranscode(video)}
-              onOpenPlayer={() => setPlayingVideo(video)}
-            />
-          ))}
-        </section>
+        <ContentTable
+          videos={videos}
+          backgroundUploads={backgroundUploads}
+          transcodingId={transcodingId}
+          onEdit={(video) => setEditing(video)}
+          onDelete={(video) => void remove(video.id)}
+          onTranscode={(video) => void startTranscode(video)}
+          onOpenPlayer={(video) => setPlayingVideo(video)}
+          onInfo={(video) => setInfoVideo(video)}
+          onVast={(video) => setVastVideo(video)}
+        />
       ) : null}
 
       {editing !== undefined ? (
@@ -269,6 +268,266 @@ export function ContentSection({ onNotify }: Props) {
           }}
         />
       ) : null}
+
+      {infoVideo ? <MediaInfoModal video={infoVideo} onClose={() => setInfoVideo(null)} /> : null}
+      {vastVideo ? <VastConfigModal video={vastVideo} onClose={() => setVastVideo(null)} /> : null}
+    </div>
+  );
+}
+
+function ContentTable({
+  videos,
+  backgroundUploads,
+  transcodingId,
+  onEdit,
+  onDelete,
+  onTranscode,
+  onOpenPlayer,
+  onInfo,
+  onVast,
+}: {
+  videos: Video[];
+  backgroundUploads: Record<string, BackgroundUpload>;
+  transcodingId: string | null;
+  onEdit: (video: Video) => void;
+  onDelete: (video: Video) => void;
+  onTranscode: (video: Video) => void;
+  onOpenPlayer: (video: Video) => void;
+  onInfo: (video: Video) => void;
+  onVast: (video: Video) => void;
+}) {
+  return (
+    <section className="admin-panel overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+          <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <tr>
+              <th className="w-[340px] px-4 py-3 font-semibold">Media</th>
+              <th className="px-4 py-3 font-semibold">Durata</th>
+              <th className="px-4 py-3 font-semibold">Qualità / formato</th>
+              <th className="px-4 py-3 font-semibold">Tracce audio</th>
+              <th className="px-4 py-3 font-semibold">Catalogo</th>
+              <th className="px-4 py-3 font-semibold">HLS</th>
+              <th className="w-[250px] px-4 py-3 text-right font-semibold">Azioni</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1b2b3d]">
+            {videos.map((video) => (
+              <ContentTableRow
+                key={video.id}
+                video={video}
+                backgroundUpload={backgroundUploads[video.id]}
+                transcoding={transcodingId === video.id}
+                onEdit={() => onEdit(video)}
+                onDelete={() => onDelete(video)}
+                onTranscode={() => onTranscode(video)}
+                onOpenPlayer={() => onOpenPlayer(video)}
+                onInfo={() => onInfo(video)}
+                onVast={() => onVast(video)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ContentTableRow({
+  video,
+  backgroundUpload,
+  transcoding,
+  onEdit,
+  onDelete,
+  onTranscode,
+  onOpenPlayer,
+  onInfo,
+  onVast,
+}: {
+  video: Video;
+  backgroundUpload?: BackgroundUpload;
+  transcoding: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onTranscode: () => void;
+  onOpenPlayer: () => void;
+  onInfo: () => void;
+  onVast: () => void;
+}) {
+  const duration = describeDuration(video);
+  const hlsReady = video.processingStatus === "READY" && Boolean(video.hlsUrl);
+
+  return (
+    <tr className="align-top transition hover:bg-[#071827]/70">
+      <td className="px-4 py-4">
+        <div className="flex min-w-0 gap-3">
+          <div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg bg-[#102238]">
+            <HoverVideoPreview video={video} onOpen={onOpenPlayer} />
+            <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              {playableAdminUrl(video) ? "Hover play · click" : "Anteprima"}
+            </span>
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h3 className="max-w-[160px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
+              <StatusPill status={video.processingStatus} />
+              <span className={`rounded border px-2 py-0.5 text-[10px] ${video.published ? "border-emerald-400/40 text-emerald-400" : "border-[#31445a] text-slate-400"}`}>
+                {video.published ? "Pubblicato" : "Bozza"}
+              </span>
+            </div>
+            <p className="mt-1 truncate font-mono text-xs text-slate-500">#{video.slug}</p>
+            <p className="mt-1 text-xs text-slate-400">{video.category.name}</p>
+            {video.processingError ? <p className="mt-2 line-clamp-2 rounded border border-red-400/25 bg-red-500/10 px-2 py-1 text-[11px] text-red-200">{video.processingError}</p> : null}
+            {backgroundUpload ? (
+              <Progress
+                value={backgroundUpload.progress}
+                label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload background"} · ${backgroundUpload.fileName}`}
+              />
+            ) : null}
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4 text-xs">
+        <p className="font-semibold text-slate-200">{duration.time}</p>
+        <p className="mt-1 text-slate-500">{duration.fps}</p>
+      </td>
+      <td className="px-4 py-4 text-xs">
+        <p className="font-semibold text-slate-200">{video.videoQuality ?? "non rilevata"}</p>
+        <p className="mt-1 text-slate-500">{video.mediaFormat ?? (video.hlsUrl ? "HLS" : "non rilevato")}</p>
+      </td>
+      <td className="max-w-[170px] px-4 py-4 text-xs text-slate-300">
+        {summarizeAudio(video.audioTracks)}
+      </td>
+      <td className="px-4 py-4 text-xs">
+        <CatalogIndicator video={video} />
+      </td>
+      <td className="px-4 py-4 text-xs">
+        <HlsIndicator video={video} />
+        {hlsReady ? <p className="mt-1 truncate text-slate-500" title={video.convertedObjectKey ?? video.hlsUrl ?? ""}>{fileNameOf(video.convertedObjectKey) ?? "master.m3u8"}</p> : null}
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <button
+            type="button"
+            disabled={transcoding || Boolean(backgroundUpload) || !video.sourceObjectKey || ["UPLOADING", "QUEUED", "PROCESSING"].includes(video.processingStatus)}
+            onClick={onTranscode}
+            className="admin-secondary-button px-2.5 py-2 text-xs"
+            title={!video.sourceObjectKey ? "Carica prima il file sorgente" : "Avvia conversione HLS"}
+          >
+            <PlayCircle size={15} />
+            {transcoding ? "Avvio..." : "HLS"}
+          </button>
+          <button type="button" aria-label={`Modifica ${video.title}`} onClick={onEdit} className="admin-icon-button" title="Modifica">
+            <Pencil size={16} />
+          </button>
+          <ConfirmButton label={`Elimina ${video.title}`} onConfirm={onDelete} className="admin-icon-button hover:text-red-400">
+            <Trash2 size={16} />
+          </ConfirmButton>
+          <button type="button" aria-label={`Info media ${video.title}`} onClick={onInfo} className="admin-icon-button" title="Info media">
+            <Info size={16} />
+          </button>
+          <button type="button" aria-label={`VAST config ${video.title}`} onClick={onVast} className="admin-icon-button" title="VAST config">
+            <BadgeDollarSign size={16} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function CatalogIndicator({ video }: { video: Video }) {
+  if (!video.seasonId || !video.season) {
+    return (
+      <span className="inline-flex rounded border border-[#31445a] px-2 py-1 text-[10px] font-semibold text-slate-400">
+        Non catalogato
+      </span>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <span className="inline-flex rounded border border-emerald-400/40 px-2 py-1 text-[10px] font-semibold text-emerald-300">
+        In catalogo
+      </span>
+      <p className="text-slate-300">{video.season.program?.name ?? video.season.programId}</p>
+      <p className="font-mono text-[11px] text-slate-500">
+        SER {video.season.programId} · ST {video.seasonId}
+        {video.episodeCode ? ` · EP ${video.episodeCode}` : video.episodeNumber ? ` · EP ${video.episodeNumber}` : ""}
+      </p>
+    </div>
+  );
+}
+
+function HlsIndicator({ video }: { video: Video }) {
+  const ready = video.processingStatus === "READY" && Boolean(video.hlsUrl);
+  const failed = video.processingStatus === "FAILED";
+  const active = ["UPLOADING", "QUEUED", "PROCESSING"].includes(video.processingStatus);
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${
+      ready
+        ? "border-emerald-400/40 text-emerald-300"
+        : failed
+          ? "border-red-400/40 text-red-300"
+          : active
+            ? "border-amber-300/40 text-amber-200"
+            : "border-[#31445a] text-slate-400"
+    }`}>
+      {ready ? <CheckCircle2 size={12} /> : null}
+      {ready ? "Convertito HLS" : active ? processingLabels[video.processingStatus] : failed ? "Errore HLS" : "Non convertito"}
+    </span>
+  );
+}
+
+function MediaInfoModal({ video, onClose }: { video: Video; onClose: () => void }) {
+  const hlsPath = video.convertedObjectKey ?? folderFromUrl(video.hlsUrl);
+  const originalPath = video.sourceObjectKey ?? "non disponibile";
+
+  return (
+    <AdminModal title={`Info media · ${video.title}`} onClose={onClose}>
+      <div className="grid gap-3 text-sm">
+        <InfoRow label="Nome file originale" value={video.originalFileName ?? fileNameOf(video.sourceObjectKey) ?? "non caricato"} />
+        <InfoRow label="Percorso file originale" value={originalPath} monospace />
+        <InfoRow label="Nome file HLS" value={fileNameOf(video.convertedObjectKey) ?? fileNameOf(video.hlsUrl) ?? (video.hlsUrl ? "master.m3u8" : "non convertito")} />
+        <InfoRow label="Percorso file HLS" value={hlsPath ?? "non convertito"} monospace />
+        <InfoRow label="Codice operatore upload" value="non registrato" />
+        <InfoRow label="Data e ora upload" value={formatDate(video.createdAt ?? video.updatedAt)} />
+        <InfoRow label="Stato conversione" value={processingLabels[video.processingStatus]} />
+        <InfoRow label="URL HLS pubblico" value={video.hlsUrl ?? "non disponibile"} monospace />
+      </div>
+    </AdminModal>
+  );
+}
+
+function VastConfigModal({ video, onClose }: { video: Video; onClose: () => void }) {
+  return (
+    <AdminModal title={`VAST config · ${video.title}`} onClose={onClose}>
+      <div className="space-y-4">
+        <p className="rounded border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
+          Pulsante predisposto. Per salvare una configurazione VAST persistente serve aggiungere il modello dati e le API backend dedicate.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Pre-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
+          <Input label="Mid-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
+          <Input label="Post-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
+          <label className="flex items-center gap-3 pt-7 text-sm text-slate-300">
+            <input type="checkbox" disabled className="size-4 accent-[#16b9f4]" />
+            Abilita annunci per questo media
+          </label>
+        </div>
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} className="admin-secondary-button">Chiudi</button>
+        </div>
+      </div>
+    </AdminModal>
+  );
+}
+
+function InfoRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
+  return (
+    <div className="rounded-lg border border-[#1b2b3d] bg-[#06111d] p-3">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-1 break-all text-slate-200 ${monospace ? "font-mono text-xs" : ""}`}>{value}</p>
     </div>
   );
 }
@@ -885,6 +1144,22 @@ function twoDigitUnitsTens(value: number) {
   return `${normalized % 10}${Math.floor(normalized / 10)}`;
 }
 
+function describeDuration(video: Video) {
+  return {
+    time: formatDuration(video.duration),
+    fps: extractFps(video) ?? "fps non rilevati",
+  };
+}
+
+function extractFps(video: Video) {
+  const candidates = [video.videoQuality, video.mediaFormat, stringifyMetadata(video.audioTracks)];
+  for (const candidate of candidates) {
+    const match = candidate?.match(/(\d+(?:[.,]\d+)?)\s*(?:fps|frames\/s|frame_rate)/i);
+    if (match?.[1]) return `${match[1].replace(",", ".")} fps`;
+  }
+  return null;
+}
+
 function formatDuration(seconds: number | null) {
   if (!seconds) return "non rilevata";
   const mins = Math.floor(seconds / 60);
@@ -908,8 +1183,59 @@ function folderFromUrl(value: string | null) {
   }
 }
 
+function fileNameOf(value: string | null) {
+  if (!value) return null;
+  try {
+    const pathname = value.startsWith("http") ? new URL(value).pathname : value;
+    const clean = decodeURIComponent(pathname.split("?")[0] ?? "").replace(/\/+$/, "");
+    return clean.split("/").pop() || null;
+  } catch {
+    return value.split("?")[0]?.split("/").pop() || null;
+  }
+}
+
 function summarizeAudio(value: unknown) {
-  if (Array.isArray(value)) return value.length ? `${value.length} traccia/e` : "nessuna";
-  if (value && typeof value === "object") return "disponibile";
+  if (Array.isArray(value)) {
+    if (!value.length) return "nessuna";
+    const tracks = value.map((track, index) => summarizeAudioTrack(track, index + 1)).filter(Boolean);
+    return tracks.length ? tracks.join(" · ") : `${value.length} traccia/e`;
+  }
+  if (value && typeof value === "object") return summarizeAudioTrack(value, 1) || "disponibile";
   return "non rilevate";
+}
+
+function summarizeAudioTrack(value: unknown, index: number) {
+  if (!value || typeof value !== "object") return `Traccia ${index}`;
+  const data = value as Record<string, unknown>;
+  const rawChannels = data.channels ?? data.channelCount ?? data.audioChannels;
+  const channels = typeof rawChannels === "number" ? rawChannels : typeof rawChannels === "string" ? Number(rawChannels) : null;
+  const layout = typeof data.channelLayout === "string" ? data.channelLayout : typeof data.layout === "string" ? data.layout : null;
+  const mode = layout?.toLowerCase().includes("mono")
+    ? "mono"
+    : layout?.toLowerCase().includes("stereo")
+      ? "stereo"
+      : channels === 1
+        ? "mono"
+        : channels === 2
+          ? "stereo"
+          : channels
+            ? `${channels} canali`
+            : null;
+  const codec = firstString(data.codec, data.codecName, data.format, data.formatName, data.profile);
+  const language = firstString(data.language, data.lang);
+  return [`T${index}`, mode, codec, language].filter(Boolean).join(" / ");
+}
+
+function stringifyMetadata(value: unknown) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+function firstString(...values: unknown[]) {
+  return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim() ?? null;
 }
