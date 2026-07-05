@@ -202,6 +202,15 @@ function CategoryNode({
 }) {
   const key = `category:${category.id}`;
   const open = expanded.has(key);
+  const seasonCount = category.programs.reduce(
+    (total, program) => total + program.seasons.length,
+    0,
+  );
+  const episodeCount = category.programs.reduce(
+    (total, program) =>
+      total + program.seasons.reduce((seasonTotal, season) => seasonTotal + season.episodes.length, 0),
+    0,
+  );
   return (
     <div>
       <TreeRow
@@ -210,7 +219,7 @@ function CategoryNode({
         expandable
         icon={<FolderOpen size={18} />}
         title={category.name}
-        subtitle={`${category._count.programs} programmi · ${category._count.videos} contenuti`}
+        subtitle={`${category.programs.length} programmi · ${seasonCount} stagioni · ${episodeCount} episodi`}
         onToggle={() => onToggle(key)}
         actions={
           <>
