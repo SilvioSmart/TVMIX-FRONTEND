@@ -90,7 +90,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
           collapsed ? "lg:pl-[82px]" : "lg:pl-[246px]",
         ].join(" ")}
       >
-        <header className="sticky top-0 z-30 flex min-h-[84px] items-center border-b border-[#1d3044] bg-[#020a13]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center border-b border-[#1d3044] bg-[#020a13]/90 px-3 backdrop-blur-xl sm:min-h-[84px] sm:px-6 lg:px-8">
           <button
             type="button"
             aria-label="Apri menu"
@@ -100,7 +100,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
             <Menu size={19} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-bold tracking-[-0.025em] sm:text-[22px]">
+            <h1 className="truncate text-base font-bold tracking-[-0.025em] sm:text-[22px]">
               {active === "overview"
                 ? "Configurazione piattaforma"
                 : active === "appearance"
@@ -124,7 +124,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
             />
           </label>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-4">
             <button
               type="button"
               aria-label="Notifiche"
@@ -156,7 +156,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-7">
+        <div className="mx-auto max-w-[1500px] overflow-x-clip p-3 sm:p-6 lg:p-7">
           {active === "overview" ? (
             <OverviewSection onNotify={setNotification} />
           ) : (
@@ -169,9 +169,9 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
           )}
         </div>
 
-        <footer className="mx-auto flex max-w-[1500px] flex-col gap-2 border-t border-[#17293b] px-6 py-5 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="mx-auto flex max-w-[1500px] flex-col gap-2 border-t border-[#17293b] px-4 py-5 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <span>© 2026 TVMIX. Tutti i diritti riservati.</span>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             Versione 1.0.0
             <span className="size-2 rounded-full bg-emerald-400" />
             Tutti i sistemi operativi
@@ -182,7 +182,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
       {notification ? (
         <div
           role="status"
-          className="fixed bottom-5 right-5 z-[70] flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-lg border border-emerald-400/25 bg-[#092119] px-4 py-3 text-sm font-semibold text-emerald-300 shadow-2xl"
+          className="fixed bottom-4 left-3 right-3 z-[70] flex items-center gap-3 rounded-lg border border-emerald-400/25 bg-[#092119] px-4 py-3 text-sm font-semibold text-emerald-300 shadow-2xl sm:left-auto sm:right-5 sm:max-w-[calc(100vw-2.5rem)]"
         >
           <Check size={17} />
           {notification}

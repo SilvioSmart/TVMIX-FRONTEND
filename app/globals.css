@@ -13,6 +13,8 @@
 html {
   scroll-behavior: smooth;
   background: #020711;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -24,6 +26,13 @@ body {
     #020711;
   color: #f8fafc;
   font-family: var(--font-inter), Arial, sans-serif;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 button,

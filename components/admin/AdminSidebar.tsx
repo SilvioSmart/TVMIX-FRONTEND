@@ -44,7 +44,7 @@ export function AdminSidebar({
       <aside
         className={[
           "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[#1d3044] bg-[#04101d] transition-[width,transform] duration-300",
-          collapsed ? "w-[82px]" : "w-[246px]",
+          collapsed ? "w-[82px]" : "w-[min(246px,88vw)]",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
       >

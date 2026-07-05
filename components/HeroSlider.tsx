@@ -182,7 +182,7 @@ export function HeroSlider({
     <section
       aria-roledescription="carousel"
       aria-label="Contenuti in evidenza"
-      className="relative min-h-[640px] overflow-hidden bg-black sm:min-h-[720px] lg:min-h-[760px]"
+      className="relative min-h-[clamp(560px,86svh,760px)] overflow-hidden bg-black"
     >
       {slides.map((slide, index) => (
         <div
@@ -207,7 +207,7 @@ export function HeroSlider({
       <div className="absolute inset-0 bg-[linear-gradient(0deg,#020711_0%,rgba(2,7,17,.58)_18%,transparent_48%,rgba(2,7,17,.45)_100%)]" />
       <div className="absolute inset-y-0 left-0 w-[56vw] bg-[radial-gradient(circle_at_0%_48%,rgba(3,169,244,.14),transparent_34%)]" />
 
-      <div className="relative z-10 flex min-h-[640px] w-full items-end px-4 pb-24 pt-28 sm:min-h-[720px] sm:items-center sm:px-5 sm:pb-16 lg:min-h-[760px] lg:px-6 xl:px-8">
+      <div className="relative z-10 flex min-h-[clamp(560px,86svh,760px)] w-full items-end px-4 pb-24 pt-24 sm:items-center sm:px-5 sm:pb-16 lg:px-6 xl:px-8">
         <div
           key={activeSlide.id}
           className="max-w-[700px] animate-[carousel-mask-open_640ms_cubic-bezier(0.22,1,0.36,1)_both]"
@@ -215,7 +215,7 @@ export function HeroSlider({
           <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.22em] text-white/58 sm:text-sm">
             {activeSlide.eyebrow || "TVMIX Original"}
           </p>
-          <h1 className="max-w-[780px] text-[2.25rem] font-black leading-[1.02] tracking-[-0.045em] text-white/88 sm:text-[3.35rem] lg:text-[4.5rem]">
+          <h1 className="max-w-[780px] text-[clamp(2rem,11vw,4.5rem)] font-black leading-[1.02] tracking-[-0.045em] text-white/88">
             {activeSlide.title.replace(/\n/g, " ")}
           </h1>
           {activeSlide.subtitle ? (
@@ -243,7 +243,7 @@ export function HeroSlider({
             <button
               type="button"
               onClick={handlePlay}
-              className="inline-flex h-10 items-center gap-2 rounded-[3px] bg-cyan px-4 text-sm font-extrabold text-white transition hover:bg-[#18c1ff] sm:h-11 sm:px-5"
+              className="inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-[3px] bg-cyan px-4 text-sm font-extrabold text-white transition hover:bg-[#18c1ff] sm:h-11 sm:px-5"
             >
               <Play size={16} fill="currentColor" />
               {activeSlide.ctaLabel || "Guarda ora"}
@@ -251,7 +251,7 @@ export function HeroSlider({
             <button
               type="button"
               onClick={handleShow}
-              className="inline-flex h-10 items-center rounded-[3px] border border-cyan/60 bg-black/10 px-4 text-sm font-bold text-cyan backdrop-blur-sm transition hover:bg-cyan/10 sm:h-11 sm:px-5"
+              className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-[3px] border border-cyan/60 bg-black/10 px-4 text-sm font-bold text-cyan backdrop-blur-sm transition hover:bg-cyan/10 sm:h-11 sm:px-5"
             >
               Vai allo Show
             </button>

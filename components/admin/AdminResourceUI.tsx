@@ -39,16 +39,16 @@ export function AdminModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/70 p-2 sm:p-4">
       <button type="button" aria-label="Chiudi finestra" className="absolute inset-0" onClick={onClose} />
       <section
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="admin-panel relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6"
+        className="admin-panel relative z-10 max-h-[calc(100svh-1rem)] w-full max-w-[min(42rem,calc(100vw-1rem))] overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6"
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white">{title}</h3>
+        <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
+          <h3 className="min-w-0 truncate text-base font-bold text-white sm:text-lg">{title}</h3>
           <button type="button" aria-label="Chiudi" onClick={onClose} className="admin-icon-button">
             <X size={18} />
           </button>

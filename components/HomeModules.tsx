@@ -137,14 +137,14 @@ function FeaturedPlayer({
   onSelect: (item: MediaItem) => void;
 }) {
   if (!item) {
-    return <div className="aspect-video min-w-[min(88vw,560px)] rounded-md bg-white/5" />;
+    return <div className="aspect-video w-full rounded-md bg-white/5 lg:min-w-[min(44vw,560px)]" />;
   }
 
   return (
     <button
       type="button"
       onClick={() => onSelect(item)}
-      className="relative aspect-video min-w-[min(88vw,560px)] overflow-hidden rounded-md bg-black text-left shadow-2xl shadow-black/30 lg:min-w-[560px]"
+      className="relative aspect-video w-full overflow-hidden rounded-md bg-black text-left shadow-2xl shadow-black/30 lg:min-w-[min(44vw,560px)]"
     >
       {item.hlsUrl ? (
         <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
@@ -304,7 +304,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(560px,4fr)_minmax(0,3fr)] xl:grid-cols-[minmax(680px,4fr)_minmax(0,3fr)]">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,4fr)_minmax(0,3fr)]">
           <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
           <div
             ref={railRef}
@@ -372,9 +372,9 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
 
   return (
     <ModuleShell module={module} onPrev={() => scroll(-1)} onNext={() => scroll(1)}>
-      <div className="flex gap-4 overflow-hidden px-[3%]">
+      <div className="flex flex-col gap-4 overflow-hidden px-[3%] lg:flex-row">
         <FeaturedPlayer item={liveItem} onSelect={onSelect} />
-        <div ref={railRef} className="no-scrollbar flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+        <div ref={railRef} className="no-scrollbar flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
           {module.epg.length > 0 ? module.epg.map((item) => {
             const start = new Date(item.startsAt).getTime();
             const end = new Date(item.endsAt).getTime();

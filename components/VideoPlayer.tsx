@@ -188,7 +188,7 @@ export default function VideoPlayer({
           className="h-1 w-full cursor-pointer"
         />
 
-        <div className="mt-3 flex items-center gap-2 sm:gap-4">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-4">
           <button
             type="button"
             onClick={togglePlay}
@@ -229,16 +229,16 @@ export default function VideoPlayer({
             />
           </div>
 
-          <span className="text-[11px] font-medium tabular-nums text-white/70 sm:text-xs">
+          <span className="min-w-[82px] text-[11px] font-medium tabular-nums text-white/70 sm:min-w-0 sm:text-xs">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
 
-          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
             <select
               value={selectedQuality}
               onChange={(event) => changeQuality(Number(event.target.value))}
               aria-label="Qualità video"
-              className="h-9 rounded border border-white/20 bg-black/45 px-2 text-[11px] font-bold text-white sm:text-xs"
+              className="h-9 max-w-[82px] rounded border border-white/20 bg-black/45 px-2 text-[11px] font-bold text-white sm:max-w-none sm:text-xs"
             >
               <option value={-1}>Auto</option>
               {qualities.map((quality) => (

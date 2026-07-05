@@ -340,7 +340,7 @@ function SeasonNode({
       {open ? (
         <div className="border-t border-[#132436]">
           {season.episodes.length ? season.episodes.map((episode) => (
-            <div key={episode.id} className="group flex min-h-14 items-center gap-3 border-b border-[#102033] py-2.5 pl-[116px] pr-4 last:border-b-0">
+            <div key={episode.id} className="group flex min-h-14 items-center gap-3 border-b border-[#102033] py-2.5 pl-12 pr-3 last:border-b-0 sm:pl-[116px] sm:pr-4">
               <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[#102238] text-slate-400"><Clapperboard size={15} /></span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-200">{episode.title}</p>
@@ -376,18 +376,18 @@ function TreeRow({
 }) {
   return (
     <div
-      className="group flex min-h-16 items-center gap-2 px-4 py-2.5 hover:bg-white/[0.025]"
+      className="group flex min-h-16 items-start gap-2 px-3 py-2.5 hover:bg-white/[0.025] sm:items-center sm:px-4"
       style={{ paddingLeft: `${16 + level * 28}px` }}
     >
       <button type="button" onClick={onToggle} aria-expanded={open} aria-label={`${open ? "Comprimi" : "Espandi"} ${title}`} className="grid size-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white/5 hover:text-white">
         {expandable ? <ChevronRight size={17} className={`transition-transform ${open ? "rotate-90" : ""}`} /> : null}
       </button>
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#102238] text-[#22bdf3]">{icon}</span>
-      <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={onToggle} className="min-w-0 flex-1 pt-1 text-left sm:pt-0">
         <span className="block truncate text-sm font-semibold text-slate-100">{title}</span>
         <span className="block truncate text-[11px] text-slate-500">{subtitle}</span>
       </button>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-70 group-hover:opacity-100">{actions}</div>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5 opacity-80 group-hover:opacity-100">{actions}</div>
     </div>
   );
 }
