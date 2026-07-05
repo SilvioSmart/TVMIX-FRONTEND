@@ -374,8 +374,8 @@ function ContentCard({
 }
 
 function attachHls(video: HTMLVideoElement, src: string): Hls | null {
-  video.crossOrigin = "anonymous";
-  if (Hls.isSupported() && src.endsWith(".m3u8")) {
+  if (Hls.isSupported() && src.includes(".m3u8")) {
+    video.crossOrigin = "anonymous";
     const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
     hls.loadSource(src);
     hls.attachMedia(video);
@@ -385,25 +385,55 @@ function attachHls(video: HTMLVideoElement, src: string): Hls | null {
   return null;
 }
 
+function mediaPublicBase(video: Video) {
+  if (video.hlsUrl) {
+    try {
+      return new URL(video.hlsUrl).origin;
+    } catch {
+      return "https://media.tvmix.it";
+    }
+  }
+  if (video.thumbnailUrl) {
+    try {
+      return new URL(video.thumbnailUrl).origin;
+    } catch {
+      return "https://media.tvmix.it";
+    }
+  }
+  return "https://media.tvmix.it";
+}
+
+function originalPreviewUrl(video: Video) {
+  if (!video.sourceObjectKey) return null;
+  const extension = video.sourceObjectKey.split("?")[0]?.split(".").pop()?.toLowerCase();
+  if (!extension || !["mp4", "mov", "m4v", "webm"].includes(extension)) return null;
+  return `${mediaPublicBase(video)}/${video.sourceObjectKey.replace(/^\/+/, "")}`;
+}
+
+function playableAdminUrl(video: Video) {
+  return originalPreviewUrl(video) ?? video.hlsUrl;
+}
+
 function HoverVideoPreview({ video, onOpen }: { video: Video; onOpen: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const previewUrl = playableAdminUrl(video);
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element || !video.hlsUrl) return;
-    hlsRef.current = attachHls(element, video.hlsUrl);
+    if (!element || !previewUrl) return;
+    hlsRef.current = attachHls(element, previewUrl);
     return () => {
       hlsRef.current?.destroy();
       hlsRef.current = null;
       element.removeAttribute("src");
       element.load();
     };
-  }, [video.hlsUrl]);
+  }, [previewUrl]);
 
   function playPreview() {
     const element = videoRef.current;
-    if (!element || !video.hlsUrl) return;
+    if (!element || !previewUrl) return;
     element.muted = true;
     void element.play().catch(() => undefined);
   }
@@ -414,7 +444,7 @@ function HoverVideoPreview({ video, onOpen }: { video: Video; onOpen: () => void
     element.pause();
   }
 
-  if (video.hlsUrl) {
+  if (previewUrl) {
     return (
       <button
         type="button"
@@ -475,12 +505,13 @@ function VideoPlayerModal({
   const [duration, setDuration] = useState(video.duration ?? 0);
   const [grabbing, setGrabbing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const playerUrl = playableAdminUrl(video);
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element || !video.hlsUrl) return;
+    if (!element || !playerUrl) return;
 
-    hlsRef.current = attachHls(element, video.hlsUrl);
+    hlsRef.current = attachHls(element, playerUrl);
     const syncPlay = () => setPlaying(!element.paused);
     const syncTime = () => setCurrentTime(element.currentTime);
     const syncDuration = () => {
@@ -505,7 +536,7 @@ function VideoPlayerModal({
       element.removeAttribute("src");
       element.load();
     };
-  }, [video.hlsUrl]);
+  }, [playerUrl]);
 
   function seek(value: number) {
     const element = videoRef.current;
@@ -524,7 +555,7 @@ function VideoPlayerModal({
 
   async function grabFrame() {
     const element = videoRef.current;
-    if (!element || !video.hlsUrl) return;
+    if (!element || !playerUrl) return;
     setError(null);
     setGrabbing(true);
     try {
@@ -547,12 +578,11 @@ function VideoPlayerModal({
     <AdminModal title={`Player · ${video.title}`} onClose={onClose}>
       <div className="space-y-4">
         <div className="relative aspect-video overflow-hidden rounded-xl border border-[#203248] bg-black">
-          {video.hlsUrl ? (
+          {playerUrl ? (
             <video
               ref={videoRef}
               poster={video.thumbnailUrl ?? undefined}
               playsInline
-              crossOrigin="anonymous"
               preload="metadata"
               className="h-full w-full object-contain"
             />
@@ -575,17 +605,17 @@ function VideoPlayerModal({
 
         <div className="rounded-xl border border-[#203248] bg-[#06111d] p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={togglePlay} disabled={!video.hlsUrl} className="admin-primary-button">
+            <button type="button" onClick={togglePlay} disabled={!playerUrl} className="admin-primary-button">
               {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
               {playing ? "Pausa" : "Play"}
             </button>
-            <button type="button" onClick={() => seek(currentTime - 10)} disabled={!video.hlsUrl} className="admin-secondary-button">
+            <button type="button" onClick={() => seek(currentTime - 10)} disabled={!playerUrl} className="admin-secondary-button">
               <RotateCcw size={15} /> -10s
             </button>
-            <button type="button" onClick={() => seek(currentTime + 10)} disabled={!video.hlsUrl} className="admin-secondary-button">
+            <button type="button" onClick={() => seek(currentTime + 10)} disabled={!playerUrl} className="admin-secondary-button">
               <RotateCw size={15} /> +10s
             </button>
-            <button type="button" onClick={() => void grabFrame()} disabled={!video.hlsUrl || grabbing} className="admin-secondary-button">
+            <button type="button" onClick={() => void grabFrame()} disabled={!playerUrl || grabbing || !video.sourceObjectKey} className="admin-secondary-button">
               <Camera size={16} />
               {grabbing ? "Salvataggio..." : "Cattura frame"}
             </button>
@@ -599,7 +629,7 @@ function VideoPlayerModal({
               step={0.05}
               value={Math.min(currentTime, Math.max(duration, 1))}
               onChange={(event) => seek(Number(event.target.value))}
-              disabled={!video.hlsUrl}
+              disabled={!playerUrl}
               className="w-full"
               aria-label="Scorri video avanti e indietro"
             />
@@ -611,7 +641,12 @@ function VideoPlayerModal({
 
           {grabbing ? <p className="mt-3 text-xs font-semibold text-[#22bdf3]">Genero il frame e lo salvo su Cloudflare R2...</p> : null}
           {error ? <p className="mt-3 rounded border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">{error}</p> : null}
-          {!video.hlsUrl ? <p className="mt-3 text-xs text-slate-500">Converti prima il media in HLS per usare player e frame grabber.</p> : null}
+          {!playerUrl ? <p className="mt-3 text-xs text-slate-500">Carica prima un sorgente video MP4 o converti il media in HLS per usare il player.</p> : null}
+          {playerUrl && !originalPreviewUrl(video) ? (
+            <p className="mt-3 text-xs text-amber-200/80">
+              Uso HLS come fallback: se il video non appare, configura CORS su media.tvmix.it oppure carica un originale MP4.
+            </p>
+          ) : null}
         </div>
       </div>
     </AdminModal>
