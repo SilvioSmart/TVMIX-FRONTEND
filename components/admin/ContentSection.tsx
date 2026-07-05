@@ -300,7 +300,7 @@ function ContentCard({
       <div className="relative aspect-video overflow-hidden rounded-lg bg-[#102238]">
         <HoverVideoPreview video={video} onOpen={onOpenPlayer} />
         <span className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
-          {video.hlsUrl ? "Hover play · Click player" : "Anteprima"}
+          {playableAdminUrl(video) ? "Hover play · Click player" : "Anteprima"}
         </span>
       </div>
 
@@ -407,7 +407,7 @@ function originalPreviewUrl(video: Video) {
   if (!video.sourceObjectKey) return null;
   const extension = video.sourceObjectKey.split("?")[0]?.split(".").pop()?.toLowerCase();
   if (!extension || !["mp4", "mov", "m4v", "webm"].includes(extension)) return null;
-  return `${mediaPublicBase(video)}/${video.sourceObjectKey.replace(/^\/+/, "")}`;
+  return `${mediaPublicBase(video)}/${encodeURI(video.sourceObjectKey.replace(/^\/+/, ""))}`;
 }
 
 function playableAdminUrl(video: Video) {
