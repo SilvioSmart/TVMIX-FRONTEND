@@ -147,9 +147,9 @@ export default function VideoPlayer({
     <div
       ref={containerRef}
       className={`${theater ? "fixed inset-0 z-[100] bg-black" : "relative"} group aspect-video w-full overflow-hidden bg-black ${className}`}
-      onMouseMove={() => setControlsVisible(true)}
+      onMouseMove={() => playing && setControlsVisible(true)}
       onMouseLeave={() => playing && setControlsVisible(false)}
-      onTouchStart={() => setControlsVisible(true)}
+      onTouchStart={() => playing && setControlsVisible(true)}
     >
       <video
         ref={videoRef}
@@ -174,7 +174,7 @@ export default function VideoPlayer({
 
       <div
         className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/75 to-transparent px-3 pb-3 pt-16 transition duration-300 sm:px-5 sm:pb-5 ${
-          controlsVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+          playing && controlsVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         }`}
       >
         <input

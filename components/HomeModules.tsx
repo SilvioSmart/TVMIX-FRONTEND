@@ -248,7 +248,7 @@ function SonicPlaylistThumbnail({
 }) {
   return (
     <article
-      className={`sonicplaylist__thumb group/thumb relative flex w-[58vw] min-w-[212px] max-w-[263px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[37.5vw] lg:w-[13.75vw] lg:max-w-[213px] ${
+      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
       onMouseEnter={onPreview}
@@ -260,7 +260,7 @@ function SonicPlaylistThumbnail({
           alt=""
           fill
           loading="lazy"
-          sizes="263px"
+          sizes="395px"
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />

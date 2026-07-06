@@ -154,9 +154,8 @@ async function fetchJson<T>(path: string): Promise<T | null> {
 function mapVideo(video: ApiVideo): MediaItem {
   const seasonLabel = video.season
     ? [
-        video.season.program?.name,
         video.season.title || `Stagione ${video.season.number}`,
-        video.episodeCode ? `EP ${video.episodeCode}` : video.episodeNumber ? `Ep. ${video.episodeNumber}` : null,
+        video.episodeNumber ? `Ep. ${video.episodeNumber}` : null,
       ].filter(Boolean).join(" · ")
     : null;
 
