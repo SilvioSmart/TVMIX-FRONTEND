@@ -56,6 +56,13 @@ export default function VideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
+    setPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setQualities([]);
+    setSelectedQuality(-1);
+    setControlsVisible(true);
+
     if (Hls.isSupported() && src.includes(".m3u8")) {
       const hls = new Hls({
         enableWorker: true,
@@ -70,13 +77,14 @@ export default function VideoPlayer({
           label: level.height ? `${level.height}p` : `Livello ${index + 1}`,
         }));
         setQualities(levels);
-        if (autoPlay) void video.play();
+        if (autoPlay) void video.play().catch(() => setControlsVisible(true));
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
-      if (autoPlay) void video.play();
+      if (autoPlay) void video.play().catch(() => setControlsVisible(true));
     } else {
       video.src = src;
+      video.load();
     }
 
     const syncPlay = () => setPlaying(true);
@@ -97,6 +105,8 @@ export default function VideoPlayer({
       video.removeEventListener("durationchange", syncDuration);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      video.removeAttribute("src");
+      video.load();
     };
   }, [autoPlay, src]);
 
@@ -110,7 +120,7 @@ export default function VideoPlayer({
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play();
+    if (video.paused) void video.play().catch(() => setControlsVisible(true));
     else video.pause();
   }, []);
 

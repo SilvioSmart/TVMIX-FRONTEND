@@ -196,7 +196,7 @@ function SonicPlaylistFeatured({
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <div className="relative aspect-video w-full overflow-hidden bg-black">
         {item.hlsUrl ? (
-          <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
+          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} />
         ) : (
           <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
@@ -227,23 +227,20 @@ function SonicPlaylistFeatured({
 function SonicPlaylistThumbnail({
   item,
   active,
-  onPreview,
-  onSelect,
+  onChoose,
 }: {
   item: MediaItem;
   active: boolean;
-  onPreview: () => void;
-  onSelect: (item: MediaItem) => void;
+  onChoose: () => void;
 }) {
   return (
     <article
       className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
-      onMouseEnter={onPreview}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-black">
-        <button type="button" onClick={onPreview} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
+        <button type="button" onClick={onChoose} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
         <Image
           src={item.image}
           alt=""
@@ -257,7 +254,7 @@ function SonicPlaylistThumbnail({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onSelect(item);
+            onChoose();
           }}
           className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full bg-white text-black opacity-0 shadow-xl transition group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100"
           aria-label={`Guarda ${item.title}`}
@@ -297,44 +294,45 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative overflow-hidden py-8 sm:py-10 lg:py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
-        <div className="mb-5 flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end">
-          <div>
-            <p className="carousel-static-reveal text-[11px] font-black uppercase tracking-[0.22em] text-cyan/85">
-              Playlist
-            </p>
-            <h2 className="carousel-static-reveal mt-1 max-w-4xl text-[clamp(1.55rem,3.2vw,3.35rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
-              {module.title}
-            </h2>
-            {module.subtitle ? (
-              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p>
-            ) : null}
-          </div>
-
-          <div className="carousel-static-reveal flex items-center gap-2">
-            <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
-            <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
-          </div>
-        </div>
-
         <div className="grid min-w-0 items-end gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
           <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
-          <div
-            ref={railRef}
-            className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-0 lg:items-end xl:gap-4"
-          >
-          {module.items.length > 0 ? (
-            items.map((item) => (
-              <SonicPlaylistThumbnail
-                key={item.id}
-                item={item}
-                active={item.id === featured?.id}
-                onPreview={() => setActiveId(item.id)}
-                onSelect={onSelect}
-              />
-            ))
-          ) : (
-            <EmptyModuleNotice />
-          )}
+          <div className="flex min-w-0 flex-col justify-end gap-4">
+            <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan/85">
+                  Playlist
+                </p>
+                <h2 className="mt-1 max-w-4xl text-[clamp(1.35rem,2.45vw,2.7rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
+                  {module.title}
+                </h2>
+                {module.subtitle ? (
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
+                <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
+              </div>
+            </div>
+
+            <div
+              ref={railRef}
+              className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-0 lg:items-end xl:gap-4"
+            >
+              {module.items.length > 0 ? (
+                items.map((item) => (
+                  <SonicPlaylistThumbnail
+                    key={item.id}
+                    item={item}
+                    active={item.id === featured?.id}
+                    onChoose={() => setActiveId(item.id)}
+                  />
+                ))
+              ) : (
+                <EmptyModuleNotice />
+              )}
+            </div>
           </div>
         </div>
       </div>
