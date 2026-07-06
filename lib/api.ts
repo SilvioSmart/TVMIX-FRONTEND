@@ -191,7 +191,7 @@ function mapLiveChannel(channel: ApiLiveChannel): MediaItem {
     subtitle: channel.status === "LIVE" ? "In diretta" : channel.status,
     description: channel.description ?? undefined,
     image: channel.posterUrl || FALLBACK_POSTER,
-    hlsUrl: channel.hlsUrl,
+    hlsUrl: proxyMediaUrl(channel.hlsUrl),
     live: channel.status === "LIVE",
   };
 }

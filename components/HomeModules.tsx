@@ -105,6 +105,17 @@ function mediaDurationLabel(item: MediaItem) {
   return item.duration ? formatDuration(item.duration) : "";
 }
 
+function proxyPlaybackUrl(value?: string | null) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "media.tvmix.it") return value;
+    return `/api/media${url.pathname}${url.search}`;
+  } catch {
+    return value;
+  }
+}
+
 function MediaThumbnail({
   item,
   poster = false,
@@ -174,6 +185,57 @@ function FeaturedPlayer({
         <p className="mt-1 line-clamp-2 text-sm text-white/68">{item.description ?? item.subtitle}</p>
       </div>
     </button>
+  );
+}
+
+function SonicLivePlayer({
+  item,
+  module,
+  onSelect,
+}: {
+  item?: MediaItem;
+  module: HomeModule;
+  onSelect: (item: MediaItem) => void;
+}) {
+  if (!item) {
+    return (
+      <div className="sonicplaylist__player min-h-[300px] w-full max-w-[510px] rounded-[18px] border border-white/10 bg-white/[0.04]" />
+    );
+  }
+
+  return (
+    <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
+        {item.hlsUrl ? (
+          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} />
+        ) : (
+          <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
+        )}
+      </div>
+      <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-300">
+          {item.live ? "In diretta" : item.subtitle || "Live"}
+        </p>
+        <h3 className="mt-1 line-clamp-1 text-[clamp(1.05rem,1.65vw,1.65rem)] font-black uppercase leading-none tracking-[-0.045em] text-white">
+          {item.title}
+        </h3>
+        <p className="mt-2 line-clamp-2 max-w-[500px] text-sm font-medium leading-5 text-white/70">
+          {item.description || module.subtitle || "Canale live TVMIX con palinsesto aggiornato."}
+        </p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+          <span className="min-w-0 truncate text-left text-[10px] font-black uppercase tracking-[0.13em] text-cyan/90">
+            {module.title}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSelect(item)}
+            className="shrink-0 text-right text-[10px] font-black uppercase tracking-[0.13em] text-white/70"
+          >
+            Apri player
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -371,7 +433,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
         subtitle: stream.status === "LIVE" ? "In diretta" : stream.status,
         description: stream.description ?? undefined,
         image: stream.posterUrl || "/images/senza-filtri-hero.png",
-        hlsUrl: stream.hlsUrl,
+        hlsUrl: proxyPlaybackUrl(stream.hlsUrl),
         live: stream.status === "LIVE",
       }
     : undefined;
@@ -380,39 +442,97 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <ModuleShell module={module} onPrev={() => scroll(-1)} onNext={() => scroll(1)}>
-      <div className="flex flex-col gap-4 overflow-hidden px-[3%] lg:flex-row">
-        <FeaturedPlayer item={liveItem} onSelect={onSelect} />
-        <div ref={railRef} className="no-scrollbar flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-          {module.epg.length > 0 ? module.epg.map((item) => {
-            const start = new Date(item.startsAt).getTime();
-            const end = new Date(item.endsAt).getTime();
-            const progress = now >= start && now <= end ? ((now - start) / (end - start)) * 100 : 0;
-            return (
-              <article
-                key={item.id}
-                className="min-w-[260px] snap-start rounded-md border border-white/10 bg-white/[0.045] p-4 backdrop-blur sm:min-w-[320px]"
+    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/epg relative overflow-hidden py-8 sm:py-10 lg:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(239,68,68,0.16),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
+      <div className="relative z-10 px-[3%]">
+        <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
+          <SonicLivePlayer item={liveItem} module={module} onSelect={onSelect} />
+
+          <div className="flex min-w-0 flex-col justify-between gap-4">
+            <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-start">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-300">
+                  <span className="size-2 rounded-full bg-red-400 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
+                  Live & guida TV
+                </p>
+                <h2 className="mt-1 max-w-4xl text-[clamp(1.35rem,2.45vw,2.7rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
+                  {module.title}
+                </h2>
+                {module.subtitle ? (
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
+                <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14]/86 shadow-[0_20px_70px_rgba(0,0,0,0.34)]">
+              <div className="flex min-w-[860px] border-b border-white/10 bg-white/[0.045] text-[10px] font-black uppercase tracking-[0.16em] text-white/46">
+                {Array.from({ length: 7 }).map((_, index) => {
+                  const hour = new Date(now + index * 60 * 60 * 1000);
+                  return (
+                    <span key={index} className="w-[180px] shrink-0 border-r border-white/10 px-4 py-3">
+                      {hour.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <div
+                ref={railRef}
+                className="no-scrollbar flex min-h-[236px] min-w-0 snap-x snap-mandatory items-stretch gap-0 overflow-x-auto"
               >
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-cyan/80">
-                  <Clock size={14} />
-                  <span>
-                    {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })} -{" "}
-                    {new Date(item.endsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-                <h3 className="mt-3 text-lg font-black tracking-[-0.02em]">{item.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/62">{item.description}</p>
-                <span className="mt-4 block h-1 overflow-hidden rounded-full bg-white/10">
-                  <span className="block h-full rounded-full bg-cyan" style={{ width: `${progress}%` }} />
-                </span>
-              </article>
-            );
-          }) : (
-            <EmptyModuleNotice text="Nessun evento EPG programmato per questa diretta." />
-          )}
+                {module.epg.length > 0 ? module.epg.map((item) => {
+                  const start = new Date(item.startsAt).getTime();
+                  const end = new Date(item.endsAt).getTime();
+                  const durationMinutes = Math.max(30, Math.round((end - start) / 60000));
+                  const progress = now >= start && now <= end ? ((now - start) / (end - start)) * 100 : 0;
+                  const isLive = progress > 0 && progress < 100;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`relative flex min-w-[220px] snap-start flex-col border-r border-white/10 p-4 ${
+                        isLive ? "bg-red-500/[0.13]" : "bg-white/[0.035]"
+                      }`}
+                      style={{ width: `${Math.min(Math.max(durationMinutes * 4, 220), 520)}px` }}
+                    >
+                      <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-white/62">
+                        <Clock size={14} className={isLive ? "text-red-300" : "text-cyan/80"} />
+                        <span>
+                          {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })} -{" "}
+                          {new Date(item.endsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <h3 className="mt-4 line-clamp-2 text-xl font-black uppercase leading-[0.95] tracking-[-0.04em] text-white">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 line-clamp-4 text-sm leading-5 text-white/58">{item.description}</p>
+                      <div className="mt-auto pt-5">
+                        {isLive ? (
+                          <span className="mb-2 inline-flex rounded-full bg-red-400 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-black">
+                            Ora in onda
+                          </span>
+                        ) : null}
+                        <span className="block h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <span className={`block h-full rounded-full ${isLive ? "bg-red-300" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isLive ? 3 : 0)}%` }} />
+                        </span>
+                      </div>
+                    </article>
+                  );
+                }) : (
+                  <div className="p-4">
+                    <EmptyModuleNotice text="Nessun evento EPG programmato per questa diretta." />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </ModuleShell>
+    </section>
   );
 }
 
