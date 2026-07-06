@@ -97,6 +97,12 @@ function formatDuration(seconds: number) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
+function mediaMetaLine(item: MediaItem, fallback = "Archivio TVMIX") {
+  return [item.archiveLabel || item.subtitle || fallback, item.duration ? formatDuration(item.duration) : null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function MediaThumbnail({
   item,
   poster = false,
@@ -180,12 +186,12 @@ function SonicPlaylistFeatured({
 }) {
   if (!item) {
     return (
-      <div className="sonicplaylist__player min-h-[360px] w-full max-w-[680px] rounded-[18px] border border-white/10 bg-white/[0.04]" />
+      <div className="sonicplaylist__player min-h-[300px] w-full max-w-[510px] rounded-[18px] border border-white/10 bg-white/[0.04]" />
     );
   }
 
   return (
-    <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[680px]">
+    <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <button
         type="button"
         onClick={() => onSelect(item)}
@@ -195,7 +201,7 @@ function SonicPlaylistFeatured({
         {item.hlsUrl ? (
           <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
         ) : (
-          <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 680px, 94vw" className="object-cover" />
+          <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.48)_0%,rgba(0,0,0,0.12)_46%,rgba(0,0,0,0.03)_100%)]" />
         <span className="absolute left-5 top-5 inline-grid size-12 place-items-center rounded-full bg-white text-black opacity-95 shadow-xl transition group-hover/player:scale-105 group-hover/player:bg-cyan">
@@ -203,25 +209,17 @@ function SonicPlaylistFeatured({
         </span>
       </button>
 
-      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5 sm:p-6">
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">
-          {item.categoryName || item.subtitle || module.subtitle || "TVMIX"}
-        </p>
-        <h3 className="mt-2 text-[clamp(1.55rem,3vw,3.35rem)] font-black uppercase leading-[0.92] tracking-[-0.055em] text-white">
+      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+        <h3 className="text-[clamp(1.25rem,2.2vw,2.35rem)] font-black uppercase leading-[0.94] tracking-[-0.05em] text-white">
           {item.title}
         </h3>
-        <p className="mt-3 line-clamp-3 max-w-[620px] text-sm font-medium leading-6 text-white/70 sm:text-[15px]">
+        <p className="mt-2 line-clamp-2 max-w-[500px] text-sm font-medium leading-5 text-white/70">
           {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
         </p>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {item.duration ? (
-            <span className="rounded-full border border-white/12 bg-white/[0.07] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.13em] text-white/72">
-              {formatDuration(item.duration)}
-            </span>
-          ) : null}
-          <span className="rounded-full border border-cyan/25 bg-cyan/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.13em] text-cyan/90">
-            {item.archiveLabel || module.title}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-cyan/25 bg-cyan/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-cyan/90">
+            {mediaMetaLine(item, module.title)}
           </span>
           <button
             type="button"
@@ -250,7 +248,7 @@ function SonicPlaylistThumbnail({
 }) {
   return (
     <article
-      className={`sonicplaylist__thumb group/thumb relative flex w-[46vw] min-w-[170px] max-w-[210px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[30vw] lg:w-[11vw] lg:max-w-[170px] ${
+      className={`sonicplaylist__thumb group/thumb relative flex w-[58vw] min-w-[212px] max-w-[263px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[37.5vw] lg:w-[13.75vw] lg:max-w-[213px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
       onMouseEnter={onPreview}
@@ -262,13 +260,10 @@ function SonicPlaylistThumbnail({
           alt=""
           fill
           loading="lazy"
-          sizes="210px"
+          sizes="263px"
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-white/78 backdrop-blur">
-          {item.duration ? formatDuration(item.duration) : item.subtitle || "On demand"}
-        </span>
         <button
           type="button"
           onClick={(event) => {
@@ -281,12 +276,15 @@ function SonicPlaylistThumbnail({
           <Play size={12} fill="currentColor" />
         </button>
       </div>
-      <div className="min-h-[98px] border-t border-white/10 p-3">
+      <div className="min-h-[118px] border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
           {item.title}
         </p>
         <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
-          {item.archiveLabel || item.subtitle || "Disponibile ora"}
+          {item.description || "Contenuto disponibile nel catalogo TVMIX."}
+        </p>
+        <p className="mt-2 line-clamp-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
+          {mediaMetaLine(item)}
         </p>
       </div>
     </article>
@@ -324,11 +322,11 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
 
-        <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(520px,680px)_minmax(0,1fr)] xl:gap-5">
+        <div className="grid min-w-0 items-end gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
           <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
           <div
             ref={railRef}
-            className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-2 lg:min-h-[420px] lg:items-end lg:pt-1 xl:gap-4"
+            className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-0 lg:items-end xl:gap-4"
           >
           {module.items.length > 0 ? (
             items.map((item) => (
