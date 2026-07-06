@@ -97,10 +97,12 @@ function formatDuration(seconds: number) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
-function mediaMetaLine(item: MediaItem, fallback = "Archivio TVMIX") {
-  return [item.archiveLabel || item.subtitle || fallback, item.duration ? formatDuration(item.duration) : null]
-    .filter(Boolean)
-    .join(" · ");
+function mediaArchiveLabel(item: MediaItem, fallback = "Archivio TVMIX") {
+  return item.archiveLabel || item.subtitle || fallback;
+}
+
+function mediaDurationLabel(item: MediaItem) {
+  return item.duration ? formatDuration(item.duration) : "";
 }
 
 function MediaThumbnail({
@@ -192,43 +194,30 @@ function SonicPlaylistFeatured({
 
   return (
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
-      <button
-        type="button"
-        onClick={() => onSelect(item)}
-        className="relative block aspect-video w-full overflow-hidden bg-black text-left"
-        aria-label={`Riproduci ${item.title}`}
-      >
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
         {item.hlsUrl ? (
           <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
         ) : (
           <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.48)_0%,rgba(0,0,0,0.12)_46%,rgba(0,0,0,0.03)_100%)]" />
-        <span className="absolute left-5 top-5 inline-grid size-12 place-items-center rounded-full bg-white text-black opacity-95 shadow-xl transition group-hover/player:scale-105 group-hover/player:bg-cyan">
-          <Play size={18} fill="currentColor" />
-        </span>
-      </button>
+      </div>
 
-      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
-        <h3 className="text-[clamp(1.25rem,2.2vw,2.35rem)] font-black uppercase leading-[0.94] tracking-[-0.05em] text-white">
+      <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+        <h3 className="line-clamp-1 text-[clamp(1.05rem,1.65vw,1.65rem)] font-black uppercase leading-none tracking-[-0.045em] text-white">
           {item.title}
         </h3>
         <p className="mt-2 line-clamp-2 max-w-[500px] text-sm font-medium leading-5 text-white/70">
           {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
         </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-cyan/25 bg-cyan/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-cyan/90">
-            {mediaMetaLine(item, module.title)}
+        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+          <span className="min-w-0 truncate text-left text-[10px] font-black uppercase tracking-[0.13em] text-cyan/90">
+            {mediaArchiveLabel(item, module.title)}
           </span>
-          <button
-            type="button"
-            onClick={() => onSelect(item)}
-            className="ml-0 inline-flex h-9 items-center gap-2 rounded-full bg-white px-4 text-xs font-black uppercase tracking-[-0.01em] text-black shadow-xl transition hover:scale-[1.02] hover:bg-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan sm:ml-auto"
-          >
-            <Play size={14} fill="currentColor" />
-            Guarda
-          </button>
+          <span className="shrink-0 text-right text-[10px] font-black uppercase tracking-[0.13em] text-white/70">
+            {mediaDurationLabel(item)}
+          </span>
         </div>
       </div>
     </article>
@@ -276,16 +265,21 @@ function SonicPlaylistThumbnail({
           <Play size={12} fill="currentColor" />
         </button>
       </div>
-      <div className="min-h-[118px] border-t border-white/10 p-3">
+      <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
           {item.title}
         </p>
         <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
           {item.description || "Contenuto disponibile nel catalogo TVMIX."}
         </p>
-        <p className="mt-2 line-clamp-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
-          {mediaMetaLine(item)}
-        </p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+          <span className="min-w-0 truncate text-left text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
+            {mediaArchiveLabel(item)}
+          </span>
+          <span className="shrink-0 text-right text-[9px] font-black uppercase tracking-[0.13em] text-white/68">
+            {mediaDurationLabel(item)}
+          </span>
+        </div>
       </div>
     </article>
   );
