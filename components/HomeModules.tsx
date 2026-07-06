@@ -88,6 +88,15 @@ function EmptyModuleNotice({ text = "Nessun contenuto pubblicato per questo modu
   );
 }
 
+function formatDuration(seconds: number) {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
 function MediaThumbnail({
   item,
   poster = false,
@@ -171,46 +180,57 @@ function SonicPlaylistFeatured({
 }) {
   if (!item) {
     return (
-      <div className="sonicplaylist__player aspect-video w-full rounded-[18px] border border-white/10 bg-white/[0.04]" />
+      <div className="sonicplaylist__player min-h-[360px] w-full max-w-[680px] rounded-[18px] border border-white/10 bg-white/[0.04]" />
     );
   }
 
   return (
-    <article className="sonicplaylist__player group/player relative aspect-video w-full overflow-hidden rounded-[18px] border border-white/10 bg-black shadow-[0_28px_80px_rgba(0,0,0,0.42)]">
-      {item.hlsUrl ? (
-        <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
-      ) : (
-        <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 58vw, 94vw" className="object-cover" />
-      )}
+    <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[680px]">
+      <button
+        type="button"
+        onClick={() => onSelect(item)}
+        className="relative block aspect-video w-full overflow-hidden bg-black text-left"
+        aria-label={`Riproduci ${item.title}`}
+      >
+        {item.hlsUrl ? (
+          <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
+        ) : (
+          <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 680px, 94vw" className="object-cover" />
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.48)_0%,rgba(0,0,0,0.12)_46%,rgba(0,0,0,0.03)_100%)]" />
+        <span className="absolute left-5 top-5 inline-grid size-12 place-items-center rounded-full bg-white text-black opacity-95 shadow-xl transition group-hover/player:scale-105 group-hover/player:bg-cyan">
+          <Play size={18} fill="currentColor" />
+        </span>
+      </button>
 
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.26)_42%,rgba(0,0,0,0.08)_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/44 to-transparent" />
+      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-5 sm:p-6">
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">
+          {item.categoryName || item.subtitle || module.subtitle || "TVMIX"}
+        </p>
+        <h3 className="mt-2 text-[clamp(1.55rem,3vw,3.35rem)] font-black uppercase leading-[0.92] tracking-[-0.055em] text-white">
+          {item.title}
+        </h3>
+        <p className="mt-3 line-clamp-3 max-w-[620px] text-sm font-medium leading-6 text-white/70 sm:text-[15px]">
+          {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
+        </p>
 
-      <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 lg:p-8">
-        <div className="max-w-[620px]">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan">
-            {item.subtitle || module.subtitle || "TVMIX"}
-          </p>
-          <h3 className="mt-2 text-[clamp(1.75rem,4vw,4.25rem)] font-black uppercase leading-[0.9] tracking-[-0.06em] text-white drop-shadow-2xl">
-            {item.title}
-          </h3>
-          <p className="mt-3 line-clamp-2 max-w-[540px] text-sm font-medium leading-6 text-white/74 sm:text-[15px]">
-            {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
-          </p>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onSelect(item)}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black uppercase tracking-[-0.01em] text-black shadow-2xl transition hover:scale-[1.02] hover:bg-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan"
-            >
-              <Play size={16} fill="currentColor" />
-              Guarda ora
-            </button>
-            <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/70 backdrop-blur">
-              {module.title}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {item.duration ? (
+            <span className="rounded-full border border-white/12 bg-white/[0.07] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.13em] text-white/72">
+              {formatDuration(item.duration)}
             </span>
-          </div>
+          ) : null}
+          <span className="rounded-full border border-cyan/25 bg-cyan/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.13em] text-cyan/90">
+            {item.archiveLabel || module.title}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSelect(item)}
+            className="ml-0 inline-flex h-9 items-center gap-2 rounded-full bg-white px-4 text-xs font-black uppercase tracking-[-0.01em] text-black shadow-xl transition hover:scale-[1.02] hover:bg-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan sm:ml-auto"
+          >
+            <Play size={14} fill="currentColor" />
+            Guarda
+          </button>
         </div>
       </div>
     </article>
@@ -230,24 +250,24 @@ function SonicPlaylistThumbnail({
 }) {
   return (
     <article
-      className={`sonicplaylist__thumb group/thumb relative aspect-video w-[46vw] min-w-[190px] max-w-[230px] shrink-0 snap-start overflow-hidden rounded-[14px] border bg-black text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[30vw] lg:w-[14.5vw] ${
+      className={`sonicplaylist__thumb group/thumb relative flex w-[46vw] min-w-[170px] max-w-[210px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[30vw] lg:w-[11vw] lg:max-w-[170px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
       onMouseEnter={onPreview}
     >
-      <button type="button" onClick={onPreview} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
-      <Image
-        src={item.image}
-        alt=""
-        fill
-        loading="lazy"
-        sizes="230px"
-        className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/18 to-transparent" />
-      <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
-        <span className="rounded-full bg-black/55 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white/78 backdrop-blur">
-          {item.subtitle || "On demand"}
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
+        <button type="button" onClick={onPreview} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
+        <Image
+          src={item.image}
+          alt=""
+          fill
+          loading="lazy"
+          sizes="210px"
+          className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-white/78 backdrop-blur">
+          {item.duration ? formatDuration(item.duration) : item.subtitle || "On demand"}
         </span>
         <button
           type="button"
@@ -255,18 +275,18 @@ function SonicPlaylistThumbnail({
             event.stopPropagation();
             onSelect(item);
           }}
-          className="relative z-20 grid size-8 place-items-center rounded-full bg-white text-black opacity-0 shadow-xl transition group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100"
+          className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full bg-white text-black opacity-0 shadow-xl transition group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100"
           aria-label={`Guarda ${item.title}`}
         >
-          <Play size={13} fill="currentColor" />
+          <Play size={12} fill="currentColor" />
         </button>
       </div>
-      <div className="absolute bottom-0 left-0 right-0 p-3">
+      <div className="min-h-[98px] border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
           {item.title}
         </p>
-        <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-white/62">
-          {item.description || item.subtitle || "Disponibile ora"}
+        <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
+          {item.archiveLabel || item.subtitle || "Disponibile ora"}
         </p>
       </div>
     </article>
@@ -304,11 +324,11 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
 
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,4fr)_minmax(0,3fr)]">
+        <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(520px,680px)_minmax(0,1fr)] xl:gap-5">
           <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
           <div
             ref={railRef}
-            className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 lg:items-start lg:pt-1 xl:gap-4"
+            className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-2 lg:min-h-[420px] lg:items-end lg:pt-1 xl:gap-4"
           >
           {module.items.length > 0 ? (
             items.map((item) => (

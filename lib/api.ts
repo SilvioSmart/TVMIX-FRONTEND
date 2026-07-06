@@ -12,12 +12,26 @@ type ApiCollection<T> = {
 type ApiVideo = {
   id: string;
   title: string;
+  slug?: string;
   description?: string | null;
   thumbnailUrl?: string | null;
   hlsUrl?: string | null;
+  duration?: number | null;
+  episodeNumber?: number | null;
+  episodeCode?: string | null;
   category?: {
     name: string;
     slug: string;
+  } | null;
+  season?: {
+    id: string;
+    number: number;
+    title?: string | null;
+    program?: {
+      id: string;
+      name: string;
+      slug: string;
+    } | null;
   } | null;
 };
 
@@ -138,6 +152,14 @@ async function fetchJson<T>(path: string): Promise<T | null> {
 }
 
 function mapVideo(video: ApiVideo): MediaItem {
+  const seasonLabel = video.season
+    ? [
+        video.season.program?.name,
+        video.season.title || `Stagione ${video.season.number}`,
+        video.episodeCode ? `EP ${video.episodeCode}` : video.episodeNumber ? `Ep. ${video.episodeNumber}` : null,
+      ].filter(Boolean).join(" · ")
+    : null;
+
   return {
     id: video.id,
     title: video.title,
@@ -145,6 +167,9 @@ function mapVideo(video: ApiVideo): MediaItem {
     description: video.description ?? undefined,
     image: video.thumbnailUrl || FALLBACK_POSTER,
     hlsUrl: video.hlsUrl ?? undefined,
+    duration: video.duration ?? undefined,
+    archiveLabel: seasonLabel ?? video.category?.name ?? "Archivio TVMIX",
+    categoryName: video.category?.name ?? undefined,
   };
 }
 

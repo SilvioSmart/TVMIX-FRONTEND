@@ -5,6 +5,9 @@ export type MediaItem = {
   image: string;
   description?: string;
   hlsUrl?: string;
+  duration?: number;
+  archiveLabel?: string;
+  categoryName?: string;
   live?: boolean;
   progress?: number;
 };
