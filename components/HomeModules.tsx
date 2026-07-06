@@ -200,7 +200,6 @@ function SonicPlaylistFeatured({
         ) : (
           <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.48)_0%,rgba(0,0,0,0.12)_46%,rgba(0,0,0,0.03)_100%)]" />
       </div>
 
       <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
@@ -294,10 +293,10 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative overflow-hidden py-8 sm:py-10 lg:py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
-        <div className="grid min-w-0 items-end gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
+        <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
           <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
-          <div className="flex min-w-0 flex-col justify-end gap-4">
-            <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-end">
+          <div className="flex min-w-0 flex-col justify-between gap-4">
+            <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-start">
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan/85">
                   Playlist

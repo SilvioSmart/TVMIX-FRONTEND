@@ -136,6 +136,7 @@ export type HomeContent = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.tvmix.it";
 const FALLBACK_POSTER = "/images/senza-filtri-hero.png";
+const MEDIA_HOST = "media.tvmix.it";
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   try {
@@ -165,11 +166,22 @@ function mapVideo(video: ApiVideo): MediaItem {
     subtitle: video.category?.name ?? "On demand",
     description: video.description ?? undefined,
     image: video.thumbnailUrl || FALLBACK_POSTER,
-    hlsUrl: video.hlsUrl ?? undefined,
+    hlsUrl: proxyMediaUrl(video.hlsUrl),
     duration: video.duration ?? undefined,
     archiveLabel: seasonLabel ?? video.category?.name ?? "Archivio TVMIX",
     categoryName: video.category?.name ?? undefined,
   };
+}
+
+function proxyMediaUrl(value?: string | null) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.hostname !== MEDIA_HOST) return value;
+    return `/api/media${url.pathname}${url.search}`;
+  } catch {
+    return value;
+  }
 }
 
 function mapLiveChannel(channel: ApiLiveChannel): MediaItem {
