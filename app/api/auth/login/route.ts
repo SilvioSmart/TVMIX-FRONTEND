@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   API_BASE_URL,
   SESSION_COOKIE,
+  SESSION_COOKIE_DOMAIN,
   type AdminUser,
 } from "@/lib/admin-auth";
 
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      domain: SESSION_COOKIE_DOMAIN,
       maxAge: 60 * 60,
     });
     return response;

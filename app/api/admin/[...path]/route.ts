@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { API_BASE_URL, SESSION_COOKIE } from "@/lib/admin-auth";
+import { API_BASE_URL, SESSION_COOKIE, SESSION_COOKIE_DOMAIN } from "@/lib/admin-auth";
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -42,6 +42,7 @@ async function proxy(request: Request, context: RouteContext) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
+        domain: SESSION_COOKIE_DOMAIN,
         maxAge: 0,
       });
       return expired;

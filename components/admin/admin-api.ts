@@ -197,6 +197,12 @@ export type PresignedUpload = {
   requiredHeaders: Record<string, string>;
 };
 
+const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
+
+function adminUploadUrl(path: string) {
+  return `${UPLOAD_API_URL ?? ""}/api/admin/uploads/${path.replace(/^\//, "")}`;
+}
+
 export async function uploadFileToR2(
   file: File,
   onProgress: (percentage: number) => void,
@@ -204,7 +210,8 @@ export async function uploadFileToR2(
 ): Promise<{ uploadId: string; objectKey: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", "/api/admin/uploads/file");
+    request.open("POST", adminUploadUrl("file"));
+    request.withCredentials = true;
     request.setRequestHeader("Content-Type", file.type);
     request.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     if (videoId) request.setRequestHeader("X-Video-Id", videoId);
@@ -248,7 +255,8 @@ export async function uploadMediaAssetToR2(
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", "/api/admin/uploads/file");
+    request.open("POST", adminUploadUrl("file"));
+    request.withCredentials = true;
     request.setRequestHeader("Content-Type", file.type);
     request.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     request.setRequestHeader("X-Upload-Scope", scope);

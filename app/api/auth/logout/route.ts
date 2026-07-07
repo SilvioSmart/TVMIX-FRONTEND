@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/admin-auth";
+import { SESSION_COOKIE, SESSION_COOKIE_DOMAIN } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
   const response = NextResponse.redirect(new URL("/login", request.url), 303);
@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
+    domain: SESSION_COOKIE_DOMAIN,
     maxAge: 0,
   });
   return response;

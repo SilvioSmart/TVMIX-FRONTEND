@@ -3,6 +3,9 @@ import "server-only";
 import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "tvmix_admin_session";
+export const SESSION_COOKIE_DOMAIN =
+  process.env.TVMIX_ADMIN_COOKIE_DOMAIN ??
+  (process.env.NODE_ENV === "production" ? ".tvmix.it" : undefined);
 export const API_BASE_URL =
   process.env.TVMIX_API_URL ?? "https://api.tvmix.it/api/v1";
 
