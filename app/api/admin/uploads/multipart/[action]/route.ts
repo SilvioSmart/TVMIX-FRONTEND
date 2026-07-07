@@ -84,12 +84,12 @@ export async function POST(request: Request, context: RouteContext) {
       const objectKey = request.headers.get("x-object-key");
       const partNumber = request.headers.get("x-part-number");
 
-      if (!request.body || !contentLength || !uploadId || !objectKey || !partNumber) {
+      if (!request.body || !uploadId || !objectKey || !partNumber) {
         return jsonWithCors(request, { error: "Dati parte multipart non validi" }, { status: 400 });
       }
 
       headers.set("Content-Type", "application/octet-stream");
-      headers.set("Content-Length", contentLength);
+      if (contentLength) headers.set("Content-Length", contentLength);
       headers.set("X-Multipart-Upload-Id", uploadId);
       headers.set("X-Object-Key", objectKey);
       headers.set("X-Part-Number", partNumber);
