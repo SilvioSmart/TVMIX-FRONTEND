@@ -111,7 +111,9 @@ export async function POST(request: Request, context: RouteContext) {
     const contentType = response.headers.get("content-type");
     if (contentType) responseHeaders.set("Content-Type", contentType);
 
-    return new NextResponse(await response.text(), {
+    const responseBody = response.status === 204 ? null : await response.text();
+
+    return new NextResponse(responseBody, {
       status: response.status,
       headers: responseHeaders,
     });
