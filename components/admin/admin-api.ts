@@ -197,10 +197,88 @@ export type PresignedUpload = {
   requiredHeaders: Record<string, string>;
 };
 
+type MultipartCreateResponse = {
+  uploadId: string;
+  multipartUploadId: string;
+  objectKey: string;
+  partSize: number;
+  totalParts: number;
+};
+
+type MultipartUploadedPart = {
+  partNumber: number;
+  etag: string;
+};
+
+type MultipartCompleteResponse = {
+  uploadId: string;
+  objectKey: string;
+  originalFileName: string;
+};
+
 const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
 
 function adminUploadUrl(path: string) {
   return `${UPLOAD_API_URL ?? ""}/api/admin/uploads/${path.replace(/^\//, "")}`;
+}
+
+async function multipartRequest<T>(
+  action: "create" | "complete" | "abort",
+  body: unknown,
+): Promise<T> {
+  const response = await fetch(adminUploadUrl(`multipart/${action}`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = response.status === 204 ? null : await response.json();
+
+  if (!response.ok) {
+    throw new Error((payload as ApiError | null)?.error ?? `Upload multipart non riuscito (${response.status})`);
+  }
+
+  return payload as T;
+}
+
+function uploadMultipartPart(
+  file: File,
+  start: number,
+  end: number,
+  partNumber: number,
+  multipartUploadId: string,
+  objectKey: string,
+  onPartProgress: (loaded: number) => void,
+): Promise<MultipartUploadedPart> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", adminUploadUrl("multipart/part"));
+    request.withCredentials = true;
+    request.setRequestHeader("Content-Type", "application/octet-stream");
+    request.setRequestHeader("X-Multipart-Upload-Id", multipartUploadId);
+    request.setRequestHeader("X-Object-Key", objectKey);
+    request.setRequestHeader("X-Part-Number", String(partNumber));
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onPartProgress(event.loaded);
+    };
+    request.onload = () => {
+      let payload: { error?: string; partNumber?: number; etag?: string };
+      try {
+        payload = JSON.parse(request.responseText);
+      } catch {
+        payload = {};
+      }
+
+      if (request.status >= 200 && request.status < 300 && payload.partNumber && payload.etag) {
+        onPartProgress(end - start);
+        resolve({ partNumber: payload.partNumber, etag: payload.etag });
+      } else {
+        reject(new Error(payload.error ?? `Upload parte ${partNumber} non riuscito (${request.status})`));
+      }
+    };
+    request.onerror = () => reject(new Error(`Connessione interrotta durante la parte ${partNumber}`));
+    request.send(file.slice(start, end));
+  });
 }
 
 export async function uploadFileToR2(
@@ -208,44 +286,60 @@ export async function uploadFileToR2(
   onProgress: (percentage: number) => void,
   videoId?: string,
 ): Promise<{ uploadId: string; objectKey: string; originalFileName: string }> {
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    request.open("POST", adminUploadUrl("file"));
-    request.withCredentials = true;
-    request.setRequestHeader("Content-Type", file.type);
-    request.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
-    if (videoId) request.setRequestHeader("X-Video-Id", videoId);
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
-      }
-    };
-    request.onload = () => {
-      let payload: { error?: string; uploadId?: string; objectKey?: string; originalFileName?: string };
-      try {
-        payload = JSON.parse(request.responseText);
-      } catch {
-        payload = {};
-      }
-      if (
-        request.status >= 200 &&
-        request.status < 300 &&
-        payload.uploadId &&
-        payload.objectKey &&
-        payload.originalFileName
-      ) {
-        resolve({
-          uploadId: payload.uploadId,
-          objectKey: payload.objectKey,
-          originalFileName: payload.originalFileName,
-        });
-      } else {
-        reject(new Error(payload.error ?? `Upload R2 non riuscito (${request.status})`));
-      }
-    };
-    request.onerror = () => reject(new Error("Connessione al servizio upload interrotta"));
-    request.send(file);
+  const created = await multipartRequest<MultipartCreateResponse>("create", {
+    fileName: file.name,
+    contentType: file.type,
+    size: file.size,
+    ...(videoId ? { videoId } : {}),
   });
+
+  const loadedByPart = new Map<number, number>();
+  const updateProgress = (partNumber: number, loaded: number) => {
+    loadedByPart.set(partNumber, loaded);
+    const totalLoaded = [...loadedByPart.values()].reduce((sum, value) => sum + value, 0);
+    onProgress(Math.min(99, Math.round((totalLoaded / file.size) * 100)));
+  };
+
+  try {
+    const parts: MultipartUploadedPart[] = [];
+    for (let partNumber = 1; partNumber <= created.totalParts; partNumber += 1) {
+      const start = (partNumber - 1) * created.partSize;
+      const end = Math.min(start + created.partSize, file.size);
+      parts.push(
+        await uploadMultipartPart(
+          file,
+          start,
+          end,
+          partNumber,
+          created.multipartUploadId,
+          created.objectKey,
+          (loaded) => updateProgress(partNumber, loaded),
+        ),
+      );
+    }
+
+    const completed = await multipartRequest<MultipartCompleteResponse>("complete", {
+      uploadId: created.multipartUploadId,
+      objectKey: created.objectKey,
+      fileName: file.name,
+      contentType: file.type,
+      size: file.size,
+      parts,
+    });
+
+    onProgress(100);
+    return {
+      uploadId: created.uploadId,
+      objectKey: completed.objectKey,
+      originalFileName: completed.originalFileName,
+    };
+  } catch (error) {
+    await multipartRequest("abort", {
+      uploadId: created.multipartUploadId,
+      objectKey: created.objectKey,
+    }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function uploadMediaAssetToR2(
