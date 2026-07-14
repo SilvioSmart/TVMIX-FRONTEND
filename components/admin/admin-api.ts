@@ -108,8 +108,28 @@ export type PlatformUser = {
   email: string;
   name: string | null;
   role: "USER" | "EDITOR" | "ADMIN";
+  permissions: UserPermission[];
+  emailVerifiedAt: string | null;
+  emailVerificationExpires: string | null;
+  passwordResetExpires: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type UserPermission =
+  | "CONTENT_VIEW"
+  | "CONTENT_MANAGE"
+  | "CATALOG_MANAGE"
+  | "LIVE_MANAGE"
+  | "APPEARANCE_MANAGE"
+  | "USERS_MANAGE"
+  | "SETTINGS_MANAGE"
+  | "HLS_MANAGE"
+  | "VAST_MANAGE";
+
+export type UserPermissionConfig = {
+  data: { key: UserPermission; label: string }[];
+  defaults: Record<PlatformUser["role"], UserPermission[]>;
 };
 
 export type AppearanceMenuKey = "logo-name" | "menu" | "carousel" | "modules" | "footer";

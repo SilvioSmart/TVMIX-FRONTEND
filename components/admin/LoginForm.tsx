@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -115,6 +116,9 @@ export function LoginForm() {
               {loading ? "Accesso in corso..." : "Accedi"}
             </button>
           </form>
+          <Link href="/forgot-password" className="mt-4 block text-center text-xs font-semibold text-cyan hover:text-white">
+            Hai dimenticato la password?
+          </Link>
         </section>
 
         <p className="mt-5 text-center text-[11px] text-slate-600">
