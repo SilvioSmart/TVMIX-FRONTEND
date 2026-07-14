@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronLeft, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { navigation, type AdminSection, type AppearanceSubnavItem } from "./admin-data";
+import { navigation, type AdminSection, type AppearanceSubnavItem, type NavItem } from "./admin-data";
 import type { AppearanceMenuKey } from "./admin-api";
 
 type AdminSidebarProps = {
@@ -15,6 +15,7 @@ type AdminSidebarProps = {
   onMobileClose: () => void;
   onSelect: (section: AdminSection) => void;
   onSelectAppearance: (section: AppearanceMenuKey) => void;
+  items?: NavItem[];
 };
 
 export function AdminSidebar({
@@ -27,6 +28,7 @@ export function AdminSidebar({
   onMobileClose,
   onSelect,
   onSelectAppearance,
+  items = navigation,
 }: AdminSidebarProps) {
   const appearanceOpen = active === "appearance";
 
@@ -63,7 +65,7 @@ export function AdminSidebar({
         </div>
 
         <nav aria-label="Amministrazione TVMIX" className="flex-1 space-y-2 overflow-y-auto px-3 py-5">
-          {navigation.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             const selected = active === item.id;
             const isAppearance = item.id === "appearance";

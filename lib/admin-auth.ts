@@ -14,7 +14,38 @@ export type AdminUser = {
   email: string;
   name: string | null;
   role: "USER" | "EDITOR" | "ADMIN";
+  permissions: UserPermission[];
+  emailVerifiedAt: string | null;
 };
+
+export type UserPermission =
+  | "CONTENT_VIEW"
+  | "CONTENT_MANAGE"
+  | "CATALOG_MANAGE"
+  | "LIVE_MANAGE"
+  | "APPEARANCE_MANAGE"
+  | "USERS_MANAGE"
+  | "SETTINGS_MANAGE"
+  | "HLS_MANAGE"
+  | "VAST_MANAGE";
+
+const ADMIN_PANEL_PERMISSIONS = new Set<UserPermission>([
+  "CONTENT_VIEW",
+  "CONTENT_MANAGE",
+  "CATALOG_MANAGE",
+  "LIVE_MANAGE",
+  "APPEARANCE_MANAGE",
+  "USERS_MANAGE",
+  "SETTINGS_MANAGE",
+  "HLS_MANAGE",
+  "VAST_MANAGE",
+]);
+
+export function canAccessAdminPanel(user?: Pick<AdminUser, "role" | "permissions"> | null) {
+  if (!user) return false;
+  if (user.role === "ADMIN" || user.role === "EDITOR") return true;
+  return user.permissions?.some((permission) => ADMIN_PANEL_PERMISSIONS.has(permission)) ?? false;
+}
 
 export async function getAdminSession(): Promise<AdminUser | null> {
   const cookieStore = await cookies();
@@ -31,7 +62,7 @@ export async function getAdminSession(): Promise<AdminUser | null> {
     if (!response.ok) return null;
 
     const payload = (await response.json()) as { user?: AdminUser };
-    return payload.user?.role === "ADMIN" ? payload.user : null;
+    return canAccessAdminPanel(payload.user) ? payload.user! : null;
   } catch {
     return null;
   }

@@ -3,6 +3,7 @@ import {
   API_BASE_URL,
   SESSION_COOKIE,
   SESSION_COOKIE_DOMAIN,
+  canAccessAdminPanel,
   type AdminUser,
 } from "@/lib/admin-auth";
 
@@ -37,9 +38,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (payload.user.role !== "ADMIN") {
+    if (!canAccessAdminPanel(payload.user)) {
       return NextResponse.json(
-        { error: "Questo account non dispone dei permessi amministrativi" },
+        { error: "Questo account non dispone dei permessi per accedere al pannello" },
         { status: 403 },
       );
     }

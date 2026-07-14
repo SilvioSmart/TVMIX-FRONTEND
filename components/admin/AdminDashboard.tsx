@@ -1,18 +1,39 @@
 "use client";
 
 import { Bell, Check, LogOut, Menu, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminSidebar } from "./AdminSidebar";
 import {
   fallbackAppearanceMenu,
   navigation,
   type AdminSection,
   type AppearanceSubnavItem,
+  type NavItem,
 } from "./admin-data";
 import { OverviewSection } from "./OverviewSection";
 import { PlatformSections } from "./PlatformSections";
 import type { AdminUser } from "@/lib/admin-auth";
 import { adminRequest, type AppearanceMenuItem, type AppearanceMenuKey } from "./admin-api";
+
+const roleLabels: Record<AdminUser["role"], string> = {
+  ADMIN: "Amministratore",
+  EDITOR: "Editor",
+  USER: "Operatore",
+};
+
+function canUseSection(user: AdminUser, section: AdminSection) {
+  if (user.role === "ADMIN") return true;
+  if (section === "overview") return true;
+  if (section === "users") return user.permissions.includes("USERS_MANAGE");
+  if (section === "content") {
+    return user.permissions.includes("CONTENT_VIEW") || user.permissions.includes("CONTENT_MANAGE");
+  }
+  if (section === "catalog") return user.permissions.includes("CATALOG_MANAGE");
+  if (section === "live") return user.permissions.includes("LIVE_MANAGE");
+  if (section === "appearance") return user.permissions.includes("APPEARANCE_MANAGE");
+  if (section === "settings") return user.permissions.includes("SETTINGS_MANAGE");
+  return false;
+}
 
 export function AdminDashboard({ user }: { user: AdminUser }) {
   const [active, setActive] = useState<AdminSection>("overview");
@@ -22,8 +43,12 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const availableNavigation = useMemo(
+    () => navigation.filter((item) => canUseSection(user, item.id)) as NavItem[],
+    [user],
+  );
 
-  const activeLabel = navigation.find((item) => item.id === active)?.label ?? "Panoramica";
+  const activeLabel = availableNavigation.find((item) => item.id === active)?.label ?? "Panoramica";
   const activeAppearanceLabel =
     appearanceMenu.find((item) => item.key === activeAppearance)?.label ?? "LOGO/NAME";
   const initials = (user.name ?? user.email)
@@ -31,6 +56,12 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+
+  useEffect(() => {
+    if (!availableNavigation.some((item) => item.id === active)) {
+      setActive("overview");
+    }
+  }, [active, availableNavigation]);
 
   useEffect(() => {
     if (!notification) return;
@@ -82,6 +113,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
           setActive("appearance");
           setActiveAppearance(section);
         }}
+        items={availableNavigation}
       />
 
       <div
@@ -148,7 +180,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
                   <span className="block max-w-28 truncate text-xs font-semibold">
                     {user.name ?? user.email}
                   </span>
-                  <span className="block text-[10px] text-slate-500">Amministratore</span>
+                  <span className="block text-[10px] text-slate-500">{roleLabels[user.role]}</span>
                 </span>
                 <LogOut size={14} className="hidden text-slate-500 sm:block" />
               </button>
