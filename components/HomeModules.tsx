@@ -311,17 +311,9 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onChoose();
-          }}
-          className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full bg-white text-black opacity-0 shadow-xl transition group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100"
-          aria-label={`Guarda ${item.title}`}
-        >
-          <Play size={12} fill="currentColor" />
-        </button>
+        <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/25 bg-black/35 text-white shadow-[0_14px_34px_rgba(0,0,0,0.42)] backdrop-blur-sm transition duration-300 group-hover/thumb:scale-105 group-hover/thumb:bg-black/50 group-focus-within/thumb:scale-105 group-focus-within/thumb:bg-black/50">
+          <Play size={22} fill="currentColor" className="translate-x-0.5 opacity-90" />
+        </span>
       </div>
       <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">

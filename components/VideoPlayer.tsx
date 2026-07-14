@@ -3,7 +3,6 @@
 import Hls from "hls.js";
 import {
   Maximize,
-  Minimize,
   Pause,
   Play,
   Volume1,
@@ -49,7 +48,7 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [qualities, setQualities] = useState<QualityLevel[]>([]);
   const [selectedQuality, setSelectedQuality] = useState(-1);
-  const [theater, setTheater] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
 
   useEffect(() => {
@@ -117,6 +116,15 @@ export default function VideoPlayer({
     }
   }, [controlsVisible, playing]);
 
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setFullscreen(document.fullscreenElement === containerRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -149,14 +157,18 @@ export default function VideoPlayer({
   const toggleFullscreen = async () => {
     const container = containerRef.current;
     if (!container) return;
-    if (!document.fullscreenElement) await container.requestFullscreen();
-    else await document.exitFullscreen();
+    if (document.fullscreenElement === container) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (document.fullscreenElement) await document.exitFullscreen();
+    await container.requestFullscreen();
   };
 
   return (
     <div
       ref={containerRef}
-      className={`${theater ? "fixed inset-0 z-[100] bg-black" : "relative"} group aspect-video w-full overflow-hidden bg-black ${className}`}
+      className={`relative group aspect-video w-full overflow-hidden bg-black ${fullscreen ? "h-screen max-h-screen" : ""} ${className}`}
       onMouseMove={() => playing && setControlsVisible(true)}
       onMouseLeave={() => playing && setControlsVisible(false)}
       onTouchStart={() => playing && setControlsVisible(true)}
@@ -166,6 +178,7 @@ export default function VideoPlayer({
         poster={poster}
         playsInline
         preload="metadata"
+        controls={false}
         aria-label={title}
         onClick={togglePlay}
         className="h-full w-full object-contain"
@@ -259,17 +272,9 @@ export default function VideoPlayer({
             </select>
             <button
               type="button"
-              onClick={() => setTheater((value) => !value)}
-              aria-label={theater ? "Esci dalla modalità teatro" : "Modalità teatro"}
-              className="grid size-9 place-items-center"
-            >
-              {theater ? <Minimize size={20} /> : <Maximize size={20} />}
-            </button>
-            <button
-              type="button"
               onClick={toggleFullscreen}
-              aria-label="Schermo intero"
-              className="hidden size-9 place-items-center sm:grid"
+              aria-label={fullscreen ? "Esci da schermo intero" : "Schermo intero"}
+              className="grid size-9 place-items-center"
             >
               <Maximize size={20} />
             </button>
