@@ -103,6 +103,19 @@ export type LiveStream = {
   updatedAt: string;
 };
 
+export type LiveEpgItem = {
+  id: string;
+  liveStreamId: string;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  thumbnailUrl: string | null;
+  liveStream?: Pick<LiveStream, "id" | "name" | "slug">;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PlatformUser = {
   id: string;
   email: string;
