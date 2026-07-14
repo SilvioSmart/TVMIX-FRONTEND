@@ -189,9 +189,9 @@ export default function VideoPlayer({
           type="button"
           onClick={togglePlay}
           aria-label="Riproduci"
-          className="absolute left-1/2 top-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-cyan text-white shadow-2xl transition hover:scale-105 sm:size-20"
+          className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center text-white/78 drop-shadow-[0_14px_28px_rgba(0,0,0,0.8)] transition hover:scale-110 hover:text-white/95"
         >
-          <Play size={30} fill="currentColor" className="translate-x-0.5" />
+          <Play size={72} fill="currentColor" strokeWidth={1.55} className="translate-x-1 sm:size-24" />
         </button>
       ) : null}
 
