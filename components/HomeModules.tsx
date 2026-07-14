@@ -311,9 +311,6 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <span className="pointer-events-none absolute left-1/2 top-1/2 z-20 grid -translate-x-1/2 -translate-y-1/2 place-items-center text-white/72 drop-shadow-[0_10px_22px_rgba(0,0,0,0.75)] transition duration-300 group-hover/thumb:scale-110 group-hover/thumb:text-white/92 group-focus-within/thumb:scale-110 group-focus-within/thumb:text-white/92">
-          <Play size={46} fill="currentColor" strokeWidth={1.6} className="translate-x-0.5" />
-        </span>
       </div>
       <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
