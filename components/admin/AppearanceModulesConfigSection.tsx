@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Boxes, Eye, EyeOff, Pencil, Plus, RefreshCw, Trash2
 import { Header } from "./ContentSection";
 import {
   adminRequest,
+  type CatalogCategory,
   type Category,
   type HomeModule,
   type HomeModuleSortMethod,
@@ -19,6 +20,8 @@ type ModuleForm = {
   subtitle: string;
   type: HomeModuleType;
   categoryId: string;
+  programId: string;
+  seasonId: string;
   liveStreamId: string;
   sortMethod: HomeModuleSortMethod;
   sortOrder: number;
@@ -31,6 +34,8 @@ const baseForm: ModuleForm = {
   subtitle: "",
   type: "CAROUSEL_SLIDER",
   categoryId: "",
+  programId: "",
+  seasonId: "",
   liveStreamId: "",
   sortMethod: "RECENT",
   sortOrder: 10,
@@ -57,6 +62,7 @@ function nextSortOrder(modules: HomeModule[]) {
 export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (message: string) => void }) {
   const [modules, setModules] = useState<HomeModule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
   const [form, setForm] = useState<ModuleForm>(baseForm);
   const [loading, setLoading] = useState(true);
@@ -67,19 +73,32 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
     () => [...modules].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)),
     [modules],
   );
+  const availablePrograms = useMemo(
+    () =>
+      catalog
+        .filter((category) => !form.categoryId || category.id === form.categoryId)
+        .flatMap((category) => category.programs.map((program) => ({ ...program, category }))),
+    [catalog, form.categoryId],
+  );
+  const availableSeasons = useMemo(
+    () => availablePrograms.find((program) => program.id === form.programId)?.seasons ?? [],
+    [availablePrograms, form.programId],
+  );
 
   async function loadData() {
     setLoading(true);
     setError(null);
     try {
-      const [moduleResponse, categoryResponse, liveResponse] = await Promise.all([
+      const [moduleResponse, categoryResponse, catalogResponse, liveResponse] = await Promise.all([
         adminRequest<ListResponse<HomeModule>>("appearance/modules?limit=100"),
         adminRequest<ListResponse<Category>>("categories?limit=100"),
+        adminRequest<{ data: CatalogCategory[] }>("catalog/tree"),
         adminRequest<ListResponse<LiveStream>>("live-streams?limit=100"),
       ]);
 
       setModules(moduleResponse.data ?? []);
       setCategories(categoryResponse.data ?? []);
+      setCatalog(catalogResponse.data ?? []);
       setLiveStreams(liveResponse.data ?? []);
       setForm((current) =>
         current.id ? current : { ...current, sortOrder: nextSortOrder(moduleResponse.data ?? []) },
@@ -107,6 +126,8 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
       subtitle: module.subtitle ?? "",
       type: module.type,
       categoryId: module.categoryId ?? "",
+      programId: module.programId ?? "",
+      seasonId: module.seasonId ?? "",
       liveStreamId: module.liveStreamId ?? "",
       sortMethod: module.sortMethod ?? "RECENT",
       sortOrder: module.sortOrder,
@@ -122,16 +143,27 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
     setError(null);
 
     const liveModule = form.type === "LIVE_EPG";
+    const queryType = liveModule
+      ? "LIVE"
+      : form.seasonId
+        ? "SEASON"
+        : form.programId
+          ? "PROGRAM"
+          : form.categoryId
+            ? "CATEGORY"
+            : "LATEST";
     const payload = {
       title: form.title,
       subtitle: form.subtitle || null,
       type: form.type,
-      queryType: liveModule ? "LIVE" : form.categoryId ? "CATEGORY" : "LATEST",
+      queryType,
       sortMethod: form.sortMethod,
       sortOrder: Number(form.sortOrder),
       enabled: form.enabled,
       limit: Number(form.limit),
       categoryId: liveModule ? null : form.categoryId || null,
+      programId: liveModule ? null : form.programId || null,
+      seasonId: liveModule ? null : form.seasonId || null,
       liveStreamId: liveModule ? form.liveStreamId || null : null,
     };
 
@@ -213,7 +245,15 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
               <select
                 className="admin-input mt-2"
                 value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value as HomeModuleType })}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    type: event.target.value as HomeModuleType,
+                    ...(event.target.value === "LIVE_EPG"
+                      ? { categoryId: "", programId: "", seasonId: "" }
+                      : { liveStreamId: "" }),
+                  })
+                }
               >
                 <option value="CAROUSEL_SLIDER">Carusel slider</option>
                 <option value="LIVE_EPG">Live con EPG</option>
@@ -258,21 +298,74 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
                 </select>
               </label>
             ) : (
-              <label className="admin-label">
-                Categoria
-                <select
-                  className="admin-input mt-2"
-                  value={form.categoryId}
-                  onChange={(event) => setForm({ ...form, categoryId: event.target.value })}
-                >
-                  <option value="">Tutte le categorie</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="space-y-3 rounded-xl border border-[#203248] bg-[#071321]/55 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  Selezione contenuti da mostrare
+                </p>
+                <label className="admin-label">
+                  Categoria
+                  <select
+                    className="admin-input mt-2"
+                    value={form.categoryId}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        categoryId: event.target.value,
+                        programId: "",
+                        seasonId: "",
+                      })
+                    }
+                  >
+                    <option value="">Tutte le categorie</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="admin-label">
+                  Programma
+                  <select
+                    className="admin-input mt-2"
+                    value={form.programId}
+                    onChange={(event) => {
+                      const program = availablePrograms.find((item) => item.id === event.target.value);
+                      setForm({
+                        ...form,
+                        programId: event.target.value,
+                        categoryId: program?.categoryId ?? form.categoryId,
+                        seasonId: "",
+                      });
+                    }}
+                  >
+                    <option value="">Tutti i programmi</option>
+                    {availablePrograms.map((program) => (
+                      <option key={program.id} value={program.id}>
+                        {program.name} ({program.id})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="admin-label">
+                  Stagione / serie
+                  <select
+                    className="admin-input mt-2"
+                    value={form.seasonId}
+                    disabled={!form.programId}
+                    onChange={(event) => setForm({ ...form, seasonId: event.target.value })}
+                  >
+                    <option value="">Tutte le stagioni</option>
+                    {availableSeasons.map((season) => (
+                      <option key={season.id} value={season.id}>
+                        {season.title || `Stagione ${season.number}`} ({season.id})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
@@ -383,6 +476,10 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
                     {module.subtitle ? <p className="mt-1 text-sm text-slate-400">{module.subtitle}</p> : null}
                     <p className="mt-3 text-sm text-slate-300">
                       Categoria: <span className="text-white">{module.category?.name ?? "Tutte"}</span>
+                      <span className="px-2 text-slate-600">/</span>
+                      Programma: <span className="text-white">{module.program?.name ?? "Tutti"}</span>
+                      <span className="px-2 text-slate-600">/</span>
+                      Stagione: <span className="text-white">{module.season ? module.season.title || `Stagione ${module.season.number}` : "Tutte"}</span>
                       <span className="px-2 text-slate-600">/</span>
                       Ordine: <span className="text-white">{sortLabels[module.sortMethod ?? "RECENT"]}</span>
                       {module.liveStream ? (

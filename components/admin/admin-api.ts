@@ -157,8 +157,12 @@ export type HomeModule = {
   enabled: boolean;
   limit: number;
   categoryId: string | null;
+  programId: string | null;
+  seasonId: string | null;
   liveStreamId: string | null;
   category?: Pick<Category, "id" | "name" | "slug"> | null;
+  program?: Pick<CatalogProgram, "id" | "name" | "slug"> | null;
+  season?: Pick<CatalogSeason, "id" | "number" | "title"> | null;
   liveStream?: Pick<LiveStream, "id" | "name" | "slug"> | null;
 };
 
