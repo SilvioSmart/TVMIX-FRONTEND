@@ -9,6 +9,7 @@ import {
   Radio,
   RefreshCw,
   Save,
+  ListVideo,
   Trash2,
   X,
 } from "lucide-react";
@@ -33,6 +34,11 @@ const formatDateTime = (value: string) =>
 
 const durationMinutes = (item: Pick<LiveEpgItem, "startsAt" | "endsAt">) =>
   Math.max(5, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000));
+
+const streamTypeLabels: Record<LiveStream["streamType"], string> = {
+  LIVE_STREAMING: "Live streaming",
+  PLAYLIST: "Playlist",
+};
 
 const emptyEpgForm = (stream: LiveStream) => {
   const starts = new Date();
@@ -178,7 +184,9 @@ function LiveStreamCard({
               </span>
               <div className="min-w-0">
                 <h3 className="truncate font-semibold">{stream.name}</h3>
-                <p className="truncate text-xs text-slate-500">{stream.hlsUrl}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {streamTypeLabels[stream.streamType ?? "LIVE_STREAMING"]} · {stream.hlsUrl}
+                </p>
               </div>
             </div>
             {stream.posterUrl ? <p className="mt-3 truncate text-xs text-slate-500">Copertina: {stream.posterUrl}</p> : null}
@@ -197,6 +205,7 @@ function LiveStreamCard({
           </div>
         </div>
       </div>
+      <InlineEpgRail stream={stream} onOpenEditor={onEpg} />
     </section>
   );
 }
@@ -212,6 +221,7 @@ function LiveEditor({
 }) {
   const [name, setName] = useState(stream?.name ?? "");
   const [slug, setSlug] = useState(stream?.slug ?? "");
+  const [streamType, setStreamType] = useState<LiveStream["streamType"]>(stream?.streamType ?? "LIVE_STREAMING");
   const [hlsUrl, setHlsUrl] = useState(stream?.hlsUrl ?? "");
   const [posterUrl, setPosterUrl] = useState(stream?.posterUrl ?? "");
   const [status, setStatus] = useState(stream?.status ?? "OFFLINE");
@@ -221,18 +231,23 @@ function LiveEditor({
       <form
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
-          void onSave({ name, slug, hlsUrl, posterUrl: posterUrl || null, status });
+          void onSave({ name, slug, streamType, hlsUrl, posterUrl: posterUrl || null, status });
         }}
         className="grid gap-4 sm:grid-cols-2"
       >
         <Input label="Nome" value={name} onChange={setName} required />
         <Input label="Slug" value={slug} onChange={setSlug} required />
-        <div className="sm:col-span-2">
-          <Input label="URL HLS" type="url" value={hlsUrl} onChange={setHlsUrl} required />
-        </div>
-        <div className="sm:col-span-2">
-          <Input label="URL copertina" type="url" value={posterUrl} onChange={setPosterUrl} />
-        </div>
+        <label>
+          <span className="admin-label">Tipo canale</span>
+          <select
+            value={streamType}
+            onChange={(event) => setStreamType(event.target.value as LiveStream["streamType"])}
+            className="admin-input mt-2"
+          >
+            <option value="LIVE_STREAMING">Live streaming</option>
+            <option value="PLAYLIST">Playlist</option>
+          </select>
+        </label>
         <label>
           <span className="admin-label">Stato</span>
           <select value={status} onChange={(event) => setStatus(event.target.value as LiveStream["status"])} className="admin-input mt-2">
@@ -241,6 +256,12 @@ function LiveEditor({
             <option>LIVE</option>
           </select>
         </label>
+        <div className="sm:col-span-2">
+          <Input label="URL HLS" type="url" value={hlsUrl} onChange={setHlsUrl} required />
+        </div>
+        <div className="sm:col-span-2">
+          <Input label="URL copertina" type="url" value={posterUrl} onChange={setPosterUrl} />
+        </div>
         <div className="flex items-end justify-end gap-2">
           <button type="button" onClick={onClose} className="admin-secondary-button">
             Annulla
@@ -249,6 +270,72 @@ function LiveEditor({
         </div>
       </form>
     </AdminModal>
+  );
+}
+
+function InlineEpgRail({ stream, onOpenEditor }: { stream: LiveStream; onOpenEditor: () => void }) {
+  const [items, setItems] = useState<LiveEpgItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminRequest<ListResponse<LiveEpgItem>>(
+        `epg?liveStreamId=${stream.id}&limit=12`,
+      );
+      setItems(
+        [...response.data].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [stream.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <div className="border-t border-[#203248] bg-[#06111d]/80 px-4 py-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+          <ListVideo size={15} className="text-[#22bdf3]" />
+          {stream.streamType === "PLAYLIST" ? "Programmi playlist" : "Programmi EPG"}
+        </div>
+        <button type="button" onClick={onOpenEditor} className="text-xs font-bold text-[#22bdf3] hover:text-white">
+          Gestisci
+        </button>
+      </div>
+
+      {loading ? <p className="text-xs text-slate-500">Caricamento programmi...</p> : null}
+      {!loading && !items.length ? (
+        <button
+          type="button"
+          onClick={onOpenEditor}
+          className="w-full rounded-lg border border-dashed border-[#31445a] px-3 py-4 text-left text-xs text-slate-500 hover:border-[#22bdf3]/60 hover:text-slate-300"
+        >
+          Nessun programma configurato. Apri la gestione per comporre la guida.
+        </button>
+      ) : null}
+      {!loading && items.length ? (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={onOpenEditor}
+              className="min-w-[220px] rounded-xl border border-[#203248] bg-[#071321] p-3 text-left transition hover:border-[#22bdf3]/60"
+            >
+              <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#22bdf3]">
+                {formatDateTime(item.startsAt)} · {durationMinutes(item)} min
+              </p>
+              {item.description ? <p className="mt-2 line-clamp-2 text-xs text-slate-500">{item.description}</p> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

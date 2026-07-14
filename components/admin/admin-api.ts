@@ -95,6 +95,7 @@ export type LiveStream = {
   name: string;
   slug: string;
   description: string | null;
+  streamType: "LIVE_STREAMING" | "PLAYLIST";
   hlsUrl: string;
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
   posterUrl: string | null;
