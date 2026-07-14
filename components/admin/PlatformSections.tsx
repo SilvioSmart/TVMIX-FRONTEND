@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import type { AdminSection, AppearanceSubnavItem } from "./admin-data";
+import type { AdminSection, AppearanceSubnavItem, LiveSubnavKey } from "./admin-data";
 import { CatalogSection } from "./CatalogSection";
 import { ContentSection, Header, Input } from "./ContentSection";
 import { AppearanceCarouselConfigSection } from "./AppearanceCarouselConfigSection";
@@ -27,13 +27,15 @@ import type { AppearanceMenuKey } from "./admin-api";
 type Props = {
   section: Exclude<AdminSection, "overview">;
   appearanceSection: AppearanceMenuKey;
+  activeLive: LiveSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
+  onSelectLive: (section: LiveSubnavKey) => void;
   onNotify: (message: string) => void;
 };
 
-export function PlatformSections({ section, appearanceSection, appearanceMenu, onNotify }: Props) {
+export function PlatformSections({ section, appearanceSection, activeLive, appearanceMenu, onSelectLive, onNotify }: Props) {
   if (section === "content") return <ContentSection onNotify={onNotify} />;
-  if (section === "live") return <LiveSection onNotify={onNotify} />;
+  if (section === "live") return <LiveSection activeMode={activeLive} onModeChange={onSelectLive} onNotify={onNotify} />;
   if (section === "catalog") return <CatalogSection onNotify={onNotify} />;
   if (section === "users") return <UsersSection onNotify={onNotify} />;
   if (section === "appearance") {

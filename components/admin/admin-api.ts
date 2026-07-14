@@ -107,11 +107,13 @@ export type LiveStream = {
 export type LiveEpgItem = {
   id: string;
   liveStreamId: string;
+  videoId: string | null;
   title: string;
   description: string | null;
   startsAt: string;
   endsAt: string;
   thumbnailUrl: string | null;
+  video?: Pick<Video, "id" | "title" | "slug" | "thumbnailUrl" | "hlsUrl" | "duration" | "category"> | null;
   liveStream?: Pick<LiveStream, "id" | "name" | "slug">;
   createdAt: string;
   updatedAt: string;

@@ -2,12 +2,13 @@
 
 import { ChevronDown, ChevronLeft, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { navigation, type AdminSection, type AppearanceSubnavItem, type NavItem } from "./admin-data";
+import { navigation, type AdminSection, type AppearanceSubnavItem, type LiveSubnavKey, type NavItem } from "./admin-data";
 import type { AppearanceMenuKey } from "./admin-api";
 
 type AdminSidebarProps = {
   active: AdminSection;
   activeAppearance: AppearanceMenuKey;
+  activeLive: LiveSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
   collapsed: boolean;
   mobileOpen: boolean;
@@ -15,12 +16,14 @@ type AdminSidebarProps = {
   onMobileClose: () => void;
   onSelect: (section: AdminSection) => void;
   onSelectAppearance: (section: AppearanceMenuKey) => void;
+  onSelectLive: (section: LiveSubnavKey) => void;
   items?: NavItem[];
 };
 
 export function AdminSidebar({
   active,
   activeAppearance,
+  activeLive,
   appearanceMenu,
   collapsed,
   mobileOpen,
@@ -28,9 +31,11 @@ export function AdminSidebar({
   onMobileClose,
   onSelect,
   onSelectAppearance,
+  onSelectLive,
   items = navigation,
 }: AdminSidebarProps) {
   const appearanceOpen = active === "appearance";
+  const liveOpen = active === "live";
 
   return (
     <>
@@ -69,6 +74,7 @@ export function AdminSidebar({
             const Icon = item.icon;
             const selected = active === item.id;
             const isAppearance = item.id === "appearance";
+            const isLive = item.id === "live";
             const children = isAppearance ? appearanceMenu : item.children;
 
             return (
@@ -76,10 +82,10 @@ export function AdminSidebar({
                 <button
                   type="button"
                   title={collapsed ? item.label : undefined}
-                  aria-expanded={isAppearance ? appearanceOpen : undefined}
+                  aria-expanded={children?.length ? selected : undefined}
                   onClick={() => {
                     onSelect(item.id);
-                    if (!isAppearance) onMobileClose();
+                    if (!isAppearance && !isLive) onMobileClose();
                   }}
                   className={[
                     "relative flex h-12 w-full items-center rounded-lg text-sm font-semibold transition",
@@ -99,23 +105,26 @@ export function AdminSidebar({
                       {children?.length ? (
                         <ChevronDown
                           size={15}
-                          className={appearanceOpen ? "rotate-180 transition" : "transition"}
+                          className={selected ? "rotate-180 transition" : "transition"}
                         />
                       ) : null}
                     </>
                   ) : null}
                 </button>
 
-                {!collapsed && isAppearance && appearanceOpen && children?.length ? (
+                {!collapsed && ((isAppearance && appearanceOpen) || (isLive && liveOpen)) && children?.length ? (
                   <div className="ml-4 mt-2 space-y-1 border-l border-[#1d3044] pl-3">
                     {children.map((child) => {
-                      const childSelected = activeAppearance === child.key;
+                      const childSelected = isAppearance
+                        ? activeAppearance === child.key
+                        : activeLive === child.key;
                       return (
                         <button
                           key={child.key}
                           type="button"
                           onClick={() => {
-                            onSelectAppearance(child.key);
+                            if (isAppearance) onSelectAppearance(child.key as AppearanceMenuKey);
+                            if (isLive) onSelectLive(child.key as LiveSubnavKey);
                             onMobileClose();
                           }}
                           className={[

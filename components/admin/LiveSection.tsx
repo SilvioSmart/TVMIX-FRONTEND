@@ -11,11 +11,19 @@ import {
   Save,
   ListVideo,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { type DragEvent, type FormEvent, useCallback, useEffect, useState } from "react";
 import VideoPlayer from "../VideoPlayer";
-import { adminRequest, type ListResponse, type LiveEpgItem, type LiveStream } from "./admin-api";
+import {
+  adminRequest,
+  type Category,
+  type ListResponse,
+  type LiveEpgItem,
+  type LiveStream,
+  type Video,
+} from "./admin-api";
 import { AdminModal, ConfirmButton, ResourceState } from "./AdminResourceUI";
 import { Header, Input, SearchBox } from "./ContentSection";
 
@@ -40,6 +48,28 @@ const streamTypeLabels: Record<LiveStream["streamType"], string> = {
   PLAYLIST: "Playlist",
 };
 
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' && line[index + 1] === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
+
 const emptyEpgForm = (stream: LiveStream) => {
   const starts = new Date();
   starts.setMinutes(Math.ceil(starts.getMinutes() / 15) * 15, 0, 0);
@@ -55,8 +85,17 @@ const emptyEpgForm = (stream: LiveStream) => {
 };
 
 type EpgForm = ReturnType<typeof emptyEpgForm>;
+type LiveMode = LiveStream["streamType"];
 
-export function LiveSection({ onNotify }: { onNotify: (message: string) => void }) {
+export function LiveSection({
+  activeMode,
+  onModeChange,
+  onNotify,
+}: {
+  activeMode: LiveMode;
+  onModeChange: (mode: LiveMode) => void;
+  onNotify: (message: string) => void;
+}) {
   const [data, setData] = useState<LiveStream[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -97,16 +136,32 @@ export function LiveSection({ onNotify }: { onNotify: (message: string) => void 
     <div className="space-y-5">
       <Header title="Dirette TV" description="Configura i canali lineari, verifica lo streaming e componi la guida EPG.">
         <button onClick={() => setEditing(null)} className="admin-primary-button">
-          <Plus size={17} /> Nuovo canale
+          <Plus size={17} /> {activeMode === "PLAYLIST" ? "Nuova playlist" : "Nuovo canale"}
         </button>
       </Header>
+
+      <div className="flex flex-wrap gap-2 rounded-xl border border-[#203248] bg-[#071321] p-2">
+        {(["LIVE_STREAMING", "PLAYLIST"] as LiveMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => onModeChange(mode)}
+            className={[
+              "rounded-lg px-4 py-2 text-sm font-black uppercase tracking-[0.12em] transition",
+              activeMode === mode ? "bg-[#16b9f4] text-black" : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
+            ].join(" ")}
+          >
+            {mode === "PLAYLIST" ? "PLAYLIST" : "LIVE STREAM"}
+          </button>
+        ))}
+      </div>
 
       <SearchBox value={search} onChange={setSearch} placeholder="Cerca canale..." />
       <ResourceState loading={loading} error={error} empty={!data.length ? "Nessun canale live presente." : undefined} />
 
-      {!loading && !error && data.length ? (
+      {!loading && !error && data.filter((stream) => (stream.streamType ?? "LIVE_STREAMING") === activeMode).length ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          {data.map((stream) => (
+          {data.filter((stream) => (stream.streamType ?? "LIVE_STREAMING") === activeMode).map((stream) => (
             <LiveStreamCard
               key={stream.id}
               stream={stream}
@@ -116,11 +171,16 @@ export function LiveSection({ onNotify }: { onNotify: (message: string) => void 
             />
           ))}
         </div>
+      ) : !loading && !error ? (
+        <p className="rounded-xl border border-dashed border-[#31445a] p-5 text-sm text-slate-400">
+          Nessun elemento nella sezione {activeMode === "PLAYLIST" ? "Playlist" : "Live Stream"}.
+        </p>
       ) : null}
 
       {editing !== undefined ? (
         <LiveEditor
           stream={editing}
+          streamType={editing?.streamType ?? activeMode}
           onClose={() => setEditing(undefined)}
           onSave={async (body) => {
             try {
@@ -212,16 +272,17 @@ function LiveStreamCard({
 
 function LiveEditor({
   stream,
+  streamType,
   onClose,
   onSave,
 }: {
   stream: LiveStream | null;
+  streamType: LiveMode;
   onClose: () => void;
   onSave: (body: object) => Promise<void>;
 }) {
   const [name, setName] = useState(stream?.name ?? "");
   const [slug, setSlug] = useState(stream?.slug ?? "");
-  const [streamType, setStreamType] = useState<LiveStream["streamType"]>(stream?.streamType ?? "LIVE_STREAMING");
   const [hlsUrl, setHlsUrl] = useState(stream?.hlsUrl ?? "");
   const [posterUrl, setPosterUrl] = useState(stream?.posterUrl ?? "");
   const [status, setStatus] = useState(stream?.status ?? "OFFLINE");
@@ -237,17 +298,10 @@ function LiveEditor({
       >
         <Input label="Nome" value={name} onChange={setName} required />
         <Input label="Slug" value={slug} onChange={setSlug} required />
-        <label>
+        <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
           <span className="admin-label">Tipo canale</span>
-          <select
-            value={streamType}
-            onChange={(event) => setStreamType(event.target.value as LiveStream["streamType"])}
-            className="admin-input mt-2"
-          >
-            <option value="LIVE_STREAMING">Live streaming</option>
-            <option value="PLAYLIST">Playlist</option>
-          </select>
-        </label>
+          <p className="mt-1 text-sm font-semibold text-white">{streamTypeLabels[streamType]}</p>
+        </div>
         <label>
           <span className="admin-label">Stato</span>
           <select value={status} onChange={(event) => setStatus(event.target.value as LiveStream["status"])} className="admin-input mt-2">
@@ -393,6 +447,7 @@ function EpgEditor({
     setError(null);
     const payload = {
       liveStreamId: stream.id,
+      videoId: null,
       title: form.title,
       description: form.description || null,
       startsAt: new Date(form.startsAt).toISOString(),
@@ -412,6 +467,73 @@ function EpgEditor({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function importCsv(file: File) {
+    setSaving(true);
+    setError(null);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (!lines.length) throw new Error("CSV vuoto");
+      const first = parseCsvLine(lines[0]).map((value) => value.toLowerCase());
+      const hasHeader = first.includes("title") || first.includes("titolo");
+      const rows = hasHeader ? lines.slice(1) : lines;
+      const header = hasHeader ? first : ["title", "description", "startsat", "endsat", "thumbnailurl"];
+      let created = 0;
+      for (const row of rows) {
+        const columns = parseCsvLine(row);
+        const get = (...keys: string[]) => {
+          const index = header.findIndex((name) => keys.includes(name));
+          return index >= 0 ? columns[index] : "";
+        };
+        const title = get("title", "titolo");
+        const startsAt = get("startsat", "inizio", "start");
+        const endsAt = get("endsat", "fine", "end");
+        if (!title || !startsAt || !endsAt) continue;
+        await adminRequest("epg", {
+          method: "POST",
+          body: JSON.stringify({
+            liveStreamId: stream.id,
+            videoId: null,
+            title,
+            description: get("description", "descrizione") || null,
+            startsAt: new Date(startsAt).toISOString(),
+            endsAt: new Date(endsAt).toISOString(),
+            thumbnailUrl: get("thumbnailurl", "thumbnail", "copertina") || null,
+          }),
+        });
+        created += 1;
+      }
+      onNotify(`Import CSV completato: ${created} programmi`);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Import CSV non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function appendVideoToPlaylist(video: Video) {
+    const last = items.at(-1);
+    const starts = last ? new Date(last.endsAt) : new Date();
+    starts.setSeconds(0, 0);
+    const minutes = Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
+    const ends = new Date(starts.getTime() + minutes * 60000);
+    await adminRequest("epg", {
+      method: "POST",
+      body: JSON.stringify({
+        liveStreamId: stream.id,
+        videoId: video.id,
+        title: video.title,
+        description: video.description ?? null,
+        startsAt: starts.toISOString(),
+        endsAt: ends.toISOString(),
+        thumbnailUrl: video.thumbnailUrl ?? null,
+      }),
+    });
+    onNotify("Clip aggiunta alla playlist");
+    await load();
   }
 
   async function removeItem(item: LiveEpgItem) {
@@ -493,6 +615,21 @@ function EpgEditor({
           <button className="admin-primary-button w-full justify-center" disabled={saving}>
             <Save size={16} /> {saving ? "Salvataggio..." : form.id ? "Salva programma" : "Aggiungi alla guida"}
           </button>
+          {stream.streamType === "LIVE_STREAMING" ? (
+            <label className="admin-secondary-button w-full cursor-pointer justify-center">
+              <Upload size={16} /> Importa CSV
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void importCsv(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          ) : null}
         </form>
 
         <section className="rounded-xl border border-[#203248] bg-[#071321]/70">
@@ -552,7 +689,97 @@ function EpgEditor({
             </div>
           ) : null}
         </section>
+        {stream.streamType === "PLAYLIST" ? (
+          <ArchiveClipPicker onDropVideo={appendVideoToPlaylist} />
+        ) : null}
       </div>
     </AdminModal>
+  );
+}
+
+function ArchiveClipPicker({ onDropVideo }: { onDropVideo: (video: Video) => Promise<void> }) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dropActive, setDropActive] = useState(false);
+
+  useEffect(() => {
+    void adminRequest<ListResponse<Category>>("categories?limit=100").then((response) => setCategories(response.data));
+  }, []);
+
+  const loadVideos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const query = new URLSearchParams({ limit: "100", published: "true" });
+      if (categoryId) query.set("categoryId", categoryId);
+      const response = await adminRequest<ListResponse<Video>>(`videos?${query.toString()}`);
+      setVideos(response.data.filter((video) => Boolean(video.hlsUrl)));
+    } finally {
+      setLoading(false);
+    }
+  }, [categoryId]);
+
+  useEffect(() => {
+    void loadVideos();
+  }, [loadVideos]);
+
+  return (
+    <section className="rounded-xl border border-[#203248] bg-[#071321]/70 xl:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] p-4">
+        <div>
+          <h3 className="admin-section-title">Archivio clip per playlist</h3>
+          <p className="mt-1 text-xs text-slate-500">Trascina una clip nel riquadro di rilascio per aggiungerla alla playlist oraria.</p>
+        </div>
+        <select className="admin-input max-w-xs" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+          <option value="">Tutte le categorie</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+      </div>
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDropActive(true);
+        }}
+        onDragLeave={() => setDropActive(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDropActive(false);
+          const id = event.dataTransfer.getData("application/x-tvmix-video");
+          const video = videos.find((item) => item.id === id);
+          if (video) void onDropVideo(video);
+        }}
+        className={[
+          "m-4 rounded-xl border border-dashed px-4 py-5 text-sm transition",
+          dropActive ? "border-[#22bdf3] bg-[#16b9f4]/10 text-white" : "border-[#31445a] text-slate-400",
+        ].join(" ")}
+      >
+        Rilascia qui le clip da aggiungere in coda alla playlist.
+      </div>
+      {loading ? <p className="px-4 pb-4 text-sm text-slate-500">Caricamento clip...</p> : null}
+      {!loading ? (
+        <div className="grid gap-3 p-4 pt-0 sm:grid-cols-2 xl:grid-cols-4">
+          {videos.map((video) => (
+            <article
+              key={video.id}
+              draggable
+              onDragStart={(event) => event.dataTransfer.setData("application/x-tvmix-video", video.id)}
+              className="cursor-grab overflow-hidden rounded-xl border border-[#203248] bg-[#06111d] transition hover:border-[#22bdf3]/60"
+            >
+              <div className="aspect-video bg-[#020a13]">
+                {video.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={video.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <div className="p-3">
+                <p className="line-clamp-2 text-sm font-semibold text-white">{video.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{video.category?.name ?? "Archivio"} · {Math.ceil((video.duration ?? 0) / 60) || "?"} min</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }

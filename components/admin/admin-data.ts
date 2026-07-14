@@ -8,7 +8,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import type { AppearanceMenuKey } from "./admin-api";
+import type { AppearanceMenuKey, LiveStream } from "./admin-api";
 
 export type AdminSection =
   | "overview"
@@ -25,11 +25,18 @@ export type AppearanceSubnavItem = {
   description?: string | null;
 };
 
+export type LiveSubnavKey = LiveStream["streamType"];
+export type LiveSubnavItem = {
+  key: LiveSubnavKey;
+  label: string;
+  description?: string | null;
+};
+
 export type NavItem = {
   id: AdminSection;
   label: string;
   icon: LucideIcon;
-  children?: AppearanceSubnavItem[];
+  children?: Array<AppearanceSubnavItem | LiveSubnavItem>;
 };
 
 export const fallbackAppearanceMenu: AppearanceSubnavItem[] = [
@@ -40,10 +47,15 @@ export const fallbackAppearanceMenu: AppearanceSubnavItem[] = [
   { key: "footer", label: "FOOTER", description: "Footer, link legali e contatti" },
 ];
 
+export const liveMenu: LiveSubnavItem[] = [
+  { key: "LIVE_STREAMING", label: "LIVE STREAM", description: "Canali con sorgente HLS esterna" },
+  { key: "PLAYLIST", label: "PLAYLIST", description: "Canali generati da sequenze di clip" },
+];
+
 export const navigation: NavItem[] = [
   { id: "overview", label: "Panoramica", icon: Home },
   { id: "content", label: "Contenuti", icon: Clapperboard },
-  { id: "live", label: "Dirette TV", icon: Radio },
+  { id: "live", label: "Dirette TV", icon: Radio, children: liveMenu },
   { id: "catalog", label: "Catalogo", icon: FolderOpen },
   { id: "users", label: "Utenti", icon: CircleUserRound },
   { id: "appearance", label: "Aspetto", icon: Palette, children: fallbackAppearanceMenu },
