@@ -43,10 +43,30 @@ const formatDateTime = (value: string) =>
 const durationMinutes = (item: Pick<LiveEpgItem, "startsAt" | "endsAt">) =>
   Math.max(5, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000));
 
+const dayStart = (date = new Date()) => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
 const streamTypeLabels: Record<LiveStream["streamType"], string> = {
   LIVE_STREAMING: "Live streaming",
   PLAYLIST: "Playlist",
 };
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function playlistHlsUrl(slug: string) {
+  return `https://api.tvmix.it/api/v1/playlists/${slug || "playlist"}/master.m3u8`;
+}
 
 function parseCsvLine(line: string) {
   const values: string[] = [];
@@ -283,21 +303,37 @@ function LiveEditor({
 }) {
   const [name, setName] = useState(stream?.name ?? "");
   const [slug, setSlug] = useState(stream?.slug ?? "");
-  const [hlsUrl, setHlsUrl] = useState(stream?.hlsUrl ?? "");
+  const [hlsUrl, setHlsUrl] = useState(stream?.hlsUrl ?? (streamType === "PLAYLIST" ? playlistHlsUrl("") : ""));
   const [posterUrl, setPosterUrl] = useState(stream?.posterUrl ?? "");
   const [status, setStatus] = useState(stream?.status ?? "OFFLINE");
+  const generatedSlug = slugify(name);
+  const effectiveSlug = streamType === "PLAYLIST" ? generatedSlug : slug;
 
   return (
     <AdminModal title={stream ? "Modifica canale" : "Nuovo canale"} onClose={onClose}>
       <form
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
-          void onSave({ name, slug, streamType, hlsUrl, posterUrl: posterUrl || null, status });
+          void onSave({
+            name,
+            slug: effectiveSlug,
+            streamType,
+            hlsUrl: streamType === "PLAYLIST" ? playlistHlsUrl(effectiveSlug) : hlsUrl,
+            posterUrl: posterUrl || null,
+            status,
+          });
         }}
         className="grid gap-4 sm:grid-cols-2"
       >
-        <Input label="Nome" value={name} onChange={setName} required />
-        <Input label="Slug" value={slug} onChange={setSlug} required />
+        <Input label={streamType === "PLAYLIST" ? "Nome playlist" : "Nome"} value={name} onChange={setName} required />
+        {streamType === "PLAYLIST" ? (
+          <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
+            <span className="admin-label">Slug generato</span>
+            <p className="mt-1 break-all font-mono text-sm text-[#22bdf3]">{generatedSlug || "inserisci-il-nome"}</p>
+          </div>
+        ) : (
+          <Input label="Slug" value={slug} onChange={setSlug} required />
+        )}
         <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
           <span className="admin-label">Tipo canale</span>
           <p className="mt-1 text-sm font-semibold text-white">{streamTypeLabels[streamType]}</p>
@@ -310,9 +346,16 @@ function LiveEditor({
             <option>LIVE</option>
           </select>
         </label>
-        <div className="sm:col-span-2">
-          <Input label="URL HLS" type="url" value={hlsUrl} onChange={setHlsUrl} required />
-        </div>
+        {streamType === "LIVE_STREAMING" ? (
+          <div className="sm:col-span-2">
+            <Input label="URL HLS" type="url" value={hlsUrl} onChange={setHlsUrl} required />
+          </div>
+        ) : (
+          <div className="sm:col-span-2 rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
+            <span className="admin-label">Output playlist sincronizzato</span>
+            <p className="mt-1 break-all font-mono text-xs text-slate-400">{playlistHlsUrl(effectiveSlug)}</p>
+          </div>
+        )}
         <div className="sm:col-span-2">
           <Input label="URL copertina" type="url" value={posterUrl} onChange={setPosterUrl} />
         </div>
@@ -514,9 +557,9 @@ function EpgEditor({
     }
   }
 
-  async function appendVideoToPlaylist(video: Video) {
+  async function appendVideoToPlaylist(video: Video, startsAt?: Date) {
     const last = items.at(-1);
-    const starts = last ? new Date(last.endsAt) : new Date();
+    const starts = startsAt ?? (last ? new Date(last.endsAt) : dayStart());
     starts.setSeconds(0, 0);
     const minutes = Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
     const ends = new Date(starts.getTime() + minutes * 60000);
@@ -588,6 +631,7 @@ function EpgEditor({
   return (
     <AdminModal title={`Guida EPG · ${stream.name}`} onClose={onClose}>
       <div className="grid max-h-[78vh] gap-5 overflow-y-auto xl:grid-cols-[360px_1fr]">
+        {stream.streamType === "LIVE_STREAMING" ? (
         <form onSubmit={saveItem} className="space-y-4 rounded-xl border border-[#203248] bg-[#071321]/70 p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="admin-section-title">{form.id ? "Modifica programma" : "Nuovo programma EPG"}</h3>
@@ -631,12 +675,17 @@ function EpgEditor({
             </label>
           ) : null}
         </form>
+        ) : null}
 
-        <section className="rounded-xl border border-[#203248] bg-[#071321]/70">
+        <section className={`rounded-xl border border-[#203248] bg-[#071321]/70 ${stream.streamType === "PLAYLIST" ? "xl:col-span-2" : ""}`}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] p-4">
             <div>
-              <h3 className="admin-section-title">Timeline programmi</h3>
-              <p className="mt-1 text-xs text-slate-500">Trascina le righe per cambiare ordine; il salvataggio ricrea la sequenza oraria mantenendo le durate.</p>
+              <h3 className="admin-section-title">{stream.streamType === "PLAYLIST" ? "Timeline playlist 24 ore" : "Timeline programmi"}</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                {stream.streamType === "PLAYLIST"
+                  ? "Trascina le clip dell'archivio direttamente sulla timeline giornaliera."
+                  : "Trascina le righe per cambiare ordine; il salvataggio ricrea la sequenza oraria mantenendo le durate."}
+              </p>
             </div>
             <div className="flex gap-2">
               <button type="button" className="admin-secondary-button" onClick={load}>
@@ -649,8 +698,19 @@ function EpgEditor({
           </div>
 
           {loading ? <p className="p-4 text-sm text-slate-400">Caricamento guida...</p> : null}
-          {!loading && !items.length ? <p className="p-4 text-sm text-slate-400">Nessun programma EPG per questo canale.</p> : null}
-          {!loading && items.length ? (
+          {!loading && stream.streamType === "PLAYLIST" ? (
+            <PlaylistTimeline
+              items={items}
+              draggingId={draggingId}
+              onDragItem={setDraggingId}
+              onDropItem={dropOn}
+              onDropVideo={appendVideoToPlaylist}
+              onEdit={editItem}
+              onRemove={removeItem}
+            />
+          ) : null}
+          {!loading && stream.streamType !== "PLAYLIST" && !items.length ? <p className="p-4 text-sm text-slate-400">Nessun programma EPG per questo canale.</p> : null}
+          {!loading && stream.streamType !== "PLAYLIST" && items.length ? (
             <div className="divide-y divide-[#203248]">
               {items.map((item) => (
                 <article
@@ -690,19 +750,128 @@ function EpgEditor({
           ) : null}
         </section>
         {stream.streamType === "PLAYLIST" ? (
-          <ArchiveClipPicker onDropVideo={appendVideoToPlaylist} />
+          <ArchiveClipPicker />
         ) : null}
       </div>
     </AdminModal>
   );
 }
 
-function ArchiveClipPicker({ onDropVideo }: { onDropVideo: (video: Video) => Promise<void> }) {
+function PlaylistTimeline({
+  items,
+  draggingId,
+  onDragItem,
+  onDropItem,
+  onDropVideo,
+  onEdit,
+  onRemove,
+}: {
+  items: LiveEpgItem[];
+  draggingId: string | null;
+  onDragItem: (id: string | null) => void;
+  onDropItem: (targetId: string) => void;
+  onDropVideo: (video: Video, startsAt?: Date) => Promise<void>;
+  onEdit: (item: LiveEpgItem) => void;
+  onRemove: (item: LiveEpgItem) => Promise<void>;
+}) {
+  const [dropActive, setDropActive] = useState(false);
+  const start = dayStart(items[0] ? new Date(items[0].startsAt) : new Date());
+  const hourMarks = Array.from({ length: 25 }, (_, index) => index);
+
+  function dropVideo(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDropActive(false);
+    const raw = event.dataTransfer.getData("application/x-tvmix-video-json");
+    if (!raw) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), event.currentTarget.scrollWidth);
+    const minute = Math.round((x / event.currentTarget.scrollWidth) * 1440);
+    const startsAt = new Date(start.getTime() + minute * 60000);
+    try {
+      void onDropVideo(JSON.parse(raw) as Video, startsAt);
+    } catch {
+      return;
+    }
+  }
+
+  return (
+    <div className="p-4">
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDropActive(true);
+        }}
+        onDragLeave={() => setDropActive(false)}
+        onDrop={dropVideo}
+        className={[
+          "relative overflow-x-auto rounded-xl border bg-[#020a13] p-4",
+          dropActive ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-[#203248]",
+        ].join(" ")}
+      >
+        <div className="relative h-[260px] min-w-[1440px]">
+          <div className="absolute inset-x-0 top-0 grid text-[10px] font-bold text-slate-500" style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}>
+            {hourMarks.slice(0, 24).map((hour) => (
+              <span key={hour} className="border-l border-white/10 pl-1">
+                {String(hour).padStart(2, "0")}:00
+              </span>
+            ))}
+          </div>
+          <div className="absolute inset-x-0 top-7 h-px bg-white/10" />
+          {hourMarks.map((hour) => (
+            <span key={hour} className="absolute bottom-0 top-7 w-px bg-white/5" style={{ left: `${(hour / 24) * 100}%` }} />
+          ))}
+          {!items.length ? (
+            <div className="absolute inset-x-0 top-14 rounded-xl border border-dashed border-[#31445a] px-4 py-12 text-center text-sm text-slate-500">
+              Trascina qui una clip dall'archivio per inserirla nella timeline da 24 ore.
+            </div>
+          ) : null}
+          {items.map((item) => {
+            const startMinutes = Math.max(0, (new Date(item.startsAt).getTime() - start.getTime()) / 60000);
+            const widthMinutes = Math.min(1440, durationMinutes(item));
+            return (
+              <article
+                key={item.id}
+                draggable
+                onDragStart={() => onDragItem(item.id)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => onDropItem(item.id)}
+                className={[
+                  "absolute top-14 flex h-36 cursor-grab flex-col overflow-hidden rounded-xl border border-[#22bdf3]/30 bg-[#071321] p-3 shadow-xl transition hover:border-[#22bdf3]",
+                  draggingId === item.id ? "opacity-60" : "",
+                ].join(" ")}
+                style={{
+                  left: `${(startMinutes / 1440) * 100}%`,
+                  width: `${Math.max((widthMinutes / 1440) * 100, 4)}%`,
+                }}
+              >
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#22bdf3]">
+                  <GripVertical size={14} />
+                  {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                </div>
+                <h4 className="mt-2 line-clamp-2 text-sm font-semibold text-white">{item.title}</h4>
+                <p className="mt-auto text-[11px] text-slate-500">{durationMinutes(item)} min</p>
+                <div className="mt-2 flex gap-1">
+                  <button type="button" className="admin-icon-button size-7" onClick={() => onEdit(item)}>
+                    <Pencil size={13} />
+                  </button>
+                  <ConfirmButton label={`Elimina ${item.title}`} onConfirm={() => void onRemove(item)} className="admin-icon-button size-7 hover:text-red-400">
+                    <Trash2 size={13} />
+                  </ConfirmButton>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchiveClipPicker() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
     void adminRequest<ListResponse<Category>>("categories?limit=100").then((response) => setCategories(response.data));
@@ -729,32 +898,12 @@ function ArchiveClipPicker({ onDropVideo }: { onDropVideo: (video: Video) => Pro
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] p-4">
         <div>
           <h3 className="admin-section-title">Archivio clip per playlist</h3>
-          <p className="mt-1 text-xs text-slate-500">Trascina una clip nel riquadro di rilascio per aggiungerla alla playlist oraria.</p>
+          <p className="mt-1 text-xs text-slate-500">Trascina una clip dalla griglia alla timeline 24 ore sopra.</p>
         </div>
         <select className="admin-input max-w-xs" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
           <option value="">Tutte le categorie</option>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-      </div>
-      <div
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDropActive(true);
-        }}
-        onDragLeave={() => setDropActive(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDropActive(false);
-          const id = event.dataTransfer.getData("application/x-tvmix-video");
-          const video = videos.find((item) => item.id === id);
-          if (video) void onDropVideo(video);
-        }}
-        className={[
-          "m-4 rounded-xl border border-dashed px-4 py-5 text-sm transition",
-          dropActive ? "border-[#22bdf3] bg-[#16b9f4]/10 text-white" : "border-[#31445a] text-slate-400",
-        ].join(" ")}
-      >
-        Rilascia qui le clip da aggiungere in coda alla playlist.
       </div>
       {loading ? <p className="px-4 pb-4 text-sm text-slate-500">Caricamento clip...</p> : null}
       {!loading ? (
@@ -763,7 +912,10 @@ function ArchiveClipPicker({ onDropVideo }: { onDropVideo: (video: Video) => Pro
             <article
               key={video.id}
               draggable
-              onDragStart={(event) => event.dataTransfer.setData("application/x-tvmix-video", video.id)}
+              onDragStart={(event) => {
+                event.dataTransfer.setData("application/x-tvmix-video", video.id);
+                event.dataTransfer.setData("application/x-tvmix-video-json", JSON.stringify(video));
+              }}
               className="cursor-grab overflow-hidden rounded-xl border border-[#203248] bg-[#06111d] transition hover:border-[#22bdf3]/60"
             >
               <div className="aspect-video bg-[#020a13]">
