@@ -188,7 +188,7 @@ export function ContentSection({ onNotify }: Props) {
       });
       const uploaded = await uploadFileToR2(file, (progress) => {
         setBackgroundUpload(videoId, { progress, status: "uploading" });
-      }, videoId);
+      }, videoId, { keepSessionOnFailure: true });
       await adminRequest(`videos/${videoId}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -220,6 +220,40 @@ export function ContentSection({ onNotify }: Props) {
     }
   }
 
+  async function resumeUploadForVideo(video: Video, session: MediaUploadSession, file: File) {
+    setBackgroundUpload(video.id, { fileName: file.name, progress: 0, status: "uploading" });
+    setError(null);
+    try {
+      const uploaded = await uploadFileToR2(file, (progress) => {
+        setBackgroundUpload(video.id, { progress, status: "uploading" });
+      }, video.id, { resumeSession: session, keepSessionOnFailure: true });
+      await adminRequest(`videos/${video.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          sourceObjectKey: uploaded.objectKey,
+          originalFileName: uploaded.originalFileName,
+          processingStatus: "UPLOADED",
+          processingError: null,
+        }),
+      });
+      setBackgroundUpload(video.id, { progress: 100, status: "done" });
+      onNotify("Caricamento ripreso e completato");
+      await load();
+      window.setTimeout(() => {
+        setBackgroundUploads((current) => {
+          const next = { ...current };
+          delete next[video.id];
+          return next;
+        });
+      }, 3500);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Ripresa caricamento non riuscita";
+      setBackgroundUpload(video.id, { status: "failed" });
+      setError(message);
+      await load();
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Header title="Libreria contenuti" description="Gestisci video, catalogo, upload, conversione HLS e metadati tecnici.">
@@ -240,10 +274,12 @@ export function ContentSection({ onNotify }: Props) {
         <ContentTable
           videos={videos}
           backgroundUploads={backgroundUploads}
+          suspendedUploads={suspendedUploads}
           transcodingId={transcodingId}
           onEdit={(video) => setEditing(video)}
           onDelete={(video) => void remove(video.id)}
           onTranscode={(video) => void startTranscode(video)}
+          onResumeUpload={(video, session, file) => void resumeUploadForVideo(video, session, file)}
           onOpenPlayer={(video) => setPlayingVideo(video)}
           onInfo={(video) => setInfoVideo(video)}
           onVast={(video) => setVastVideo(video)}
@@ -379,24 +415,33 @@ function SuspendedUploadsPanel({
 function ContentTable({
   videos,
   backgroundUploads,
+  suspendedUploads,
   transcodingId,
   onEdit,
   onDelete,
   onTranscode,
+  onResumeUpload,
   onOpenPlayer,
   onInfo,
   onVast,
 }: {
   videos: Video[];
   backgroundUploads: Record<string, BackgroundUpload>;
+  suspendedUploads: MediaUploadSession[];
   transcodingId: string | null;
   onEdit: (video: Video) => void;
   onDelete: (video: Video) => void;
   onTranscode: (video: Video) => void;
+  onResumeUpload: (video: Video, session: MediaUploadSession, file: File) => void;
   onOpenPlayer: (video: Video) => void;
   onInfo: (video: Video) => void;
   onVast: (video: Video) => void;
 }) {
+  const suspendedByVideoId = useMemo(
+    () => new Map(suspendedUploads.map((session) => [session.logicalUploadId, session])),
+    [suspendedUploads],
+  );
+
   return (
     <section className="admin-panel overflow-hidden">
       <div className="overflow-x-auto">
@@ -418,10 +463,12 @@ function ContentTable({
                 key={video.id}
                 video={video}
                 backgroundUpload={backgroundUploads[video.id]}
+                suspendedUpload={suspendedByVideoId.get(video.id)}
                 transcoding={transcodingId === video.id}
                 onEdit={() => onEdit(video)}
                 onDelete={() => onDelete(video)}
                 onTranscode={() => onTranscode(video)}
+                onResumeUpload={(session, file) => onResumeUpload(video, session, file)}
                 onOpenPlayer={() => onOpenPlayer(video)}
                 onInfo={() => onInfo(video)}
                 onVast={() => onVast(video)}
@@ -437,26 +484,31 @@ function ContentTable({
 function ContentTableRow({
   video,
   backgroundUpload,
+  suspendedUpload,
   transcoding,
   onEdit,
   onDelete,
   onTranscode,
+  onResumeUpload,
   onOpenPlayer,
   onInfo,
   onVast,
 }: {
   video: Video;
   backgroundUpload?: BackgroundUpload;
+  suspendedUpload?: MediaUploadSession;
   transcoding: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onTranscode: () => void;
+  onResumeUpload: (session: MediaUploadSession, file: File) => void;
   onOpenPlayer: () => void;
   onInfo: () => void;
   onVast: () => void;
 }) {
   const duration = describeDuration(video);
   const hlsReady = video.processingStatus === "READY" && Boolean(video.hlsUrl);
+  const canResume = Boolean(suspendedUpload) && !backgroundUpload && ["UPLOADING", "FAILED", "PENDING"].includes(video.processingStatus);
 
   return (
     <tr className="align-top transition hover:bg-[#071827]/70">
@@ -518,6 +570,12 @@ function ContentTableRow({
             <PlayCircle size={15} />
             {transcoding ? "Avvio..." : "HLS"}
           </button>
+          {canResume && suspendedUpload ? (
+            <ResumeUploadButton
+              session={suspendedUpload}
+              onSelect={(file) => onResumeUpload(suspendedUpload, file)}
+            />
+          ) : null}
           <button type="button" aria-label={`Modifica ${video.title}`} onClick={onEdit} className="admin-icon-button" title="Modifica">
             <Pencil size={16} />
           </button>
@@ -556,6 +614,42 @@ function CatalogIndicator({ video }: { video: Video }) {
         {video.episodeCode ? ` · EP ${video.episodeCode}` : video.episodeNumber ? ` · EP ${video.episodeNumber}` : ""}
       </p>
     </div>
+  );
+}
+
+function ResumeUploadButton({
+  session,
+  onSelect,
+}: {
+  session: MediaUploadSession;
+  onSelect: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const uploadedParts = session.uploadedParts.length;
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={session.contentType || "video/*"}
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.currentTarget.value = "";
+          if (file) onSelect(file);
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="admin-secondary-button px-2.5 py-2 text-xs"
+        title={`Riprendi ${session.fileName} dalle parti già caricate (${uploadedParts}/${session.totalParts})`}
+      >
+        <Upload size={15} />
+        Riprendi upload
+      </button>
+    </>
   );
 }
 

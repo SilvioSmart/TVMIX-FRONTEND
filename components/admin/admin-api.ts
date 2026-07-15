@@ -243,11 +243,15 @@ type MultipartCreateResponse = {
   objectKey: string;
   partSize: number;
   totalParts: number;
+  uploadedParts?: MultipartUploadedPart[];
+  size?: number;
+  resumable?: boolean;
 };
 
 type MultipartUploadedPart = {
   partNumber: number;
   etag: string;
+  size?: number;
 };
 
 type MultipartCompleteResponse = {
@@ -369,15 +373,37 @@ export async function uploadFileToR2(
   file: File,
   onProgress: (percentage: number) => void,
   videoId?: string,
+  options?: {
+    resumeSession?: MediaUploadSession;
+    keepSessionOnFailure?: boolean;
+  },
 ): Promise<{ uploadId: string; objectKey: string; originalFileName: string }> {
+  if (options?.resumeSession) {
+    if (options.resumeSession.fileName !== file.name) {
+      throw new Error(`Seleziona lo stesso file originale: ${options.resumeSession.fileName}`);
+    }
+    if (options.resumeSession.size !== file.size) {
+      throw new Error("Il file selezionato ha una dimensione diversa dall'upload sospeso");
+    }
+    if (options.resumeSession.contentType && file.type && options.resumeSession.contentType !== file.type) {
+      throw new Error("Il file selezionato ha un formato diverso dall'upload sospeso");
+    }
+  }
+
   const created = await multipartRequest<MultipartCreateResponse>("create", {
     fileName: file.name,
     contentType: file.type,
     size: file.size,
     ...(videoId ? { videoId } : {}),
   });
+  const alreadyUploaded = new Map<number, MultipartUploadedPart>(
+    (created.uploadedParts ?? options?.resumeSession?.uploadedParts ?? []).map((part) => [part.partNumber, part]),
+  );
 
   const loadedByPart = new Map<number, number>();
+  for (const [partNumber, part] of alreadyUploaded) {
+    loadedByPart.set(partNumber, part.size ?? Math.min(created.partSize, Math.max(file.size - (partNumber - 1) * created.partSize, 0)));
+  }
   const updateProgress = (partNumber: number, loaded: number) => {
     loadedByPart.set(partNumber, loaded);
     const totalLoaded = [...loadedByPart.values()].reduce((sum, value) => sum + value, 0);
@@ -385,8 +411,13 @@ export async function uploadFileToR2(
   };
 
   try {
-    const parts: MultipartUploadedPart[] = [];
+    const parts: MultipartUploadedPart[] = [...alreadyUploaded.values()];
+    if (parts.length) {
+      const totalLoaded = [...loadedByPart.values()].reduce((sum, value) => sum + value, 0);
+      onProgress(Math.min(99, Math.round((totalLoaded / file.size) * 100)));
+    }
     for (let partNumber = 1; partNumber <= created.totalParts; partNumber += 1) {
+      if (alreadyUploaded.has(partNumber)) continue;
       const start = (partNumber - 1) * created.partSize;
       const end = Math.min(start + created.partSize, file.size);
       parts.push(
@@ -418,10 +449,12 @@ export async function uploadFileToR2(
       originalFileName: completed.originalFileName,
     };
   } catch (error) {
-    await multipartRequest("abort", {
-      uploadId: created.multipartUploadId,
-      objectKey: created.objectKey,
-    }).catch(() => undefined);
+    if (!options?.keepSessionOnFailure) {
+      await multipartRequest("abort", {
+        uploadId: created.multipartUploadId,
+        objectKey: created.objectKey,
+      }).catch(() => undefined);
+    }
     throw error;
   }
 }
