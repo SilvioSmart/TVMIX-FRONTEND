@@ -256,6 +256,26 @@ type MultipartCompleteResponse = {
   originalFileName: string;
 };
 
+export type MediaUploadSession = {
+  id: string;
+  logicalUploadId: string;
+  multipartUploadId: string;
+  objectKey: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  partSize: number;
+  totalParts: number;
+  uploadedParts: Array<{ partNumber: number; etag: string; size?: number }>;
+  status: "IN_PROGRESS" | "COMPLETED" | "ABORTED" | "FAILED";
+  error: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  abortedAt: string | null;
+};
+
 const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
 
 function adminUploadUrl(path: string) {
@@ -263,7 +283,7 @@ function adminUploadUrl(path: string) {
 }
 
 async function multipartRequest<T>(
-  action: "create" | "complete" | "abort",
+  action: "create" | "complete" | "abort" | "resume",
   body: unknown,
 ): Promise<T> {
   const response = await fetch(adminUploadUrl(`multipart/${action}`), {
@@ -279,6 +299,30 @@ async function multipartRequest<T>(
   }
 
   return payload as T;
+}
+
+export async function listSuspendedUploads(): Promise<MediaUploadSession[]> {
+  const response = await fetch(adminUploadUrl("multipart/sessions?status=IN_PROGRESS&limit=100"), {
+    credentials: "include",
+    headers: { accept: "application/json" },
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload as ApiError).error ?? `Caricamento upload sospesi non riuscito (${response.status})`);
+  }
+  return (payload as { data: MediaUploadSession[] }).data;
+}
+
+export async function refreshMultipartUpload(logicalUploadId: string): Promise<MediaUploadSession> {
+  const response = await multipartRequest<{ data: MediaUploadSession }>("resume", { logicalUploadId });
+  return response.data;
+}
+
+export async function abortMultipartUpload(session: Pick<MediaUploadSession, "multipartUploadId" | "objectKey">): Promise<void> {
+  await multipartRequest("abort", {
+    uploadId: session.multipartUploadId,
+    objectKey: session.objectKey,
+  });
 }
 
 function uploadMultipartPart(

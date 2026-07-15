@@ -6,13 +6,17 @@ import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, 
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
+  abortMultipartUpload,
   formatDate,
+  listSuspendedUploads,
+  refreshMultipartUpload,
   uploadFileToR2,
   type CatalogCategory,
   type CatalogProgram,
   type CatalogSeason,
   type Category,
   type ListResponse,
+  type MediaUploadSession,
   type Video,
 } from "./admin-api";
 import { AdminModal, ConfirmButton, ResourceState } from "./AdminResourceUI";
@@ -40,6 +44,13 @@ type BackgroundUpload = {
   progress: number;
   status: "uploading" | "done" | "failed";
 };
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
 
 const blank: VideoForm = {
   title: "",
@@ -79,6 +90,7 @@ export function ContentSection({ onNotify }: Props) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [transcodingId, setTranscodingId] = useState<string | null>(null);
   const [backgroundUploads, setBackgroundUploads] = useState<Record<string, BackgroundUpload>>({});
+  const [suspendedUploads, setSuspendedUploads] = useState<MediaUploadSession[]>([]);
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
   const [infoVideo, setInfoVideo] = useState<Video | null>(null);
   const [vastVideo, setVastVideo] = useState<Video | null>(null);
@@ -88,14 +100,16 @@ export function ContentSection({ onNotify }: Props) {
     setError(null);
     try {
       const query = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [videoResult, categoryResult, catalogResult] = await Promise.all([
+      const [videoResult, categoryResult, catalogResult, uploadSessions] = await Promise.all([
         adminRequest<ListResponse<Video>>(`videos${query}`),
         adminRequest<ListResponse<Category>>("categories?limit=100"),
         adminRequest<{ data: CatalogCategory[] }>("catalog/tree"),
+        listSuspendedUploads().catch(() => []),
       ]);
       setVideos(videoResult.data);
       setCategories(categoryResult.data);
       setCatalog(catalogResult.data);
+      setSuspendedUploads(uploadSessions);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Errore di caricamento");
     } finally {
@@ -131,6 +145,26 @@ export function ContentSection({ onNotify }: Props) {
       setError(cause instanceof Error ? cause.message : "Avvio conversione non riuscito");
     } finally {
       setTranscodingId(null);
+    }
+  }
+
+  async function refreshSuspendedUpload(session: MediaUploadSession) {
+    try {
+      const updated = await refreshMultipartUpload(session.logicalUploadId);
+      setSuspendedUploads((current) => current.map((item) => item.id === updated.id ? updated : item));
+      onNotify("Stato upload sospeso aggiornato da R2");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Ripresa controllo upload non riuscita");
+    }
+  }
+
+  async function abortSuspendedUpload(session: MediaUploadSession) {
+    try {
+      await abortMultipartUpload(session);
+      onNotify("Tronconi upload cancellati dall'archivio");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Cancellazione tronconi non riuscita");
     }
   }
 
@@ -196,6 +230,11 @@ export function ContentSection({ onNotify }: Props) {
 
       <SearchBox value={search} onChange={setSearch} placeholder="Cerca per titolo, slug o codice episodio..." />
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun contenuto presente." : undefined} />
+      <SuspendedUploadsPanel
+        sessions={suspendedUploads}
+        onRefresh={refreshSuspendedUpload}
+        onAbort={abortSuspendedUpload}
+      />
 
       {!loading && !error && videos.length ? (
         <ContentTable
@@ -272,6 +311,68 @@ export function ContentSection({ onNotify }: Props) {
       {infoVideo ? <MediaInfoModal video={infoVideo} onClose={() => setInfoVideo(null)} /> : null}
       {vastVideo ? <VastConfigModal video={vastVideo} onClose={() => setVastVideo(null)} /> : null}
     </div>
+  );
+}
+
+function SuspendedUploadsPanel({
+  sessions,
+  onRefresh,
+  onAbort,
+}: {
+  sessions: MediaUploadSession[];
+  onRefresh: (session: MediaUploadSession) => void;
+  onAbort: (session: MediaUploadSession) => void;
+}) {
+  if (!sessions.length) return null;
+
+  return (
+    <section className="admin-panel overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] px-5 py-4">
+        <div>
+          <h3 className="admin-section-title">Upload sospesi</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Controllo database/R2 per riprendere il caricamento o cancellare i tronconi multipart.
+          </p>
+        </div>
+      </div>
+      <div className="divide-y divide-[#203248]">
+        {sessions.map((session) => {
+          const uploaded = session.uploadedParts.length;
+          const progress = Math.round((uploaded / Math.max(session.totalParts, 1)) * 100);
+          return (
+            <article key={session.id} className="grid gap-4 p-5 lg:grid-cols-[1fr_auto]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-semibold text-white">{session.fileName}</p>
+                  <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-300">
+                    sospeso
+                  </span>
+                </div>
+                <p className="mt-1 truncate font-mono text-xs text-slate-500">{session.objectKey}</p>
+                <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+                  <span>{formatBytes(session.size)}</span>
+                  <span>{uploaded}/{session.totalParts} parti</span>
+                  <span>Aggiornato: {formatDate(session.updatedAt)}</span>
+                </div>
+                <Progress value={progress} label={`Parti caricate ${progress}%`} />
+              </div>
+              <div className="flex flex-wrap items-start gap-2 lg:justify-end">
+                <button type="button" className="admin-secondary-button" onClick={() => onRefresh(session)}>
+                  <RotateCw size={15} /> Riprendi controllo
+                </button>
+                <ConfirmButton
+                  label={`Cancellare i tronconi di ${session.fileName}?`}
+                  onConfirm={() => onAbort(session)}
+                  className="admin-secondary-button border-red-400/30 text-red-200 hover:bg-red-500/10"
+                >
+                  <Trash2 size={15} /> Cancella tronconi
+                </ConfirmButton>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
