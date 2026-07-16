@@ -14,9 +14,10 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import type { AdminSection, AppearanceSubnavItem, LiveSubnavKey } from "./admin-data";
+import type { AdminSection, AppearanceSubnavItem, ContentSubnavKey, LiveSubnavKey } from "./admin-data";
 import { CatalogSection } from "./CatalogSection";
 import { ContentSection, Header, Input } from "./ContentSection";
+import { LoadingSection } from "./LoadingSection";
 import { AppearanceCarouselConfigSection } from "./AppearanceCarouselConfigSection";
 import { AppearanceMenuConfigSection } from "./AppearanceMenuConfigSection";
 import { AppearanceModulesConfigSection } from "./AppearanceModulesConfigSection";
@@ -26,6 +27,7 @@ import type { AppearanceMenuKey } from "./admin-api";
 
 type Props = {
   section: Exclude<AdminSection, "overview">;
+  activeContent: ContentSubnavKey;
   appearanceSection: AppearanceMenuKey;
   activeLive: LiveSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
@@ -33,8 +35,10 @@ type Props = {
   onNotify: (message: string) => void;
 };
 
-export function PlatformSections({ section, appearanceSection, activeLive, appearanceMenu, onSelectLive, onNotify }: Props) {
-  if (section === "content") return <ContentSection onNotify={onNotify} />;
+export function PlatformSections({ section, activeContent, appearanceSection, activeLive, appearanceMenu, onSelectLive, onNotify }: Props) {
+  if (section === "content") {
+    return activeContent === "loading" ? <LoadingSection onNotify={onNotify} /> : <ContentSection onNotify={onNotify} />;
+  }
   if (section === "live") return <LiveSection activeMode={activeLive} onModeChange={onSelectLive} onNotify={onNotify} />;
   if (section === "catalog") return <CatalogSection onNotify={onNotify} />;
   if (section === "users") return <UsersSection onNotify={onNotify} />;

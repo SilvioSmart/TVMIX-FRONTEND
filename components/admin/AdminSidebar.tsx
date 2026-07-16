@@ -2,12 +2,13 @@
 
 import { ChevronDown, ChevronLeft, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { navigation, type AdminSection, type AppearanceSubnavItem, type LiveSubnavKey, type NavItem } from "./admin-data";
+import { navigation, type AdminSection, type AppearanceSubnavItem, type ContentSubnavKey, type LiveSubnavKey, type NavItem } from "./admin-data";
 import type { AppearanceMenuKey } from "./admin-api";
 
 type AdminSidebarProps = {
   active: AdminSection;
   activeAppearance: AppearanceMenuKey;
+  activeContent: ContentSubnavKey;
   activeLive: LiveSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
   collapsed: boolean;
@@ -16,6 +17,7 @@ type AdminSidebarProps = {
   onMobileClose: () => void;
   onSelect: (section: AdminSection) => void;
   onSelectAppearance: (section: AppearanceMenuKey) => void;
+  onSelectContent: (section: ContentSubnavKey) => void;
   onSelectLive: (section: LiveSubnavKey) => void;
   items?: NavItem[];
 };
@@ -23,6 +25,7 @@ type AdminSidebarProps = {
 export function AdminSidebar({
   active,
   activeAppearance,
+  activeContent,
   activeLive,
   appearanceMenu,
   collapsed,
@@ -31,11 +34,13 @@ export function AdminSidebar({
   onMobileClose,
   onSelect,
   onSelectAppearance,
+  onSelectContent,
   onSelectLive,
   items = navigation,
 }: AdminSidebarProps) {
   const appearanceOpen = active === "appearance";
   const liveOpen = active === "live";
+  const contentOpen = active === "content";
 
   return (
     <>
@@ -74,6 +79,7 @@ export function AdminSidebar({
             const Icon = item.icon;
             const selected = active === item.id;
             const isAppearance = item.id === "appearance";
+            const isContent = item.id === "content";
             const isLive = item.id === "live";
             const children = isAppearance ? appearanceMenu : item.children;
 
@@ -85,7 +91,7 @@ export function AdminSidebar({
                   aria-expanded={children?.length ? selected : undefined}
                   onClick={() => {
                     onSelect(item.id);
-                    if (!isAppearance && !isLive) onMobileClose();
+                    if (!isAppearance && !isLive && !isContent) onMobileClose();
                   }}
                   className={[
                     "relative flex h-12 w-full items-center rounded-lg text-sm font-semibold transition",
@@ -112,18 +118,21 @@ export function AdminSidebar({
                   ) : null}
                 </button>
 
-                {!collapsed && ((isAppearance && appearanceOpen) || (isLive && liveOpen)) && children?.length ? (
+                {!collapsed && ((isAppearance && appearanceOpen) || (isLive && liveOpen) || (isContent && contentOpen)) && children?.length ? (
                   <div className="ml-4 mt-2 space-y-1 border-l border-[#1d3044] pl-3">
                     {children.map((child) => {
                       const childSelected = isAppearance
                         ? activeAppearance === child.key
-                        : activeLive === child.key;
+                        : isContent
+                          ? activeContent === child.key
+                          : activeLive === child.key;
                       return (
                         <button
                           key={child.key}
                           type="button"
                           onClick={() => {
                             if (isAppearance) onSelectAppearance(child.key as AppearanceMenuKey);
+                            if (isContent) onSelectContent(child.key as ContentSubnavKey);
                             if (isLive) onSelectLive(child.key as LiveSubnavKey);
                             onMobileClose();
                           }}

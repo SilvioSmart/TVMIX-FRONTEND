@@ -280,7 +280,35 @@ export type MediaUploadSession = {
   abortedAt: string | null;
 };
 
+export type RemoteMediaFile = {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  size: number | null;
+  supported: boolean;
+  updatedAt: string;
+};
+
+export type TranscodeStatus = {
+  videoId: string;
+  processingStatus: Video["processingStatus"];
+  processingError: string | null;
+  duration: number | null;
+  jobId: string | null;
+  jobState: string | null;
+  progress: unknown;
+};
+
 const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
+
+function mediaContentType(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (file.type) return file.type;
+  if (extension === "mp4") return "video/mp4";
+  if (extension === "mov") return "video/quicktime";
+  if (extension === "mkv") return "video/x-matroska";
+  return "application/octet-stream";
+}
 
 function adminUploadUrl(path: string) {
   return `${UPLOAD_API_URL ?? ""}/api/admin/uploads/${path.replace(/^\//, "")}`;
@@ -327,6 +355,61 @@ export async function abortMultipartUpload(session: Pick<MediaUploadSession, "mu
     uploadId: session.multipartUploadId,
     objectKey: session.objectKey,
   });
+}
+
+export async function registerOriginalMedia(input: {
+  objectKey: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  duration?: number | null;
+  mediaFormat?: string | null;
+  videoQuality?: string | null;
+  audioTracks?: unknown;
+}): Promise<Video> {
+  const response = await fetch(adminUploadUrl("register-original"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload as ApiError).error ?? `Registrazione originale non riuscita (${response.status})`);
+  }
+  return (payload as { data: Video }).data;
+}
+
+export async function listRemoteMediaFiles(path = ""): Promise<{ root: string; path: string; data: RemoteMediaFile[] }> {
+  const params = new URLSearchParams({ path });
+  const response = await fetch(adminUploadUrl(`remote-files?${params.toString()}`), {
+    credentials: "include",
+    headers: { accept: "application/json" },
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload as ApiError).error ?? `Lettura cartella remota non riuscita (${response.status})`);
+  }
+  return payload as { root: string; path: string; data: RemoteMediaFile[] };
+}
+
+export async function importRemoteMedia(path: string): Promise<Video> {
+  const response = await fetch(adminUploadUrl("remote-import"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload as ApiError).error ?? `Import remoto non riuscito (${response.status})`);
+  }
+  return (payload as { data: Video }).data;
+}
+
+export async function getTranscodeStatus(videoId: string): Promise<TranscodeStatus> {
+  const payload = await adminRequest<{ data: TranscodeStatus }>(`videos/${videoId}/transcode-status`);
+  return payload.data;
 }
 
 function uploadMultipartPart(
@@ -385,16 +468,18 @@ export async function uploadFileToR2(
     if (options.resumeSession.size !== file.size) {
       throw new Error("Il file selezionato ha una dimensione diversa dall'upload sospeso");
     }
-    if (options.resumeSession.contentType && file.type && options.resumeSession.contentType !== file.type) {
+    if (options.resumeSession.contentType && mediaContentType(file) && options.resumeSession.contentType !== mediaContentType(file)) {
       throw new Error("Il file selezionato ha un formato diverso dall'upload sospeso");
     }
   }
+  const contentType = mediaContentType(file);
 
+  const logicalUploadId = videoId ?? options?.resumeSession?.logicalUploadId;
   const created = await multipartRequest<MultipartCreateResponse>("create", {
     fileName: file.name,
-    contentType: file.type,
+    contentType,
     size: file.size,
-    ...(videoId ? { videoId } : {}),
+    ...(logicalUploadId ? { videoId: logicalUploadId } : {}),
   });
   const alreadyUploaded = new Map<number, MultipartUploadedPart>(
     (created.uploadedParts ?? options?.resumeSession?.uploadedParts ?? []).map((part) => [part.partNumber, part]),
@@ -437,7 +522,7 @@ export async function uploadFileToR2(
       uploadId: created.multipartUploadId,
       objectKey: created.objectKey,
       fileName: file.name,
-      contentType: file.type,
+      contentType,
       size: file.size,
       parts,
     });

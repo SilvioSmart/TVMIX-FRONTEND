@@ -8,6 +8,7 @@ import {
   navigation,
   type AdminSection,
   type AppearanceSubnavItem,
+  type ContentSubnavKey,
   type LiveSubnavKey,
   type NavItem,
 } from "./admin-data";
@@ -38,6 +39,7 @@ function canUseSection(user: AdminUser, section: AdminSection) {
 
 export function AdminDashboard({ user }: { user: AdminUser }) {
   const [active, setActive] = useState<AdminSection>("overview");
+  const [activeContent, setActiveContent] = useState<ContentSubnavKey>("loading");
   const [activeAppearance, setActiveAppearance] = useState<AppearanceMenuKey>("logo-name");
   const [activeLive, setActiveLive] = useState<LiveSubnavKey>("LIVE_STREAMING");
   const [appearanceMenu, setAppearanceMenu] =
@@ -105,6 +107,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
       <AdminSidebar
         active={active}
         activeAppearance={activeAppearance}
+        activeContent={activeContent}
         activeLive={activeLive}
         appearanceMenu={appearanceMenu}
         collapsed={collapsed}
@@ -115,6 +118,10 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
         onSelectAppearance={(section) => {
           setActive("appearance");
           setActiveAppearance(section);
+        }}
+        onSelectContent={(section) => {
+          setActive("content");
+          setActiveContent(section);
         }}
         onSelectLive={(section) => {
           setActive("live");
@@ -201,6 +208,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
           ) : (
             <PlatformSections
               section={active}
+              activeContent={activeContent}
               activeLive={activeLive}
               onSelectLive={setActiveLive}
               appearanceSection={activeAppearance}

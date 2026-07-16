@@ -19,6 +19,13 @@ export type AdminSection =
   | "appearance"
   | "settings";
 
+export type ContentSubnavKey = "loading" | "library";
+export type ContentSubnavItem = {
+  key: ContentSubnavKey;
+  label: string;
+  description?: string | null;
+};
+
 export type AppearanceSubnavItem = {
   key: AppearanceMenuKey;
   label: string;
@@ -36,7 +43,7 @@ export type NavItem = {
   id: AdminSection;
   label: string;
   icon: LucideIcon;
-  children?: Array<AppearanceSubnavItem | LiveSubnavItem>;
+  children?: Array<AppearanceSubnavItem | ContentSubnavItem | LiveSubnavItem>;
 };
 
 export const fallbackAppearanceMenu: AppearanceSubnavItem[] = [
@@ -52,9 +59,14 @@ export const liveMenu: LiveSubnavItem[] = [
   { key: "PLAYLIST", label: "PLAYLIST", description: "Canali generati da sequenze di clip" },
 ];
 
+export const contentMenu: ContentSubnavItem[] = [
+  { key: "loading", label: "LOADING", description: "Caricamento file originali e import remoto" },
+  { key: "library", label: "LIBRERIA", description: "Archivio contenuti, catalogo e conversioni" },
+];
+
 export const navigation: NavItem[] = [
   { id: "overview", label: "Panoramica", icon: Home },
-  { id: "content", label: "Contenuti", icon: Clapperboard },
+  { id: "content", label: "Contenuti", icon: Clapperboard, children: contentMenu },
   { id: "live", label: "Dirette TV", icon: Radio, children: liveMenu },
   { id: "catalog", label: "Catalogo", icon: FolderOpen },
   { id: "users", label: "Utenti", icon: CircleUserRound },
