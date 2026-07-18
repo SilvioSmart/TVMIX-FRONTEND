@@ -333,6 +333,7 @@ export function ContentSection({ onNotify }: Props) {
       {editing !== undefined ? (
         <VideoEditor
           video={editing}
+          videos={videos}
           categories={categories}
           catalog={catalog}
           saving={saving}
@@ -1238,6 +1239,7 @@ function VideoPlayerModal({
 
 function VideoEditor({
   video,
+  videos,
   categories,
   catalog,
   saving,
@@ -1246,6 +1248,7 @@ function VideoEditor({
   onSave,
 }: {
   video: Video | null;
+  videos: Video[];
   categories: Category[];
   catalog: CatalogCategory[];
   saving: boolean;
@@ -1281,18 +1284,33 @@ function VideoEditor({
     () => catalog.flatMap((category) => category.programs.map((program) => ({ ...program, category }))),
     [catalog],
   );
+  const filteredPrograms = useMemo(
+    () => form.categoryId ? programs.filter((program) => program.categoryId === form.categoryId) : programs,
+    [programs, form.categoryId],
+  );
   const selectedProgram = programs.find((program) => program.id === form.programId);
   const seasons = selectedProgram?.seasons ?? [];
   const selectedSeason = findSeason(catalog, form.seasonId);
+  const availableEpisodes = useMemo(
+    () => availableEpisodeNumbers(videos, form.seasonId, video?.id),
+    [videos, form.seasonId, video?.id],
+  );
+  const firstFreeEpisode = availableEpisodes[0]?.toString() ?? "";
 
   useEffect(() => {
-    if (!form.seasonId || !form.episodeNumber || !selectedSeason) {
+    if (!form.seasonId || !selectedSeason) {
       field("episodeCode", "");
       return;
     }
-    field("episodeCode", createEpisodeCode(selectedSeason.programId, selectedSeason.number, Number(form.episodeNumber)));
+    const episode = Number(form.episodeNumber || firstFreeEpisode);
+    if (!episode) {
+      field("episodeCode", "");
+      return;
+    }
+    if (!form.episodeNumber && firstFreeEpisode) field("episodeNumber", firstFreeEpisode);
+    field("episodeCode", createEpisodeCode(selectedSeason.programId, selectedSeason.number, episode));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.seasonId, form.episodeNumber, selectedSeason?.id]);
+  }, [form.seasonId, form.episodeNumber, selectedSeason?.id, firstFreeEpisode]);
 
   function field<K extends keyof VideoForm>(key: K, value: VideoForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -1306,6 +1324,17 @@ function VideoEditor({
     }));
   }
 
+  function changeCategory(categoryId: string) {
+    setForm((current) => ({
+      ...current,
+      categoryId,
+      programId: "",
+      seasonId: "",
+      episodeNumber: "",
+      episodeCode: "",
+    }));
+  }
+
   function changeProgram(programId: string) {
     const program = programs.find((item) => item.id === programId);
     setForm((current) => ({
@@ -1313,16 +1342,20 @@ function VideoEditor({
       programId,
       categoryId: program?.categoryId ?? current.categoryId,
       seasonId: "",
+      episodeNumber: "",
       episodeCode: "",
     }));
   }
 
   function changeSeason(seasonId: string) {
     const season = findSeason(catalog, seasonId);
+    const nextEpisode = firstAvailableEpisodeNumber(videos, seasonId, video?.id)?.toString() ?? "";
     setForm((current) => ({
       ...current,
       seasonId,
       categoryId: season?.program.categoryId ?? current.categoryId,
+      episodeNumber: nextEpisode,
+      episodeCode: season && nextEpisode ? createEpisodeCode(season.programId, season.number, Number(nextEpisode)) : "",
     }));
   }
 
@@ -1356,16 +1389,16 @@ function VideoEditor({
 
         <label>
           <span className="admin-label">Categoria</span>
-          <select value={form.categoryId} onChange={(event) => field("categoryId", event.target.value)} required className="admin-input mt-2">
+          <select value={form.categoryId} onChange={(event) => changeCategory(event.target.value)} required className="admin-input mt-2">
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </label>
         <label>
-          <span className="admin-label">Programma</span>
-          <select value={form.programId} onChange={(event) => changeProgram(event.target.value)} className="admin-input mt-2">
-            <option value="">Nessun programma</option>
-            {programs.map((program) => <option key={program.id} value={program.id}>{program.name} ({program.id})</option>)}
-          </select>
+            <span className="admin-label">Programma</span>
+            <select value={form.programId} onChange={(event) => changeProgram(event.target.value)} className="admin-input mt-2">
+              <option value="">Nessun programma</option>
+            {filteredPrograms.map((program) => <option key={program.id} value={program.id}>{program.name} ({program.id})</option>)}
+            </select>
           <span className="mt-1 block font-mono text-[11px] text-slate-500">ID programma: {form.programId || "â€”"}</span>
         </label>
         <label>
@@ -1377,7 +1410,16 @@ function VideoEditor({
           <span className="mt-1 block font-mono text-[11px] text-slate-500">ID stagione/serie: {form.seasonId || "â€”"}</span>
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <Input label="N. episodio" type="number" value={form.episodeNumber} onChange={(value) => field("episodeNumber", value)} />
+          <label>
+            <span className="admin-label">N. episodio</span>
+            <select value={form.episodeNumber} onChange={(event) => field("episodeNumber", event.target.value)} disabled={!form.seasonId} className="admin-input mt-2">
+              <option value="">Nessun episodio</option>
+              {availableEpisodes.map((episode) => <option key={episode} value={episode}>{episode}</option>)}
+            </select>
+            <span className="mt-1 block text-[11px] text-slate-500">
+              Primo libero proposto: {firstFreeEpisode || "nessuno"}
+            </span>
+          </label>
           <label>
             <span className="admin-label">ID episodio</span>
             <input readOnly value={form.episodeCode} placeholder="automatico" className="admin-input mt-2 font-mono tracking-[0.18em] text-[#22bdf3]" />
@@ -1385,21 +1427,15 @@ function VideoEditor({
           </label>
         </div>
 
-        <div className="sm:col-span-2">
-          <label className="block">
-            <span className="admin-label">File video sorgente</span>
-            <span className="mt-2 flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#31506b] bg-[#06111d] px-4 py-3 text-sm text-slate-400 hover:border-[#22bdf3]">
-              {form.file ? <FileVideo size={22} className="text-[#22bdf3]" /> : <Upload size={22} />}
-              <span className="min-w-0">
-                <span className="block truncate text-slate-200">
-                  {form.file?.name ?? video?.originalFileName ?? "Seleziona MP4, MOV o MKV"}
-                </span>
-                <span className="mt-1 block text-xs text-slate-500">Upload diretto su Cloudflare R2 / originals</span>
-              </span>
-              <input type="file" accept="video/mp4,video/quicktime,video/x-matroska,.mkv" className="sr-only" onChange={(event) => field("file", event.target.files?.[0] ?? null)} />
-            </span>
-          </label>
-          {uploadProgress > 0 ? <Progress value={uploadProgress} label="Upload R2" /> : null}
+        <div className="sm:col-span-2 rounded-xl border border-[#203248] bg-[#06111d] p-4">
+          <p className="admin-label">File sorgente</p>
+          <div className="mt-2 flex items-start gap-3 text-sm text-slate-400">
+            <FileVideo size={22} className="mt-0.5 text-[#22bdf3]" />
+            <div className="min-w-0">
+              <p className="truncate text-slate-200">{video?.originalFileName ?? "Nessun file sorgente associato"}</p>
+              <p className="mt-1 break-all font-mono text-xs text-slate-500">{video?.sourceObjectKey ?? "—"}</p>
+            </div>
+          </div>
         </div>
 
         <Input label="URL HLS" type="url" value={form.hlsUrl} onChange={(value) => field("hlsUrl", value)} />
@@ -1462,6 +1498,20 @@ function findSeason(catalog: CatalogCategory[], seasonId: string) {
     }
   }
   return null;
+}
+
+function availableEpisodeNumbers(videos: Video[], seasonId: string, currentVideoId?: string) {
+  if (!seasonId) return [];
+  const used = new Set(
+    videos
+      .filter((video) => video.seasonId === seasonId && video.id !== currentVideoId && video.episodeNumber)
+      .map((video) => video.episodeNumber as number),
+  );
+  return Array.from({ length: 99 }, (_, index) => index + 1).filter((episode) => !used.has(episode));
+}
+
+function firstAvailableEpisodeNumber(videos: Video[], seasonId: string, currentVideoId?: string) {
+  return availableEpisodeNumbers(videos, seasonId, currentVideoId)[0] ?? null;
 }
 
 function slugify(value: string) {
