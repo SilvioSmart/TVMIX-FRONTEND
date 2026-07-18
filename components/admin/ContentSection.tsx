@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Hls from "hls.js";
-import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, Play, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
+import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, Play, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
@@ -85,6 +85,8 @@ export function ContentSection({ onNotify }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [programFilter, setProgramFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Video | null | undefined>(undefined);
@@ -101,7 +103,7 @@ export function ContentSection({ onNotify }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const query = search ? `?search=${encodeURIComponent(search)}` : "";
+      const query = search ? `?search=${encodeURIComponent(search)}&limit=500` : "?limit=500";
       const [videoResult, categoryResult, catalogResult, uploadSessions] = await Promise.all([
         adminRequest<ListResponse<Video>>(`videos${query}`),
         adminRequest<ListResponse<Category>>("categories?limit=100"),
@@ -122,6 +124,19 @@ export function ContentSection({ onNotify }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const libraryPrograms = useMemo(
+    () => catalog.flatMap((category) => category.programs.map((program) => ({ ...program, category }))),
+    [catalog],
+  );
+  const filteredVideos = useMemo(
+    () => videos.filter((video) => {
+      const categoryMatch = categoryFilter ? video.categoryId === categoryFilter : true;
+      const programMatch = programFilter ? video.season?.programId === programFilter : true;
+      return categoryMatch && programMatch;
+    }),
+    [videos, categoryFilter, programFilter],
+  );
 
   async function remove(id: string) {
     try {
@@ -258,13 +273,28 @@ export function ContentSection({ onNotify }: Props) {
 
   return (
     <div className="space-y-5">
-      <Header title="Libreria contenuti" description="Gestisci video, catalogo, upload, conversione HLS e metadati tecnici.">
-        <button type="button" onClick={() => setEditing(null)} className="admin-primary-button">
-          <Plus size={17} /> Nuovo contenuto
-        </button>
-      </Header>
+      <Header title="Libreria contenuti" description="Gestisci video, catalogo, upload, conversione HLS e metadati tecnici." />
 
       <SearchBox value={search} onChange={setSearch} placeholder="Cerca per titolo, slug o codice episodio..." />
+      <LibrarySelectFilters
+        categories={categories}
+        programs={libraryPrograms}
+        categoryId={categoryFilter}
+        programId={programFilter}
+        resultCount={filteredVideos.length}
+        totalCount={videos.length}
+        onCategoryChange={(value) => {
+          setCategoryFilter(value);
+          setProgramFilter("");
+        }}
+        onProgramChange={(value) => {
+          setProgramFilter(value);
+          if (value) {
+            const program = libraryPrograms.find((item) => item.id === value);
+            setCategoryFilter(program?.categoryId ?? "");
+          }
+        }}
+      />
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun contenuto presente." : undefined} />
       <SuspendedUploadsPanel
         sessions={suspendedUploads}
@@ -272,9 +302,9 @@ export function ContentSection({ onNotify }: Props) {
         onAbort={abortSuspendedUpload}
       />
 
-      {!loading && !error && videos.length ? (
+      {!loading && !error && videos.length && filteredVideos.length ? (
         <ContentTable
-          videos={videos}
+          videos={filteredVideos}
           backgroundUploads={backgroundUploads}
           suspendedUploads={suspendedUploads}
           transcodingId={transcodingId}
@@ -286,6 +316,11 @@ export function ContentSection({ onNotify }: Props) {
           onInfo={(video) => setInfoVideo(video)}
           onVast={(video) => setVastVideo(video)}
         />
+      ) : null}
+      {!loading && !error && videos.length && !filteredVideos.length ? (
+        <div className="admin-panel p-5 text-sm text-slate-400">
+          Nessun media corrisponde alla categoria o al programma selezionato.
+        </div>
       ) : null}
 
       {editing !== undefined ? (
@@ -415,6 +450,63 @@ function SuspendedUploadsPanel({
   );
 }
 
+function LibrarySelectFilters({
+  categories,
+  programs,
+  categoryId,
+  programId,
+  resultCount,
+  totalCount,
+  onCategoryChange,
+  onProgramChange,
+}: {
+  categories: Category[];
+  programs: Array<CatalogProgram & { category: CatalogCategory }>;
+  categoryId: string;
+  programId: string;
+  resultCount: number;
+  totalCount: number;
+  onCategoryChange: (value: string) => void;
+  onProgramChange: (value: string) => void;
+}) {
+  const visiblePrograms = categoryId
+    ? programs.filter((program) => program.categoryId === categoryId)
+    : programs;
+
+  return (
+    <section className="admin-panel p-3">
+      <div className="grid gap-3 lg:grid-cols-[minmax(220px,320px)_minmax(260px,380px)_auto] lg:items-end">
+        <label>
+          <span className="admin-label">Categoria</span>
+          <select value={categoryId} onChange={(event) => onCategoryChange(event.target.value)} className="admin-input mt-2">
+            <option value="">Tutte le categorie</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </label>
+        <label>
+          <span className="admin-label">Programma</span>
+          <select value={programId} onChange={(event) => onProgramChange(event.target.value)} className="admin-input mt-2">
+            <option value="">Tutti i programmi</option>
+            {visiblePrograms.map((program) => (
+              <option key={program.id} value={program.id}>
+                {program.name} ({program.id})
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <span className="rounded border border-[#203248] bg-[#071827] px-2 py-2 text-xs text-slate-400">
+            {resultCount}/{totalCount} media
+          </span>
+          <button type="button" onClick={() => { onCategoryChange(""); onProgramChange(""); }} className="admin-secondary-button text-xs">
+            Azzera filtri
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ContentTable({
   videos,
   backgroundUploads,
@@ -516,10 +608,10 @@ function HlsStatePill({ video }: { video: Video }) {
       ? "queue"
       : "off";
   const className = state === "on"
-    ? "border-emerald-500 bg-emerald-500 text-white"
+    ? "border-emerald-500 text-emerald-300"
     : state === "queue"
-      ? "border-amber-400 bg-amber-400 text-black"
-      : "border-red-500 bg-red-500 text-white";
+      ? "border-amber-400 text-amber-300"
+      : "border-red-500 text-red-300";
   return (
     <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${className}`}>
       hls
@@ -570,10 +662,10 @@ function ContentTableRow({
             <h3 className="max-w-[210px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <HlsStatePill video={video} />
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${cataloged ? "border-emerald-500 bg-emerald-500 text-white" : "border-red-500 bg-red-500 text-white"}`}>
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${cataloged ? "border-emerald-500 text-emerald-300" : "border-red-500 text-red-300"}`}>
                 catalogo
               </span>
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${video.published ? "border-emerald-500 bg-emerald-500 text-white" : "border-red-500 bg-red-500 text-white"}`}>
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${video.published ? "border-emerald-500 text-emerald-300" : "border-red-500 text-red-300"}`}>
                 pubblicato
               </span>
             </div>
