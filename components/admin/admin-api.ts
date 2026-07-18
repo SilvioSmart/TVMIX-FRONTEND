@@ -303,11 +303,12 @@ export type TranscodeStatus = {
 export type RouteConfig = {
   id: string;
   name: string;
-  protocol: "SSH" | "SFTP" | "RSYNC" | "SSHFS" | "LOCAL" | "SMB" | "NFS";
+  protocol: "SSH" | "SFTP" | "FTP" | "RSYNC" | "SSHFS" | "LOCAL" | "SMB" | "NFS";
   host: string | null;
   port: number | null;
   username: string | null;
   authMode: "KEY" | "PASSWORD" | "AGENT" | "MOUNT" | "NONE" | null;
+  hasSecret?: boolean;
   remotePath: string | null;
   importPath: string;
   enabled: boolean;
@@ -316,7 +317,10 @@ export type RouteConfig = {
   updatedAt: string;
 };
 
-export type RouteConfigInput = Omit<RouteConfig, "id" | "createdAt" | "updatedAt">;
+export type RouteConfigInput = Omit<RouteConfig, "id" | "createdAt" | "updatedAt" | "hasSecret"> & {
+  connectionUrl?: string;
+  passwordSecret?: string | null;
+};
 
 const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
 
@@ -446,6 +450,19 @@ export async function saveRouteConfig(input: RouteConfigInput, id?: string): Pro
 
 export async function deleteRouteConfig(id: string): Promise<void> {
   await adminRequest(`route-configs/${id}`, { method: "DELETE" });
+}
+
+export async function listRouteFiles(routeId: string, path = ""): Promise<{ root: string; path: string; data: RemoteMediaFile[] }> {
+  const params = new URLSearchParams({ path });
+  return adminRequest<{ root: string; path: string; data: RemoteMediaFile[] }>(`route-configs/${routeId}/files?${params.toString()}`);
+}
+
+export async function importRouteFile(routeId: string, path: string): Promise<Video> {
+  const payload = await adminRequest<{ data: Video }>(`route-configs/${routeId}/import`, {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+  return payload.data;
 }
 
 function uploadMultipartPart(

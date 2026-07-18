@@ -16,11 +16,13 @@ type Props = { onNotify: (message: string) => void };
 
 const blank: RouteConfigInput = {
   name: "",
-  protocol: "SFTP",
+  protocol: "FTP",
+  connectionUrl: "",
   host: "",
-  port: 22,
+  port: 21,
   username: "",
-  authMode: "KEY",
+  authMode: "PASSWORD",
+  passwordSecret: "",
   remotePath: "",
   importPath: "",
   enabled: true,
@@ -62,7 +64,7 @@ export function RouteConfigSection({ onNotify }: Props) {
 
   return (
     <div className="space-y-5">
-      <Header title="ROUTE CFG" description="Configura rotte esterne SSH, SFTP, Rsync, mount locali e percorsi import usati da Loading.">
+      <Header title="ROUTE CFG" description="Configura rotte esterne FTP, SSH, SFTP, Rsync, mount locali e percorsi import usati da Loading.">
         <button type="button" className="admin-primary-button" onClick={() => setEditing(null)}>
           <Plus size={17} /> Nuova rotta
         </button>
@@ -86,6 +88,7 @@ export function RouteConfigSection({ onNotify }: Props) {
             </div>
             <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
               <Meta label="Auth" value={route.authMode ?? "NONE"} />
+              <Meta label="Secret" value={route.hasSecret ? "configurato" : "non configurato"} />
               <Meta label="Percorso remoto" value={route.remotePath || "—"} />
               <Meta label="Import path Loading" value={route.importPath} />
               <Meta label="Note" value={route.notes || "—"} />
@@ -133,10 +136,12 @@ function RouteEditor({
   const [form, setForm] = useState<RouteConfigInput>(route ? {
     name: route.name,
     protocol: route.protocol,
+    connectionUrl: "",
     host: route.host ?? "",
     port: route.port,
     username: route.username ?? "",
     authMode: route.authMode ?? "KEY",
+    passwordSecret: "",
     remotePath: route.remotePath ?? "",
     importPath: route.importPath,
     enabled: route.enabled,
@@ -155,7 +160,10 @@ function RouteEditor({
       port: form.port ? Number(form.port) : null,
       username: form.username || null,
       authMode: form.authMode || "NONE",
+      passwordSecret: form.passwordSecret || null,
+      connectionUrl: form.connectionUrl || undefined,
       remotePath: form.remotePath || null,
+      importPath: form.importPath || form.remotePath || ".",
       notes: form.notes || null,
     });
   }
@@ -165,23 +173,35 @@ function RouteEditor({
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Input label="Nome pulsante" value={form.name} onChange={(value) => field("name", value)} required />
+          <Input
+            label="URL connessione FTP"
+            value={form.connectionUrl ?? ""}
+            onChange={(value) => field("connectionUrl", value)}
+            placeholder="ftp://utente:password@host/percorso/"
+          />
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-slate-400">Protocollo</span>
             <select value={form.protocol} onChange={(event) => field("protocol", event.target.value as RouteConfigInput["protocol"])} className="h-11 w-full rounded-lg border border-[#26394d] bg-[#071321] px-3 text-sm text-white outline-none focus:border-[#22bdf3]">
-              {["SFTP", "SSH", "RSYNC", "SSHFS", "LOCAL", "SMB", "NFS"].map((item) => <option key={item} value={item}>{item}</option>)}
+              {["FTP", "SFTP", "SSH", "RSYNC", "SSHFS", "LOCAL", "SMB", "NFS"].map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
           <Input label="Host/IP" value={form.host ?? ""} onChange={(value) => field("host", value)} />
           <Input label="Porta" value={form.port ? String(form.port) : ""} onChange={(value) => field("port", value ? Number(value) : null)} />
           <Input label="Utente" value={form.username ?? ""} onChange={(value) => field("username", value)} />
+          <Input
+            label={route?.hasSecret ? "Password/secret (lascia vuoto per non cambiare)" : "Password/secret"}
+            value={form.passwordSecret ?? ""}
+            onChange={(value) => field("passwordSecret", value)}
+            type="password"
+          />
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-slate-400">Autenticazione</span>
             <select value={form.authMode ?? "KEY"} onChange={(event) => field("authMode", event.target.value as RouteConfigInput["authMode"])} className="h-11 w-full rounded-lg border border-[#26394d] bg-[#071321] px-3 text-sm text-white outline-none focus:border-[#22bdf3]">
               {["KEY", "PASSWORD", "AGENT", "MOUNT", "NONE"].map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
-          <Input label="Percorso remoto" value={form.remotePath ?? ""} onChange={(value) => field("remotePath", value)} placeholder="/media/incoming" />
-          <Input label="Import path Loading" value={form.importPath} onChange={(value) => field("importPath", value)} placeholder="relativo a MEDIA_IMPORT_ROOT" required />
+          <Input label="Percorso remoto" value={form.remotePath ?? ""} onChange={(value) => field("remotePath", value)} placeholder="/public_html" />
+          <Input label="Import path Loading" value={form.importPath} onChange={(value) => field("importPath", value)} placeholder="per FTP può coincidere col percorso remoto" />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={form.enabled} onChange={(event) => field("enabled", event.target.checked)} />

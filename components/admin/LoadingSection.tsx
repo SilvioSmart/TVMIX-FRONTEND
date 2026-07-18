@@ -20,8 +20,8 @@ import {
   adminRequest,
   formatDate,
   getTranscodeStatus,
-  importRemoteMedia,
-  listRemoteMediaFiles,
+  importRouteFile,
+  listRouteFiles,
   listRouteConfigs,
   listSuspendedUploads,
   registerOriginalMedia,
@@ -170,7 +170,7 @@ export function LoadingSection({ onNotify }: Props) {
       const [videoResult, uploadSessions, remoteResult] = await Promise.all([
         adminRequest<ListResponse<AdminVideo>>("videos?source=originals&limit=100"),
         listSuspendedUploads().catch(() => []),
-        remotePath ? listRemoteMediaFiles(remotePath).catch(() => null) : Promise.resolve(null),
+        activeRoute ? listRouteFiles(activeRoute.id, remotePath).catch(() => null) : Promise.resolve(null),
       ]);
       setVideos(videoResult.data);
       setSessions(uploadSessions);
@@ -185,7 +185,7 @@ export function LoadingSection({ onNotify }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [remotePath]);
+  }, [activeRoute, remotePath]);
 
   useEffect(() => {
     let alive = true;
@@ -276,7 +276,8 @@ export function LoadingSection({ onNotify }: Props) {
     setImporting(file.path);
     setError(null);
     try {
-      await importRemoteMedia(file.path);
+      if (!activeRoute) return;
+      await importRouteFile(activeRoute.id, file.path);
       onNotify("File remoto importato in originals");
       await load();
     } catch (cause) {
@@ -322,7 +323,7 @@ export function LoadingSection({ onNotify }: Props) {
             className={`admin-secondary-button ${activeRoute?.id === route.id ? "border-[#22bdf3] text-[#22bdf3]" : ""}`}
             onClick={() => {
               setActiveRoute(route);
-              setRemotePath(route.importPath);
+              setRemotePath("");
             }}
             title={`${route.protocol} ${route.host ?? ""} ${route.remotePath ?? ""}`}
           >
