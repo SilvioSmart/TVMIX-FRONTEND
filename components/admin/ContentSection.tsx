@@ -1520,12 +1520,12 @@ function slugify(value: string) {
 
 function createEpisodeCode(programId: string, seasonNumber: number, episodeNumber: number) {
   const id = programId.toUpperCase();
-  return `${id[0] ?? "X"}${id.at(-1) ?? "X"}${twoDigitUnitsTens(seasonNumber)}${twoDigitUnitsTens(episodeNumber)}`;
+  return `${id[0] ?? "X"}${id.at(-1) ?? "X"}${twoDigitCodePart(seasonNumber)}${twoDigitCodePart(episodeNumber)}`;
 }
 
-function twoDigitUnitsTens(value: number) {
+function twoDigitCodePart(value: number) {
   const normalized = Math.abs(value) % 100;
-  return `${normalized % 10}${Math.floor(normalized / 10)}`;
+  return normalized.toString().padStart(2, "0");
 }
 
 function describeDuration(video: Video) {
