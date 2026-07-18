@@ -61,8 +61,8 @@ export const liveMenu: LiveSubnavItem[] = [
 
 export const contentMenu: ContentSubnavItem[] = [
   { key: "loading", label: "LOADING", description: "Caricamento file originali e import remoto" },
-  { key: "route-cfg", label: "ROUTE CFG", description: "Rotte SSH, SFTP, Rsync e mount per import esterni" },
   { key: "library", label: "LIBRERIA", description: "Archivio contenuti, catalogo e conversioni" },
+  { key: "route-cfg", label: "ROUTE CFG", description: "Rotte SSH, SFTP, Rsync e mount per import esterni" },
 ];
 
 export const navigation: NavItem[] = [

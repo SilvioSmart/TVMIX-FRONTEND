@@ -145,6 +145,15 @@ function playablePreviewUrl(video: AdminVideo) {
   return originalPreviewUrl(video) ?? video.hlsUrl;
 }
 
+function uploaderLabel(value: string | null | undefined) {
+  if (!value) return "utente non rilevato";
+  if (!value.includes("@")) return value;
+  return value
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function LoadingSection({ onNotify }: Props) {
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [sessions, setSessions] = useState<MediaUploadSession[]>([]);
@@ -313,14 +322,14 @@ export function LoadingSection({ onNotify }: Props) {
             void files.reduce((chain, file) => chain.then(() => uploadAndRegister(file)), Promise.resolve());
           }}
         />
-        <button type="button" onClick={() => fileInput.current?.click()} className="admin-primary-button">
+        <button type="button" onClick={() => fileInput.current?.click()} className="admin-secondary-button">
           <Upload size={17} /> Carica dal computer
         </button>
         {routeConfigs.map((route) => (
           <button
             key={route.id}
             type="button"
-            className={`admin-secondary-button ${activeRoute?.id === route.id ? "border-[#22bdf3] text-[#22bdf3]" : ""}`}
+            className={`admin-secondary-button ${activeRoute?.id === route.id ? "border-[#22bdf3] bg-[#0b2233] text-[#22bdf3]" : ""}`}
             onClick={() => {
               setActiveRoute(route);
               setRemotePath("");
@@ -488,7 +497,7 @@ function LoadingMediaTable({
                           {formatDate(video.createdAt)}
                         </p>
                         <p className="mt-0.5 text-[11px] text-slate-500">
-                          {video.uploadedBy ?? "utente non rilevato"}
+                          {uploaderLabel(video.uploadedBy)}
                         </p>
                       </div>
                     </div>
@@ -561,6 +570,7 @@ function LoadingMediaTable({
 function LoadingPreview({ video }: { video: AdminVideo }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const previewUrl = playablePreviewUrl(video);
 
   useEffect(() => {
@@ -585,6 +595,7 @@ function LoadingPreview({ video }: { video: AdminVideo }) {
   function playPreview() {
     const element = videoRef.current;
     if (!element || !previewUrl) return;
+    setPreviewing(true);
     element.muted = true;
     void element.play().catch(() => undefined);
   }
@@ -593,6 +604,8 @@ function LoadingPreview({ video }: { video: AdminVideo }) {
     const element = videoRef.current;
     if (!element) return;
     element.pause();
+    element.currentTime = 0;
+    setPreviewing(false);
   }
 
   if (!previewUrl) {
@@ -613,13 +626,20 @@ function LoadingPreview({ video }: { video: AdminVideo }) {
       className="group/preview block h-full w-full"
       title="Passa il mouse per vedere l’anteprima"
     >
+      {video.thumbnailUrl ? (
+        <img
+          src={video.thumbnailUrl}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-cover transition duration-200 ${previewing ? "opacity-0" : "opacity-100"}`}
+        />
+      ) : null}
       <video
         ref={videoRef}
         poster={video.thumbnailUrl ?? undefined}
         muted
         playsInline
         preload="metadata"
-        className="h-full w-full object-cover transition duration-300 group-hover/preview:scale-[1.04]"
+        className={`h-full w-full object-cover transition duration-300 group-hover/preview:scale-[1.04] ${video.thumbnailUrl && !previewing ? "opacity-0" : "opacity-100"}`}
       />
       <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-70" />
       <span className="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white opacity-0 transition group-hover/preview:opacity-100">
@@ -734,7 +754,7 @@ function LoadingMediaInfoModal({ video, onClose }: { video: AdminVideo; onClose:
         <div>
           <h4 className="font-semibold text-white">{video.originalFileName ?? video.title}</h4>
           <p className="mt-1 text-xs text-slate-500">{formatDate(video.createdAt)}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{video.uploadedBy ?? "utente non rilevato"}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{uploaderLabel(video.uploadedBy)}</p>
         </div>
         <div className="grid gap-2">
           <InfoRow label="Percorso originale" value={video.sourceObjectKey ?? "non disponibile"} />
