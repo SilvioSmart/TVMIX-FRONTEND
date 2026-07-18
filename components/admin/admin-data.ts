@@ -19,7 +19,7 @@ export type AdminSection =
   | "appearance"
   | "settings";
 
-export type ContentSubnavKey = "loading" | "library";
+export type ContentSubnavKey = "loading" | "route-cfg" | "library";
 export type ContentSubnavItem = {
   key: ContentSubnavKey;
   label: string;
@@ -61,6 +61,7 @@ export const liveMenu: LiveSubnavItem[] = [
 
 export const contentMenu: ContentSubnavItem[] = [
   { key: "loading", label: "LOADING", description: "Caricamento file originali e import remoto" },
+  { key: "route-cfg", label: "ROUTE CFG", description: "Rotte SSH, SFTP, Rsync e mount per import esterni" },
   { key: "library", label: "LIBRERIA", description: "Archivio contenuti, catalogo e conversioni" },
 ];
 

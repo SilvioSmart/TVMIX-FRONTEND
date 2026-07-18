@@ -10,7 +10,6 @@ import {
   PlayCircle,
   RefreshCw,
   RotateCw,
-  ServerCog,
   Trash2,
   Upload,
   Video,
@@ -23,16 +22,18 @@ import {
   getTranscodeStatus,
   importRemoteMedia,
   listRemoteMediaFiles,
+  listRouteConfigs,
   listSuspendedUploads,
   registerOriginalMedia,
   uploadFileToR2,
   type ListResponse,
   type MediaUploadSession,
   type RemoteMediaFile,
+  type RouteConfig,
   type TranscodeStatus,
   type Video as AdminVideo,
 } from "./admin-api";
-import { Header, Input } from "./ContentSection";
+import { Header } from "./ContentSection";
 import { AdminModal, ResourceState } from "./AdminResourceUI";
 
 type Props = { onNotify: (message: string) => void };
@@ -44,17 +45,7 @@ type UploadState = {
   error?: string;
 };
 
-type RemoteServerConfig = {
-  protocol: "sftp" | "sshfs" | "rsync" | "local-mount";
-  host: string;
-  port: string;
-  user: string;
-  remoteBasePath: string;
-  importRoot: string;
-};
-
 const supportedAccept = ".mp4,.mov,.mkv,video/mp4,video/quicktime,video/x-matroska";
-const remoteConfigStorageKey = "tvmix-loading-remote-config";
 
 function formatBytes(value: number | null | undefined) {
   if (!value || value <= 0) return "0 B";
@@ -112,17 +103,6 @@ function localMetadata(file: File): Promise<{
   });
 }
 
-function defaultRemoteConfig(): RemoteServerConfig {
-  return {
-    protocol: "sftp",
-    host: "",
-    port: "22",
-    user: "",
-    remoteBasePath: "",
-    importRoot: "/srv/tvmix/imports",
-  };
-}
-
 function transcodePercent(status: TranscodeStatus | undefined) {
   if (!status) return 0;
   if (status.processingStatus === "READY") return 100;
@@ -168,8 +148,10 @@ function playablePreviewUrl(video: AdminVideo) {
 export function LoadingSection({ onNotify }: Props) {
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [sessions, setSessions] = useState<MediaUploadSession[]>([]);
-  const [remotePath, setRemotePath] = useState("");
   const [remoteRoot, setRemoteRoot] = useState("");
+  const [activeRoute, setActiveRoute] = useState<RouteConfig | null>(null);
+  const [routeConfigs, setRouteConfigs] = useState<RouteConfig[]>([]);
+  const [remotePath, setRemotePath] = useState("");
   const [remoteFiles, setRemoteFiles] = useState<RemoteMediaFile[]>([]);
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [transcodes, setTranscodes] = useState<Record<string, TranscodeStatus>>({});
@@ -177,14 +159,6 @@ export function LoadingSection({ onNotify }: Props) {
   const [deleteCandidate, setDeleteCandidate] = useState<AdminVideo | null>(null);
   const [infoVideo, setInfoVideo] = useState<AdminVideo | null>(null);
   const [deleteStorageFiles, setDeleteStorageFiles] = useState(true);
-  const [remoteConfig, setRemoteConfig] = useState<RemoteServerConfig>(() => {
-    if (typeof window === "undefined") return defaultRemoteConfig();
-    try {
-      return { ...defaultRemoteConfig(), ...JSON.parse(window.localStorage.getItem(remoteConfigStorageKey) ?? "{}") };
-    } catch {
-      return defaultRemoteConfig();
-    }
-  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -196,14 +170,15 @@ export function LoadingSection({ onNotify }: Props) {
       const [videoResult, uploadSessions, remoteResult] = await Promise.all([
         adminRequest<ListResponse<AdminVideo>>("videos?source=originals&limit=100"),
         listSuspendedUploads().catch(() => []),
-        listRemoteMediaFiles(remotePath).catch(() => null),
+        remotePath ? listRemoteMediaFiles(remotePath).catch(() => null) : Promise.resolve(null),
       ]);
       setVideos(videoResult.data);
       setSessions(uploadSessions);
       if (remoteResult) {
         setRemoteRoot(remoteResult.root);
         setRemoteFiles(remoteResult.data);
-        setRemoteConfig((current) => current.importRoot === remoteResult.root ? current : { ...current, importRoot: remoteResult.root });
+      } else if (!remotePath) {
+        setRemoteFiles([]);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Caricamento Loading non riuscito");
@@ -211,6 +186,19 @@ export function LoadingSection({ onNotify }: Props) {
       setLoading(false);
     }
   }, [remotePath]);
+
+  useEffect(() => {
+    let alive = true;
+    listRouteConfigs()
+      .then((routes) => {
+        if (!alive) return;
+        setRouteConfigs(routes.filter((route) => route.enabled));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     void load();
@@ -238,12 +226,6 @@ export function LoadingSection({ onNotify }: Props) {
   }, [videos]);
 
   const uploadedNames = useMemo(() => new Set(videos.map((video) => video.originalFileName).filter(Boolean)), [videos]);
-
-  function saveRemoteConfig(next: RemoteServerConfig) {
-    setRemoteConfig(next);
-    window.localStorage.setItem(remoteConfigStorageKey, JSON.stringify(next));
-    onNotify("Parametri server remoto salvati");
-  }
 
   async function uploadAndRegister(file: File, resumeSession?: MediaUploadSession) {
     if (uploadedNames.has(file.name)) {
@@ -333,20 +315,38 @@ export function LoadingSection({ onNotify }: Props) {
         <button type="button" onClick={() => fileInput.current?.click()} className="admin-primary-button">
           <Upload size={17} /> Carica dal computer
         </button>
+        {routeConfigs.map((route) => (
+          <button
+            key={route.id}
+            type="button"
+            className={`admin-secondary-button ${activeRoute?.id === route.id ? "border-[#22bdf3] text-[#22bdf3]" : ""}`}
+            onClick={() => {
+              setActiveRoute(route);
+              setRemotePath(route.importPath);
+            }}
+            title={`${route.protocol} ${route.host ?? ""} ${route.remotePath ?? ""}`}
+          >
+            <FolderOpen size={16} /> {route.name}
+          </button>
+        ))}
       </Header>
 
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun file originale caricato." : undefined} />
 
-      <RemoteServerConfigPanel value={remoteConfig} remoteRoot={remoteRoot} onSave={saveRemoteConfig} />
-
+      {activeRoute ? (
       <section className="admin-panel p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <Input label="Cartella remota" value={remotePath} onChange={setRemotePath} placeholder="Percorso relativo dentro MEDIA_IMPORT_ROOT" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="admin-section-title">Route: {activeRoute.name}</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {activeRoute.protocol} · {activeRoute.username || "utente"}@{activeRoute.host || "locale"} · import {activeRoute.importPath}
+            </p>
+          </div>
           <button type="button" onClick={() => void load()} className="admin-secondary-button">
-            <RefreshCw size={16} /> Aggiorna remoto
+            <RefreshCw size={16} /> Aggiorna
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Root remoto server: <span className="font-mono">{remoteRoot || "non disponibile"}</span></p>
+        <p className="mt-2 text-xs text-slate-500">Root import backend: <span className="font-mono">{remoteRoot || "non disponibile"}</span></p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {remoteFiles.map((file) => (
             <div key={file.path} className="rounded-xl border border-[#203248] bg-[#071827] p-3">
@@ -375,6 +375,7 @@ export function LoadingSection({ onNotify }: Props) {
           ))}
         </div>
       </section>
+      ) : null}
 
       {sessions.length ? (
         <section className="admin-panel p-5">
@@ -421,68 +422,6 @@ export function LoadingSection({ onNotify }: Props) {
         />
       ) : null}
     </div>
-  );
-}
-
-function RemoteServerConfigPanel({
-  value,
-  remoteRoot,
-  onSave,
-}: {
-  value: RemoteServerConfig;
-  remoteRoot: string;
-  onSave: (value: RemoteServerConfig) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
-  function field<K extends keyof RemoteServerConfig>(key: K, next: RemoteServerConfig[K]) {
-    setDraft((current) => ({ ...current, [key]: next }));
-  }
-
-  return (
-    <section className="admin-panel p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="admin-section-title flex items-center gap-2">
-            <ServerCog size={18} /> Configurazione server remoto
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Parametri operativi per collegare o sincronizzare un server remoto verso la cartella import letta dal backend.
-          </p>
-        </div>
-        <button type="button" className="admin-primary-button" onClick={() => onSave(draft)}>
-          Salva parametri
-        </button>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-slate-400">Protocollo</span>
-          <select
-            value={draft.protocol}
-            onChange={(event) => field("protocol", event.target.value as RemoteServerConfig["protocol"])}
-            className="h-11 w-full rounded-lg border border-[#26394d] bg-[#071321] px-3 text-sm text-white outline-none focus:border-[#22bdf3]"
-          >
-            <option value="sftp">SFTP</option>
-            <option value="sshfs">SSHFS mount</option>
-            <option value="rsync">Rsync</option>
-            <option value="local-mount">Mount locale</option>
-          </select>
-        </label>
-        <Input label="Host/IP" value={draft.host} onChange={(next) => field("host", next)} placeholder="es. 10.0.0.12" />
-        <Input label="Porta" value={draft.port} onChange={(next) => field("port", next)} placeholder="22" />
-        <Input label="Utente" value={draft.user} onChange={(next) => field("user", next)} placeholder="media" />
-        <Input label="Percorso remoto" value={draft.remoteBasePath} onChange={(next) => field("remoteBasePath", next)} placeholder="/mnt/media/incoming" />
-        <Input label="Root import backend" value={draft.importRoot} onChange={(next) => field("importRoot", next)} placeholder={remoteRoot || "/srv/tvmix/imports"} />
-      </div>
-      <div className="mt-3 rounded-xl border border-[#203248] bg-[#071827] p-3 text-xs text-slate-400">
-        Root effettivo letto ora dal backend: <span className="font-mono text-slate-200">{remoteRoot || "non disponibile"}</span>.
-        Per l’accesso reale ai server remoti, monta/sincronizza il percorso remoto dentro questo root oppure configura `MEDIA_IMPORT_ROOT` sul server backend.
-      </div>
-    </section>
   );
 }
 

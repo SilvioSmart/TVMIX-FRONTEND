@@ -18,6 +18,7 @@ import type { AdminSection, AppearanceSubnavItem, ContentSubnavKey, LiveSubnavKe
 import { CatalogSection } from "./CatalogSection";
 import { ContentSection, Header, Input } from "./ContentSection";
 import { LoadingSection } from "./LoadingSection";
+import { RouteConfigSection } from "./RouteConfigSection";
 import { AppearanceCarouselConfigSection } from "./AppearanceCarouselConfigSection";
 import { AppearanceMenuConfigSection } from "./AppearanceMenuConfigSection";
 import { AppearanceModulesConfigSection } from "./AppearanceModulesConfigSection";
@@ -37,7 +38,9 @@ type Props = {
 
 export function PlatformSections({ section, activeContent, appearanceSection, activeLive, appearanceMenu, onSelectLive, onNotify }: Props) {
   if (section === "content") {
-    return activeContent === "loading" ? <LoadingSection onNotify={onNotify} /> : <ContentSection onNotify={onNotify} />;
+    if (activeContent === "loading") return <LoadingSection onNotify={onNotify} />;
+    if (activeContent === "route-cfg") return <RouteConfigSection onNotify={onNotify} />;
+    return <ContentSection onNotify={onNotify} />;
   }
   if (section === "live") return <LiveSection activeMode={activeLive} onModeChange={onSelectLive} onNotify={onNotify} />;
   if (section === "catalog") return <CatalogSection onNotify={onNotify} />;

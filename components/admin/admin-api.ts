@@ -300,6 +300,24 @@ export type TranscodeStatus = {
   progress: unknown;
 };
 
+export type RouteConfig = {
+  id: string;
+  name: string;
+  protocol: "SSH" | "SFTP" | "RSYNC" | "SSHFS" | "LOCAL" | "SMB" | "NFS";
+  host: string | null;
+  port: number | null;
+  username: string | null;
+  authMode: "KEY" | "PASSWORD" | "AGENT" | "MOUNT" | "NONE" | null;
+  remotePath: string | null;
+  importPath: string;
+  enabled: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RouteConfigInput = Omit<RouteConfig, "id" | "createdAt" | "updatedAt">;
+
 const UPLOAD_API_URL = process.env.NEXT_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, "");
 
 function mediaContentType(file: File) {
@@ -411,6 +429,23 @@ export async function importRemoteMedia(path: string): Promise<Video> {
 export async function getTranscodeStatus(videoId: string): Promise<TranscodeStatus> {
   const payload = await adminRequest<{ data: TranscodeStatus }>(`videos/${videoId}/transcode-status`);
   return payload.data;
+}
+
+export async function listRouteConfigs(): Promise<RouteConfig[]> {
+  const payload = await adminRequest<{ data: RouteConfig[] }>("route-configs");
+  return payload.data;
+}
+
+export async function saveRouteConfig(input: RouteConfigInput, id?: string): Promise<RouteConfig> {
+  const payload = await adminRequest<{ data: RouteConfig }>(id ? `route-configs/${id}` : "route-configs", {
+    method: id ? "PATCH" : "POST",
+    body: JSON.stringify(input),
+  });
+  return payload.data;
+}
+
+export async function deleteRouteConfig(id: string): Promise<void> {
+  await adminRequest(`route-configs/${id}`, { method: "DELETE" });
 }
 
 function uploadMultipartPart(
