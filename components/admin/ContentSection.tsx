@@ -50,8 +50,7 @@ type LibraryQueryFilter =
   | { type: "all" }
   | { type: "uncataloged" }
   | { type: "category"; id: string }
-  | { type: "program"; id: string }
-  | { type: "season"; id: string };
+  | { type: "program"; id: string };
 
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -293,7 +292,7 @@ export function ContentSection({ onNotify }: Props) {
         onAbort={abortSuspendedUpload}
       />
 
-      {!loading && !error && videos.length ? (
+      {!loading && !error && videos.length && filteredVideos.length ? (
         <ContentTable
           videos={filteredVideos}
           backgroundUploads={backgroundUploads}
@@ -307,6 +306,11 @@ export function ContentSection({ onNotify }: Props) {
           onInfo={(video) => setInfoVideo(video)}
           onVast={(video) => setVastVideo(video)}
         />
+      ) : null}
+      {!loading && !error && videos.length && !filteredVideos.length ? (
+        <div className="admin-panel p-5 text-sm text-slate-400">
+          Nessun media corrisponde alla query selezionata.
+        </div>
       ) : null}
 
       {editing !== undefined ? (
@@ -455,13 +459,8 @@ function LibraryQueryToolbar({
     () => catalog.flatMap((category) => category.programs.map((program) => ({ ...program, category }))),
     [catalog],
   );
-  const seasons = useMemo(
-    () => programs.flatMap((program) => program.seasons.map((season) => ({ ...season, program }))),
-    [programs],
-  );
   const selectedCategory = filter.type === "category" ? filter.id : "";
   const selectedProgram = filter.type === "program" ? filter.id : "";
-  const selectedSeason = filter.type === "season" ? filter.id : "";
 
   return (
     <section className="admin-panel p-3">
@@ -496,15 +495,6 @@ function LibraryQueryToolbar({
         >
           Programmi
         </button>
-        <button
-          type="button"
-          onClick={() => onChange({ type: "season", id: seasons[0]?.id ?? "" })}
-          disabled={!seasons.length}
-          className={queryButtonClass(filter.type === "season")}
-        >
-          Stagioni
-        </button>
-
         {filter.type === "category" ? (
           <select value={selectedCategory} onChange={(event) => onChange({ type: "category", id: event.target.value })} className="admin-input h-10 w-auto min-w-52 py-0 text-xs">
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
@@ -515,16 +505,6 @@ function LibraryQueryToolbar({
             {programs.map((program) => <option key={program.id} value={program.id}>{program.name} ({program.id})</option>)}
           </select>
         ) : null}
-        {filter.type === "season" ? (
-          <select value={selectedSeason} onChange={(event) => onChange({ type: "season", id: event.target.value })} className="admin-input h-10 w-auto min-w-64 py-0 text-xs">
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.program.name} · {season.title || `Stagione ${season.number}`} ({season.id})
-              </option>
-            ))}
-          </select>
-        ) : null}
-
         <span className="ml-auto rounded border border-[#203248] bg-[#071827] px-2 py-1 text-xs text-slate-400">
           {resultCount}/{videos.length} media
         </span>
@@ -1488,16 +1468,13 @@ function findSeason(catalog: CatalogCategory[], seasonId: string) {
 function filterLibraryVideos(videos: Video[], filter: LibraryQueryFilter) {
   if (filter.type === "all") return videos;
   if (filter.type === "uncataloged") {
-    return videos.filter((video) => !video.seasonId && !video.episodeNumber && !video.episodeCode);
+    return videos.filter((video) => !video.seasonId);
   }
   if (filter.type === "category") {
     return filter.id ? videos.filter((video) => video.categoryId === filter.id) : videos;
   }
   if (filter.type === "program") {
     return filter.id ? videos.filter((video) => video.season?.programId === filter.id) : videos;
-  }
-  if (filter.type === "season") {
-    return filter.id ? videos.filter((video) => video.seasonId === filter.id) : videos;
   }
   return videos;
 }
