@@ -46,6 +46,13 @@ type BackgroundUpload = {
   status: "uploading" | "done" | "failed";
 };
 
+type LibraryQueryFilter =
+  | { type: "all" }
+  | { type: "uncataloged" }
+  | { type: "category"; id: string }
+  | { type: "program"; id: string }
+  | { type: "season"; id: string };
+
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -85,6 +92,7 @@ export function ContentSection({ onNotify }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [catalog, setCatalog] = useState<CatalogCategory[]>([]);
   const [search, setSearch] = useState("");
+  const [queryFilter, setQueryFilter] = useState<LibraryQueryFilter>({ type: "all" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Video | null | undefined>(undefined);
@@ -101,7 +109,7 @@ export function ContentSection({ onNotify }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const query = search ? `?search=${encodeURIComponent(search)}` : "";
+      const query = search ? `?search=${encodeURIComponent(search)}&limit=500` : "?limit=500";
       const [videoResult, categoryResult, catalogResult, uploadSessions] = await Promise.all([
         adminRequest<ListResponse<Video>>(`videos${query}`),
         adminRequest<ListResponse<Category>>("categories?limit=100"),
@@ -122,6 +130,11 @@ export function ContentSection({ onNotify }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const filteredVideos = useMemo(
+    () => filterLibraryVideos(videos, queryFilter),
+    [videos, queryFilter],
+  );
 
   async function remove(id: string) {
     try {
@@ -265,6 +278,14 @@ export function ContentSection({ onNotify }: Props) {
       </Header>
 
       <SearchBox value={search} onChange={setSearch} placeholder="Cerca per titolo, slug o codice episodio..." />
+      <LibraryQueryToolbar
+        filter={queryFilter}
+        videos={videos}
+        categories={categories}
+        catalog={catalog}
+        resultCount={filteredVideos.length}
+        onChange={setQueryFilter}
+      />
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun contenuto presente." : undefined} />
       <SuspendedUploadsPanel
         sessions={suspendedUploads}
@@ -274,7 +295,7 @@ export function ContentSection({ onNotify }: Props) {
 
       {!loading && !error && videos.length ? (
         <ContentTable
-          videos={videos}
+          videos={filteredVideos}
           backgroundUploads={backgroundUploads}
           suspendedUploads={suspendedUploads}
           transcodingId={transcodingId}
@@ -413,6 +434,107 @@ function SuspendedUploadsPanel({
       </div>
     </section>
   );
+}
+
+function LibraryQueryToolbar({
+  filter,
+  videos,
+  categories,
+  catalog,
+  resultCount,
+  onChange,
+}: {
+  filter: LibraryQueryFilter;
+  videos: Video[];
+  categories: Category[];
+  catalog: CatalogCategory[];
+  resultCount: number;
+  onChange: (filter: LibraryQueryFilter) => void;
+}) {
+  const programs = useMemo(
+    () => catalog.flatMap((category) => category.programs.map((program) => ({ ...program, category }))),
+    [catalog],
+  );
+  const seasons = useMemo(
+    () => programs.flatMap((program) => program.seasons.map((season) => ({ ...season, program }))),
+    [programs],
+  );
+  const selectedCategory = filter.type === "category" ? filter.id : "";
+  const selectedProgram = filter.type === "program" ? filter.id : "";
+  const selectedSeason = filter.type === "season" ? filter.id : "";
+
+  return (
+    <section className="admin-panel p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange({ type: "all" })}
+          className={queryButtonClass(filter.type === "all")}
+        >
+          Tutti
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ type: "uncataloged" })}
+          className={queryButtonClass(filter.type === "uncataloged")}
+        >
+          Non catalogato
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ type: "category", id: categories[0]?.id ?? "" })}
+          disabled={!categories.length}
+          className={queryButtonClass(filter.type === "category")}
+        >
+          Categorie
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ type: "program", id: programs[0]?.id ?? "" })}
+          disabled={!programs.length}
+          className={queryButtonClass(filter.type === "program")}
+        >
+          Programmi
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ type: "season", id: seasons[0]?.id ?? "" })}
+          disabled={!seasons.length}
+          className={queryButtonClass(filter.type === "season")}
+        >
+          Stagioni
+        </button>
+
+        {filter.type === "category" ? (
+          <select value={selectedCategory} onChange={(event) => onChange({ type: "category", id: event.target.value })} className="admin-input h-10 w-auto min-w-52 py-0 text-xs">
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        ) : null}
+        {filter.type === "program" ? (
+          <select value={selectedProgram} onChange={(event) => onChange({ type: "program", id: event.target.value })} className="admin-input h-10 w-auto min-w-60 py-0 text-xs">
+            {programs.map((program) => <option key={program.id} value={program.id}>{program.name} ({program.id})</option>)}
+          </select>
+        ) : null}
+        {filter.type === "season" ? (
+          <select value={selectedSeason} onChange={(event) => onChange({ type: "season", id: event.target.value })} className="admin-input h-10 w-auto min-w-64 py-0 text-xs">
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.program.name} · {season.title || `Stagione ${season.number}`} ({season.id})
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        <span className="ml-auto rounded border border-[#203248] bg-[#071827] px-2 py-1 text-xs text-slate-400">
+          {resultCount}/{videos.length} media
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function queryButtonClass(active: boolean) {
+  return `admin-secondary-button px-3 py-2 text-xs ${active ? "border-[#22bdf3] bg-[#0b2233] text-[#22bdf3]" : ""}`;
 }
 
 function ContentTable({
@@ -1361,6 +1483,23 @@ function findSeason(catalog: CatalogCategory[], seasonId: string) {
     }
   }
   return null;
+}
+
+function filterLibraryVideos(videos: Video[], filter: LibraryQueryFilter) {
+  if (filter.type === "all") return videos;
+  if (filter.type === "uncataloged") {
+    return videos.filter((video) => !video.seasonId && !video.episodeNumber && !video.episodeCode);
+  }
+  if (filter.type === "category") {
+    return filter.id ? videos.filter((video) => video.categoryId === filter.id) : videos;
+  }
+  if (filter.type === "program") {
+    return filter.id ? videos.filter((video) => video.season?.programId === filter.id) : videos;
+  }
+  if (filter.type === "season") {
+    return filter.id ? videos.filter((video) => video.seasonId === filter.id) : videos;
+  }
+  return videos;
 }
 
 function slugify(value: string) {
