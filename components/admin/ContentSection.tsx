@@ -452,8 +452,8 @@ function ContentTable({
           <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
             <tr>
               <th className="w-[390px] px-4 py-3 font-semibold">Media</th>
-              <th className="px-4 py-3 font-semibold">Qualità / formato / durata</th>
-              <th className="px-4 py-3 font-semibold">Tracce audio</th>
+              <th className="px-4 py-3 font-semibold">Info media</th>
+              <th className="px-4 py-3 font-semibold">Audio</th>
               <th className="px-4 py-3 font-semibold">Programma</th>
               <th className="px-4 py-3 font-semibold">Stagione / Serie</th>
               <th className="px-4 py-3 font-semibold">Episodio</th>
@@ -516,13 +516,13 @@ function HlsStatePill({ video }: { video: Video }) {
       ? "queue"
       : "off";
   const className = state === "on"
-    ? "border-emerald-400/40 text-emerald-300"
+    ? "border-emerald-500 bg-emerald-500 text-white"
     : state === "queue"
-      ? "border-amber-300/40 text-amber-200"
-      : "border-red-400/40 text-red-300";
+      ? "border-amber-400 bg-amber-400 text-black"
+      : "border-red-500 bg-red-500 text-white";
   return (
-    <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${className}`}>
-      HLS {state === "on" ? "ON" : state === "queue" ? "in coda" : "OFF"}
+    <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${className}`}>
+      hls
     </span>
   );
 }
@@ -570,11 +570,11 @@ function ContentTableRow({
             <h3 className="max-w-[210px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <HlsStatePill video={video} />
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${cataloged ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"}`}>
-                Catalogo {cataloged ? "ON" : "OFF"}
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${cataloged ? "border-emerald-500 bg-emerald-500 text-white" : "border-red-500 bg-red-500 text-white"}`}>
+                catalogo
               </span>
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${video.published ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"}`}>
-                {video.published ? "Pubblicato" : "Non pubblicato"}
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${video.published ? "border-emerald-500 bg-emerald-500 text-white" : "border-red-500 bg-red-500 text-white"}`}>
+                pubblicato
               </span>
             </div>
             <p className="mt-1 truncate font-mono text-xs text-slate-500">#{video.slug}</p>
