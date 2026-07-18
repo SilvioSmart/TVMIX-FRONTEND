@@ -175,6 +175,7 @@ export function LoadingSection({ onNotify }: Props) {
   const [transcodes, setTranscodes] = useState<Record<string, TranscodeStatus>>({});
   const [importing, setImporting] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<AdminVideo | null>(null);
+  const [infoVideo, setInfoVideo] = useState<AdminVideo | null>(null);
   const [deleteStorageFiles, setDeleteStorageFiles] = useState(true);
   const [remoteConfig, setRemoteConfig] = useState<RemoteServerConfig>(() => {
     if (typeof window === "undefined") return defaultRemoteConfig();
@@ -403,11 +404,13 @@ export function LoadingSection({ onNotify }: Props) {
         sessions={sessions}
         transcodes={transcodes}
         onTranscode={startTranscode}
+        onInfo={setInfoVideo}
         onDelete={(video) => {
           setDeleteStorageFiles(true);
           setDeleteCandidate(video);
         }}
       />
+      {infoVideo ? <LoadingMediaInfoModal video={infoVideo} onClose={() => setInfoVideo(null)} /> : null}
       {deleteCandidate ? (
         <DeleteMediaModal
           video={deleteCandidate}
@@ -489,6 +492,7 @@ function LoadingMediaTable({
   sessions,
   transcodes,
   onTranscode,
+  onInfo,
   onDelete,
 }: {
   videos: AdminVideo[];
@@ -496,6 +500,7 @@ function LoadingMediaTable({
   sessions: MediaUploadSession[];
   transcodes: Record<string, TranscodeStatus>;
   onTranscode: (video: AdminVideo) => void;
+  onInfo: (video: AdminVideo) => void;
   onDelete: (video: AdminVideo) => void;
 }) {
   const sessionsByFile = useMemo(
@@ -539,9 +544,6 @@ function LoadingMediaTable({
                         <h3 className="max-w-[190px] truncate font-semibold text-white" title={video.originalFileName ?? video.title}>
                           {video.originalFileName ?? video.title}
                         </h3>
-                        <p className="mt-1 truncate font-mono text-[11px] text-slate-500" title={video.sourceObjectKey ?? ""}>
-                          {video.sourceObjectKey ?? "originale non disponibile"}
-                        </p>
                         <p className="mt-1 text-[11px] text-slate-500">
                           {formatDate(video.createdAt)} | {video.uploadedBy ?? "utente non rilevato"}
                         </p>
@@ -560,13 +562,18 @@ function LoadingMediaTable({
                     {summarizeAudio(video.audioTracks)}
                   </td>
                   <td className="px-4 py-4">
-                    <ProgressRow label={upload?.status === "failed" ? "Errore upload" : session ? "Sospeso" : "Caricato"} value={uploadPercent} color="blue" caption={upload?.error ?? `${Math.round(uploadPercent)}%`} compact />
+                    <UploadPresenceIndicator
+                      uploaded={Boolean(video.sourceObjectKey) && !session && upload?.status !== "failed"}
+                      suspended={Boolean(session)}
+                      failed={upload?.status === "failed"}
+                      caption={upload?.error ?? (session ? `parti ${session.uploadedParts.length}/${session.totalParts}` : `${Math.round(uploadPercent)}%`)}
+                    />
                   </td>
                   <td className="px-4 py-4">
                     <ProgressRow label="HLS" value={conversionPercent} color="yellow" caption={status?.jobState ?? video.processingStatus} compact />
                   </td>
                   <td className="px-4 py-4 text-xs">
-                    <HlsPresenceIndicator converted={converted} video={video} />
+                    <HlsPresenceIndicator converted={converted} />
                   </td>
                   <td className="px-4 py-4 text-xs">
                     <CatalogPresenceIndicator video={video} />
@@ -580,6 +587,13 @@ function LoadingMediaTable({
                         className="admin-secondary-button px-2.5 py-2 text-xs disabled:opacity-45"
                       >
                         <PlayCircle size={15} /> Converti
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onInfo(video)}
+                        className="admin-secondary-button px-2.5 py-2 text-xs"
+                      >
+                        Info
                       </button>
                       <button
                         type="button"
@@ -671,16 +685,42 @@ function LoadingPreview({ video }: { video: AdminVideo }) {
   );
 }
 
-function HlsPresenceIndicator({ converted, video }: { converted: boolean; video: AdminVideo }) {
+function UploadPresenceIndicator({
+  uploaded,
+  suspended,
+  failed,
+  caption,
+}: {
+  uploaded: boolean;
+  suspended: boolean;
+  failed: boolean;
+  caption?: string;
+}) {
+  const state = failed
+    ? { label: "Errore upload", className: "border-red-400/35 text-red-300", icon: <XCircle size={13} /> }
+    : suspended
+      ? { label: "Sospeso", className: "border-amber-300/35 text-amber-200", icon: <RotateCw size={13} /> }
+      : uploaded
+        ? { label: "Caricato", className: "border-emerald-400/40 text-emerald-300", icon: <CheckCircle2 size={13} /> }
+        : { label: "Non caricato", className: "border-[#31445a] text-slate-400", icon: <XCircle size={13} /> };
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${state.className}`}>
+        {state.icon}
+        {state.label}
+      </span>
+      {caption ? <p className="max-w-[160px] truncate text-[11px] text-slate-500">{caption}</p> : null}
+    </div>
+  );
+}
+
+function HlsPresenceIndicator({ converted }: { converted: boolean }) {
   return (
     <div className="space-y-1">
       <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${converted ? "border-emerald-400/40 text-emerald-300" : "border-[#31445a] text-slate-400"}`}>
         {converted ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
         {converted ? "Convertito" : "Non convertito"}
       </span>
-      <p className="max-w-[170px] truncate font-mono text-[11px] text-slate-500" title={video.convertedObjectKey ?? video.hlsUrl ?? ""}>
-        {video.convertedObjectKey ?? video.hlsUrl ?? "master assente"}
-      </p>
     </div>
   );
 }
@@ -694,10 +734,39 @@ function CatalogPresenceIndicator({ video }: { video: AdminVideo }) {
         {cataloged ? "In catalogo" : "Non in catalogo"}
       </span>
       <p className="max-w-[180px] truncate font-mono text-[11px] text-slate-500">
-        {cataloged
-          ? [video.seasonId ? `ST ${video.seasonId}` : null, video.episodeCode ? `EP ${video.episodeCode}` : video.episodeNumber ? `P${video.episodeNumber}` : null].filter(Boolean).join(" | ")
-          : "nessuna serie/puntata"}
+        {cataloged ? "dettagli in Info" : "nessuna serie/puntata"}
       </p>
+    </div>
+  );
+}
+
+function LoadingMediaInfoModal({ video, onClose }: { video: AdminVideo; onClose: () => void }) {
+  return (
+    <AdminModal title="Info media Loading" onClose={onClose}>
+      <div className="space-y-4 text-sm text-slate-300">
+        <div>
+          <h4 className="font-semibold text-white">{video.originalFileName ?? video.title}</h4>
+          <p className="mt-1 text-xs text-slate-500">{formatDate(video.createdAt)} | {video.uploadedBy ?? "utente non rilevato"}</p>
+        </div>
+        <div className="grid gap-2">
+          <InfoRow label="Percorso originale" value={video.sourceObjectKey ?? "non disponibile"} />
+          <InfoRow label="Percorso HLS/master" value={video.convertedObjectKey ?? video.hlsUrl ?? "non convertito"} />
+          <InfoRow label="ID stagione/serie" value={video.seasonId ?? "non catalogato"} />
+          <InfoRow label="Numero episodio" value={video.episodeNumber ? String(video.episodeNumber) : "non assegnato"} />
+          <InfoRow label="Codice episodio" value={video.episodeCode ?? "non assegnato"} />
+          <InfoRow label="Categoria" value={video.category?.name ?? video.categoryId} />
+          <InfoRow label="Slug" value={`#${video.slug}`} />
+        </div>
+      </div>
+    </AdminModal>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#203248] bg-[#071827] p-3">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 break-all font-mono text-xs text-slate-200">{value}</p>
     </div>
   );
 }
