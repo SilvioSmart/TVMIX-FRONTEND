@@ -11,6 +11,7 @@ import {
   RefreshCw,
   RotateCw,
   ServerCog,
+  Trash2,
   Upload,
   Video,
   XCircle,
@@ -32,7 +33,7 @@ import {
   type Video as AdminVideo,
 } from "./admin-api";
 import { Header, Input } from "./ContentSection";
-import { ResourceState } from "./AdminResourceUI";
+import { AdminModal, ResourceState } from "./AdminResourceUI";
 
 type Props = { onNotify: (message: string) => void };
 
@@ -173,6 +174,8 @@ export function LoadingSection({ onNotify }: Props) {
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [transcodes, setTranscodes] = useState<Record<string, TranscodeStatus>>({});
   const [importing, setImporting] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<AdminVideo | null>(null);
+  const [deleteStorageFiles, setDeleteStorageFiles] = useState(true);
   const [remoteConfig, setRemoteConfig] = useState<RemoteServerConfig>(() => {
     if (typeof window === "undefined") return defaultRemoteConfig();
     try {
@@ -300,6 +303,17 @@ export function LoadingSection({ onNotify }: Props) {
     }
   }
 
+  async function deleteMedia(video: AdminVideo, deleteFiles: boolean) {
+    try {
+      await adminRequest(`videos/${video.id}?deleteFiles=${deleteFiles ? "true" : "false"}`, { method: "DELETE" });
+      setDeleteCandidate(null);
+      onNotify(deleteFiles ? "Media e file storage eliminati" : "Media eliminato dal database");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Eliminazione media non riuscita");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Header title="Loading" description="Carica file MP4, MOV e MKV in archivio originals, controlla doppioni e avvia la conversione HLS.">
@@ -389,7 +403,20 @@ export function LoadingSection({ onNotify }: Props) {
         sessions={sessions}
         transcodes={transcodes}
         onTranscode={startTranscode}
+        onDelete={(video) => {
+          setDeleteStorageFiles(true);
+          setDeleteCandidate(video);
+        }}
       />
+      {deleteCandidate ? (
+        <DeleteMediaModal
+          video={deleteCandidate}
+          deleteFiles={deleteStorageFiles}
+          onChangeDeleteFiles={setDeleteStorageFiles}
+          onClose={() => setDeleteCandidate(null)}
+          onConfirm={() => void deleteMedia(deleteCandidate, deleteStorageFiles)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -462,12 +489,14 @@ function LoadingMediaTable({
   sessions,
   transcodes,
   onTranscode,
+  onDelete,
 }: {
   videos: AdminVideo[];
   uploads: Record<string, UploadState>;
   sessions: MediaUploadSession[];
   transcodes: Record<string, TranscodeStatus>;
   onTranscode: (video: AdminVideo) => void;
+  onDelete: (video: AdminVideo) => void;
 }) {
   const sessionsByFile = useMemo(
     () => new Map(sessions.map((session) => [session.fileName, session])),
@@ -477,7 +506,7 @@ function LoadingMediaTable({
   return (
     <section className="admin-panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-[1320px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
           <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
             <tr>
               <th className="w-[330px] px-4 py-3 font-semibold">Media originale</th>
@@ -487,7 +516,8 @@ function LoadingMediaTable({
               <th className="w-[180px] px-4 py-3 font-semibold">Upload</th>
               <th className="w-[210px] px-4 py-3 font-semibold">Conversione</th>
               <th className="px-4 py-3 font-semibold">HLS</th>
-              <th className="w-[160px] px-4 py-3 text-right font-semibold">Azioni</th>
+              <th className="px-4 py-3 font-semibold">Catalogo</th>
+              <th className="w-[210px] px-4 py-3 text-right font-semibold">Azioni</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1b2b3d]">
@@ -512,7 +542,9 @@ function LoadingMediaTable({
                         <p className="mt-1 truncate font-mono text-[11px] text-slate-500" title={video.sourceObjectKey ?? ""}>
                           {video.sourceObjectKey ?? "originale non disponibile"}
                         </p>
-                        <p className="mt-1 text-[11px] text-slate-500">Upload: {formatDate(video.createdAt)}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {formatDate(video.createdAt)} | {video.uploadedBy ?? "utente non rilevato"}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -536,8 +568,11 @@ function LoadingMediaTable({
                   <td className="px-4 py-4 text-xs">
                     <HlsPresenceIndicator converted={converted} video={video} />
                   </td>
+                  <td className="px-4 py-4 text-xs">
+                    <CatalogPresenceIndicator video={video} />
+                  </td>
                   <td className="px-4 py-4">
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap justify-end gap-1.5">
                       <button
                         type="button"
                         disabled={!video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
@@ -545,6 +580,13 @@ function LoadingMediaTable({
                         className="admin-secondary-button px-2.5 py-2 text-xs disabled:opacity-45"
                       >
                         <PlayCircle size={15} /> Converti
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(video)}
+                        className="admin-secondary-button px-2.5 py-2 text-xs text-red-300 hover:border-red-400/40 hover:text-red-200"
+                      >
+                        <Trash2 size={15} /> Elimina
                       </button>
                     </div>
                   </td>
@@ -640,6 +682,69 @@ function HlsPresenceIndicator({ converted, video }: { converted: boolean; video:
         {video.convertedObjectKey ?? video.hlsUrl ?? "master assente"}
       </p>
     </div>
+  );
+}
+
+function CatalogPresenceIndicator({ video }: { video: AdminVideo }) {
+  const cataloged = Boolean(video.seasonId || video.episodeCode || video.episodeNumber);
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${cataloged ? "border-[#22bdf3]/45 text-[#22bdf3]" : "border-[#31445a] text-slate-400"}`}>
+        {cataloged ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+        {cataloged ? "In catalogo" : "Non in catalogo"}
+      </span>
+      <p className="max-w-[180px] truncate font-mono text-[11px] text-slate-500">
+        {cataloged
+          ? [video.seasonId ? `ST ${video.seasonId}` : null, video.episodeCode ? `EP ${video.episodeCode}` : video.episodeNumber ? `P${video.episodeNumber}` : null].filter(Boolean).join(" | ")
+          : "nessuna serie/puntata"}
+      </p>
+    </div>
+  );
+}
+
+function DeleteMediaModal({
+  video,
+  deleteFiles,
+  onChangeDeleteFiles,
+  onClose,
+  onConfirm,
+}: {
+  video: AdminVideo;
+  deleteFiles: boolean;
+  onChangeDeleteFiles: (value: boolean) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <AdminModal title="Elimina media" onClose={onClose}>
+      <div className="space-y-4 text-sm text-slate-300">
+        <p>
+          Confermi l’eliminazione di <span className="font-semibold text-white">{video.originalFileName ?? video.title}</span>?
+        </p>
+        <label className="flex items-start gap-3 rounded-xl border border-[#203248] bg-[#071827] p-3">
+          <input
+            type="checkbox"
+            checked={deleteFiles}
+            onChange={(event) => onChangeDeleteFiles(event.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            <span className="block font-semibold text-white">Cancella anche il file nello storage</span>
+            <span className="mt-1 block text-xs text-slate-500">
+              Se attivo, vengono rimossi originale, HLS/master e thumbnail collegati. Se disattivo, viene cancellato solo il record dal database.
+            </span>
+          </span>
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="admin-secondary-button">
+            Annulla
+          </button>
+          <button type="button" onClick={onConfirm} className="admin-primary-button bg-red-500 hover:bg-red-400">
+            Elimina
+          </button>
+        </div>
+      </div>
+    </AdminModal>
   );
 }
 

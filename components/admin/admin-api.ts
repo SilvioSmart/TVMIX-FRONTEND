@@ -22,6 +22,7 @@ export type Video = {
   hlsUrl: string | null;
   sourceObjectKey: string | null;
   originalFileName: string | null;
+  uploadedBy: string | null;
   processingStatus:
     | "PENDING"
     | "UPLOADING"
