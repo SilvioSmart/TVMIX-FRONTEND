@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Hls from "hls.js";
-import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, Play, PlayCircle, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
+import { BadgeDollarSign, Camera, CheckCircle2, FileVideo, Info, Pause, Pencil, Play, Plus, RotateCcw, RotateCw, Search, Trash2, Upload, X } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
@@ -488,23 +488,23 @@ function CatalogDetails({ video, type }: { video: Video; type: "program" | "seas
   if (type === "program") {
     return (
       <div className="text-xs">
-        <p className="font-semibold text-slate-200">{video.season?.program?.name ?? "â€”"}</p>
-        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.season?.programId ?? "â€”"}</p>
+        <p className="font-semibold text-slate-200">{video.season?.program?.name ?? "***"}</p>
+        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.season?.programId ?? "***"}</p>
       </div>
     );
   }
   if (type === "season") {
     return (
       <div className="text-xs">
-        <p className="font-semibold text-slate-200">{video.season?.title || (video.season ? `Stagione ${video.season.number}` : "â€”")}</p>
-        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.seasonId ?? "â€”"}</p>
+        <p className="font-semibold text-slate-200">{video.season?.title || (video.season ? `Stagione ${video.season.number}` : "***")}</p>
+        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.seasonId ?? "***"}</p>
       </div>
     );
   }
   return (
     <div className="text-xs">
-      <p className="font-semibold text-slate-200">{video.episodeNumber ? `Episodio ${video.episodeNumber}` : "â€”"}</p>
-      <p className="mt-1 font-mono text-[11px] text-slate-500">{video.episodeCode ?? "â€”"}</p>
+      <p className="font-semibold text-slate-200">{video.episodeNumber ? `Episodio ${video.episodeNumber}` : "***"}</p>
+      <p className="mt-1 font-mono text-[11px] text-slate-500">{video.episodeCode ?? "***"}</p>
     </div>
   );
 }
@@ -519,7 +519,7 @@ function HlsStatePill({ video }: { video: Video }) {
     ? "border-emerald-400/40 text-emerald-300"
     : state === "queue"
       ? "border-amber-300/40 text-amber-200"
-      : "border-[#31445a] text-slate-400";
+      : "border-red-400/40 text-red-300";
   return (
     <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${className}`}>
       HLS {state === "on" ? "ON" : state === "queue" ? "in coda" : "OFF"}
@@ -570,10 +570,10 @@ function ContentTableRow({
             <h3 className="max-w-[210px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <HlsStatePill video={video} />
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${cataloged ? "border-emerald-400/40 text-emerald-300" : "border-[#31445a] text-slate-400"}`}>
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${cataloged ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"}`}>
                 Catalogo {cataloged ? "ON" : "OFF"}
               </span>
-              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${video.published ? "border-[#22bdf3]/45 text-[#22bdf3]" : "border-[#31445a] text-slate-400"}`}>
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${video.published ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"}`}>
                 {video.published ? "Pubblicato" : "Non pubblicato"}
               </span>
             </div>
@@ -592,7 +592,7 @@ function ContentTableRow({
       <td className="px-4 py-4 text-xs">
         <p className="font-semibold text-slate-200">{video.videoQuality ?? "non rilevata"}</p>
         <p className="mt-1 text-slate-500">{video.mediaFormat ?? (video.hlsUrl ? "HLS" : "non rilevato")}</p>
-        <p className="mt-1 text-slate-500">{duration.time} · {duration.fps}</p>
+        <p className="mt-1 text-slate-500">{duration.time}</p>
       </td>
       <td className="max-w-[170px] px-4 py-4 text-xs text-slate-300">
         {summarizeAudio(video.audioTracks)}
@@ -608,16 +608,6 @@ function ContentTableRow({
       </td>
       <td className="px-4 py-4">
         <div className="flex flex-wrap justify-end gap-1.5">
-          <button
-            type="button"
-            disabled={transcoding || Boolean(backgroundUpload) || !video.sourceObjectKey || ["UPLOADING", "QUEUED", "PROCESSING"].includes(video.processingStatus)}
-            onClick={onTranscode}
-            className="admin-secondary-button px-2.5 py-2 text-xs"
-            title={!video.sourceObjectKey ? "Carica prima il file sorgente" : "Avvia conversione HLS"}
-          >
-            <PlayCircle size={15} />
-            {transcoding ? "Avvio..." : "HLS"}
-          </button>
           {canResume && suspendedUpload ? (
             <ResumeUploadButton
               session={suspendedUpload}
@@ -854,16 +844,6 @@ function ContentCard({
       </div>
 
       <div className="flex flex-wrap gap-1 xl:justify-end">
-        <button
-          type="button"
-          disabled={transcoding || Boolean(backgroundUpload) || !video.sourceObjectKey || ["UPLOADING", "QUEUED", "PROCESSING"].includes(video.processingStatus)}
-          onClick={onTranscode}
-          className="admin-secondary-button"
-          title={!video.sourceObjectKey ? "Carica prima il file sorgente" : "Avvia conversione HLS"}
-        >
-          <PlayCircle size={16} />
-          {transcoding ? "Avvio..." : "HLS"}
-        </button>
         <button type="button" aria-label={`Modifica ${video.title}`} onClick={onEdit} className="admin-icon-button">
           <Pencil size={17} />
         </button>
