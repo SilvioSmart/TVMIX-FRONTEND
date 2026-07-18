@@ -103,7 +103,7 @@ export function ContentSection({ onNotify }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const query = search ? `?search=${encodeURIComponent(search)}&limit=500` : "?limit=500";
+      const query = search ? `?search=${encodeURIComponent(search)}&limit=100` : "?limit=100";
       const [videoResult, categoryResult, catalogResult, uploadSessions] = await Promise.all([
         adminRequest<ListResponse<Video>>(`videos${query}`),
         adminRequest<ListResponse<Category>>("categories?limit=100"),
