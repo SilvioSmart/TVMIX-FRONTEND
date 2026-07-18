@@ -137,6 +137,8 @@ export function ContentSection({ onNotify }: Props) {
     }),
     [videos, categoryFilter, programFilter],
   );
+  const filtersActive = Boolean(categoryFilter || programFilter);
+  const visibleVideos = filtersActive ? filteredVideos : videos;
 
   async function remove(id: string) {
     try {
@@ -281,7 +283,7 @@ export function ContentSection({ onNotify }: Props) {
         programs={libraryPrograms}
         categoryId={categoryFilter}
         programId={programFilter}
-        resultCount={filteredVideos.length}
+        resultCount={visibleVideos.length}
         totalCount={videos.length}
         onCategoryChange={(value) => {
           setCategoryFilter(value);
@@ -294,6 +296,11 @@ export function ContentSection({ onNotify }: Props) {
             setCategoryFilter(program?.categoryId ?? "");
           }
         }}
+        onClear={() => {
+          setSearch("");
+          setCategoryFilter("");
+          setProgramFilter("");
+        }}
       />
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun contenuto presente." : undefined} />
       <SuspendedUploadsPanel
@@ -302,9 +309,9 @@ export function ContentSection({ onNotify }: Props) {
         onAbort={abortSuspendedUpload}
       />
 
-      {!loading && !error && videos.length && filteredVideos.length ? (
+      {!loading && !error && videos.length && visibleVideos.length ? (
         <ContentTable
-          videos={filteredVideos}
+          videos={visibleVideos}
           backgroundUploads={backgroundUploads}
           suspendedUploads={suspendedUploads}
           transcodingId={transcodingId}
@@ -317,7 +324,7 @@ export function ContentSection({ onNotify }: Props) {
           onVast={(video) => setVastVideo(video)}
         />
       ) : null}
-      {!loading && !error && videos.length && !filteredVideos.length ? (
+      {!loading && !error && videos.length && !visibleVideos.length ? (
         <div className="admin-panel p-5 text-sm text-slate-400">
           Nessun media corrisponde alla categoria o al programma selezionato.
         </div>
@@ -459,6 +466,7 @@ function LibrarySelectFilters({
   totalCount,
   onCategoryChange,
   onProgramChange,
+  onClear,
 }: {
   categories: Category[];
   programs: Array<CatalogProgram & { category: CatalogCategory }>;
@@ -468,6 +476,7 @@ function LibrarySelectFilters({
   totalCount: number;
   onCategoryChange: (value: string) => void;
   onProgramChange: (value: string) => void;
+  onClear: () => void;
 }) {
   const visiblePrograms = categoryId
     ? programs.filter((program) => program.categoryId === categoryId)
@@ -498,8 +507,8 @@ function LibrarySelectFilters({
           <span className="rounded border border-[#203248] bg-[#071827] px-2 py-2 text-xs text-slate-400">
             {resultCount}/{totalCount} media
           </span>
-          <button type="button" onClick={() => { onCategoryChange(""); onProgramChange(""); }} className="admin-secondary-button text-xs">
-            Azzera filtri
+          <button type="button" onClick={onClear} className="admin-secondary-button text-xs">
+            Mostra tutti
           </button>
         </div>
       </div>
