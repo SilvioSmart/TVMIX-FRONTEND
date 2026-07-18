@@ -511,18 +511,18 @@ function LoadingMediaTable({
   return (
     <section className="admin-panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1420px] w-full border-collapse text-left text-sm">
           <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
             <tr>
               <th className="w-[330px] px-4 py-3 font-semibold">Media originale</th>
               <th className="px-4 py-3 font-semibold">Durata / fps</th>
               <th className="px-4 py-3 font-semibold">Risoluzione / formato</th>
               <th className="px-4 py-3 font-semibold">Audio</th>
-              <th className="w-[180px] px-4 py-3 font-semibold">Upload</th>
+              <th className="w-[170px] px-4 py-3 font-semibold">Upload</th>
               <th className="w-[210px] px-4 py-3 font-semibold">Conversione</th>
-              <th className="px-4 py-3 font-semibold">HLS</th>
+              <th className="w-[170px] px-4 py-3 font-semibold">HLS</th>
               <th className="px-4 py-3 font-semibold">Catalogo</th>
-              <th className="w-[210px] px-4 py-3 text-right font-semibold">Azioni</th>
+              <th className="w-[150px] px-4 py-3 text-right font-semibold">Azioni</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1b2b3d]">
@@ -534,9 +534,9 @@ function LoadingMediaTable({
               const conversionPercent = transcodePercent(status) || (video.processingStatus === "READY" ? 100 : 0);
               const converted = Boolean(video.hlsUrl || video.convertedObjectKey || video.processingStatus === "READY");
               return (
-                <tr key={video.id} className="align-top transition hover:bg-[#071827]/70">
+                <tr key={video.id} className="align-middle transition hover:bg-[#071827]/70">
                   <td className="px-4 py-4">
-                    <div className="flex min-w-0 gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg bg-[#102238]">
                         <LoadingPreview video={video} />
                       </div>
@@ -545,7 +545,10 @@ function LoadingMediaTable({
                           {video.originalFileName ?? video.title}
                         </h3>
                         <p className="mt-1 text-[11px] text-slate-500">
-                          {formatDate(video.createdAt)} | {video.uploadedBy ?? "utente non rilevato"}
+                          {formatDate(video.createdAt)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          {video.uploadedBy ?? "utente non rilevato"}
                         </p>
                       </div>
                     </div>
@@ -570,24 +573,25 @@ function LoadingMediaTable({
                     />
                   </td>
                   <td className="px-4 py-4">
-                    <ProgressRow label="HLS" value={conversionPercent} color="yellow" caption={status?.jobState ?? video.processingStatus} compact />
+                    <ConversionProgress
+                      value={conversionPercent}
+                      active={["QUEUED", "PROCESSING"].includes(video.processingStatus)}
+                      ready={converted}
+                      caption={status?.jobState ?? video.processingStatus}
+                    />
                   </td>
                   <td className="px-4 py-4 text-xs">
-                    <HlsPresenceIndicator converted={converted} />
+                    <HlsActionButton
+                      converted={converted}
+                      disabled={!video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
+                      onClick={() => onTranscode(video)}
+                    />
                   </td>
                   <td className="px-4 py-4 text-xs">
                     <CatalogPresenceIndicator video={video} />
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      <button
-                        type="button"
-                        disabled={!video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
-                        onClick={() => onTranscode(video)}
-                        className="admin-secondary-button px-2.5 py-2 text-xs disabled:opacity-45"
-                      >
-                        <PlayCircle size={15} /> Converti
-                      </button>
                       <button
                         type="button"
                         onClick={() => onInfo(video)}
@@ -714,14 +718,57 @@ function UploadPresenceIndicator({
   );
 }
 
-function HlsPresenceIndicator({ converted }: { converted: boolean }) {
+function ConversionProgress({
+  value,
+  active,
+  ready,
+  caption,
+}: {
+  value: number;
+  active: boolean;
+  ready: boolean;
+  caption?: string;
+}) {
+  const displayValue = ready ? 100 : active ? value : 0;
   return (
-    <div className="space-y-1">
-      <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${converted ? "border-emerald-400/40 text-emerald-300" : "border-[#31445a] text-slate-400"}`}>
-        {converted ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-        {converted ? "Convertito" : "Non convertito"}
-      </span>
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400">
+        <span>Conversione</span>
+        <span>{ready ? "100%" : active ? `${Math.round(value)}%` : "in attesa"}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full border border-[#f8c14b]/70 bg-transparent">
+        <div
+          className="h-full rounded-full bg-[#f8c14b] transition-all"
+          style={{ width: `${Math.max(0, Math.min(100, displayValue))}%` }}
+        />
+      </div>
+      <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">{ready ? "READY" : active ? caption : "non avviata"}</p>
     </div>
+  );
+}
+
+function HlsActionButton({
+  converted,
+  disabled,
+  onClick,
+}: {
+  converted: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || converted}
+      onClick={onClick}
+      className={`admin-secondary-button w-full justify-center px-2.5 py-2 text-xs disabled:opacity-70 ${
+        converted ? "border-emerald-400/40 text-emerald-300" : "border-[#f8c14b]/45 text-[#f8c14b]"
+      }`}
+      title={converted ? "File HLS già convertito" : "Avvia conversione HLS"}
+    >
+      {converted ? <CheckCircle2 size={15} /> : <PlayCircle size={15} />}
+      {converted ? "Convertito" : "Converti"}
+    </button>
   );
 }
 
@@ -746,7 +793,8 @@ function LoadingMediaInfoModal({ video, onClose }: { video: AdminVideo; onClose:
       <div className="space-y-4 text-sm text-slate-300">
         <div>
           <h4 className="font-semibold text-white">{video.originalFileName ?? video.title}</h4>
-          <p className="mt-1 text-xs text-slate-500">{formatDate(video.createdAt)} | {video.uploadedBy ?? "utente non rilevato"}</p>
+          <p className="mt-1 text-xs text-slate-500">{formatDate(video.createdAt)}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{video.uploadedBy ?? "utente non rilevato"}</p>
         </div>
         <div className="grid gap-2">
           <InfoRow label="Percorso originale" value={video.sourceObjectKey ?? "non disponibile"} />
