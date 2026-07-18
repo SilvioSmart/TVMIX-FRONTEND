@@ -1,6 +1,20 @@
 "use client";
 
-import { Folder, FolderOpen, PlayCircle, RefreshCw, RotateCw, Upload, Video } from "lucide-react";
+import Hls from "hls.js";
+import {
+  CheckCircle2,
+  FileVideo,
+  Folder,
+  FolderOpen,
+  Play,
+  PlayCircle,
+  RefreshCw,
+  RotateCw,
+  ServerCog,
+  Upload,
+  Video,
+  XCircle,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   adminRequest,
@@ -29,7 +43,17 @@ type UploadState = {
   error?: string;
 };
 
+type RemoteServerConfig = {
+  protocol: "sftp" | "sshfs" | "rsync" | "local-mount";
+  host: string;
+  port: string;
+  user: string;
+  remoteBasePath: string;
+  importRoot: string;
+};
+
 const supportedAccept = ".mp4,.mov,.mkv,video/mp4,video/quicktime,video/x-matroska";
+const remoteConfigStorageKey = "tvmix-loading-remote-config";
 
 function formatBytes(value: number | null | undefined) {
   if (!value || value <= 0) return "0 B";
@@ -87,6 +111,17 @@ function localMetadata(file: File): Promise<{
   });
 }
 
+function defaultRemoteConfig(): RemoteServerConfig {
+  return {
+    protocol: "sftp",
+    host: "",
+    port: "22",
+    user: "",
+    remoteBasePath: "",
+    importRoot: "/srv/tvmix/imports",
+  };
+}
+
 function transcodePercent(status: TranscodeStatus | undefined) {
   if (!status) return 0;
   if (status.processingStatus === "READY") return 100;
@@ -100,6 +135,35 @@ function transcodePercent(status: TranscodeStatus | undefined) {
   return status.processingStatus === "QUEUED" ? 8 : status.processingStatus === "PROCESSING" ? 35 : 0;
 }
 
+function mediaPublicBase(video: AdminVideo) {
+  if (video.hlsUrl) {
+    try {
+      return new URL(video.hlsUrl).origin;
+    } catch {
+      return "https://media.tvmix.it";
+    }
+  }
+  if (video.thumbnailUrl) {
+    try {
+      return new URL(video.thumbnailUrl).origin;
+    } catch {
+      return "https://media.tvmix.it";
+    }
+  }
+  return "https://media.tvmix.it";
+}
+
+function originalPreviewUrl(video: AdminVideo) {
+  if (!video.sourceObjectKey) return null;
+  const extension = video.sourceObjectKey.split("?")[0]?.split(".").pop()?.toLowerCase();
+  if (!extension || !["mp4", "mov", "m4v", "webm"].includes(extension)) return null;
+  return `${mediaPublicBase(video)}/${encodeURI(video.sourceObjectKey.replace(/^\/+/, ""))}`;
+}
+
+function playablePreviewUrl(video: AdminVideo) {
+  return originalPreviewUrl(video) ?? video.hlsUrl;
+}
+
 export function LoadingSection({ onNotify }: Props) {
   const [videos, setVideos] = useState<AdminVideo[]>([]);
   const [sessions, setSessions] = useState<MediaUploadSession[]>([]);
@@ -109,6 +173,14 @@ export function LoadingSection({ onNotify }: Props) {
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [transcodes, setTranscodes] = useState<Record<string, TranscodeStatus>>({});
   const [importing, setImporting] = useState<string | null>(null);
+  const [remoteConfig, setRemoteConfig] = useState<RemoteServerConfig>(() => {
+    if (typeof window === "undefined") return defaultRemoteConfig();
+    try {
+      return { ...defaultRemoteConfig(), ...JSON.parse(window.localStorage.getItem(remoteConfigStorageKey) ?? "{}") };
+    } catch {
+      return defaultRemoteConfig();
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -127,6 +199,7 @@ export function LoadingSection({ onNotify }: Props) {
       if (remoteResult) {
         setRemoteRoot(remoteResult.root);
         setRemoteFiles(remoteResult.data);
+        setRemoteConfig((current) => current.importRoot === remoteResult.root ? current : { ...current, importRoot: remoteResult.root });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Caricamento Loading non riuscito");
@@ -161,6 +234,12 @@ export function LoadingSection({ onNotify }: Props) {
   }, [videos]);
 
   const uploadedNames = useMemo(() => new Set(videos.map((video) => video.originalFileName).filter(Boolean)), [videos]);
+
+  function saveRemoteConfig(next: RemoteServerConfig) {
+    setRemoteConfig(next);
+    window.localStorage.setItem(remoteConfigStorageKey, JSON.stringify(next));
+    onNotify("Parametri server remoto salvati");
+  }
 
   async function uploadAndRegister(file: File, resumeSession?: MediaUploadSession) {
     if (uploadedNames.has(file.name)) {
@@ -243,6 +322,8 @@ export function LoadingSection({ onNotify }: Props) {
 
       <ResourceState loading={loading} error={error} empty={!videos.length ? "Nessun file originale caricato." : undefined} />
 
+      <RemoteServerConfigPanel value={remoteConfig} remoteRoot={remoteRoot} onSave={saveRemoteConfig} />
+
       <section className="admin-panel p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <Input label="Cartella remota" value={remotePath} onChange={setRemotePath} placeholder="Percorso relativo dentro MEDIA_IMPORT_ROOT" />
@@ -302,44 +383,262 @@ export function LoadingSection({ onNotify }: Props) {
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        {videos.map((video) => {
-          const status = transcodes[video.id];
-          const percent = transcodePercent(status);
-          return (
-            <article key={video.id} className="admin-panel overflow-hidden">
-              <div className="aspect-video bg-[#071827] p-5">
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[#29425b] text-slate-500">
-                  <Video size={42} />
-                </div>
-              </div>
-              <div className="space-y-3 p-4">
-                <div>
-                  <h3 className="truncate font-semibold text-white" title={video.originalFileName ?? video.title}>{video.originalFileName ?? video.title}</h3>
-                  <p className="mt-1 truncate font-mono text-[11px] text-slate-500" title={video.sourceObjectKey ?? ""}>{video.sourceObjectKey}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
-                  <Meta label="Durata" value={formatDuration(video.duration)} />
-                  <Meta label="Risoluzione" value={video.videoQuality ?? "—"} />
-                  <Meta label="Formato" value={video.mediaFormat ?? "—"} />
-                  <Meta label="Audio" value={summarizeAudio(video.audioTracks)} />
-                </div>
-                {["QUEUED", "PROCESSING", "READY"].includes(video.processingStatus) ? (
-                  <ProgressRow label="Conversione HLS" value={percent} color="yellow" caption={status?.jobState ?? video.processingStatus} />
-                ) : null}
-                <button
-                  type="button"
-                  disabled={!video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
-                  onClick={() => void startTranscode(video)}
-                  className="admin-secondary-button w-full justify-center disabled:opacity-45"
-                >
-                  <PlayCircle size={16} /> Avvia conversione
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+      <LoadingMediaTable
+        videos={videos}
+        uploads={uploads}
+        sessions={sessions}
+        transcodes={transcodes}
+        onTranscode={startTranscode}
+      />
+    </div>
+  );
+}
+
+function RemoteServerConfigPanel({
+  value,
+  remoteRoot,
+  onSave,
+}: {
+  value: RemoteServerConfig;
+  remoteRoot: string;
+  onSave: (value: RemoteServerConfig) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  function field<K extends keyof RemoteServerConfig>(key: K, next: RemoteServerConfig[K]) {
+    setDraft((current) => ({ ...current, [key]: next }));
+  }
+
+  return (
+    <section className="admin-panel p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="admin-section-title flex items-center gap-2">
+            <ServerCog size={18} /> Configurazione server remoto
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Parametri operativi per collegare o sincronizzare un server remoto verso la cartella import letta dal backend.
+          </p>
+        </div>
+        <button type="button" className="admin-primary-button" onClick={() => onSave(draft)}>
+          Salva parametri
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-400">Protocollo</span>
+          <select
+            value={draft.protocol}
+            onChange={(event) => field("protocol", event.target.value as RemoteServerConfig["protocol"])}
+            className="h-11 w-full rounded-lg border border-[#26394d] bg-[#071321] px-3 text-sm text-white outline-none focus:border-[#22bdf3]"
+          >
+            <option value="sftp">SFTP</option>
+            <option value="sshfs">SSHFS mount</option>
+            <option value="rsync">Rsync</option>
+            <option value="local-mount">Mount locale</option>
+          </select>
+        </label>
+        <Input label="Host/IP" value={draft.host} onChange={(next) => field("host", next)} placeholder="es. 10.0.0.12" />
+        <Input label="Porta" value={draft.port} onChange={(next) => field("port", next)} placeholder="22" />
+        <Input label="Utente" value={draft.user} onChange={(next) => field("user", next)} placeholder="media" />
+        <Input label="Percorso remoto" value={draft.remoteBasePath} onChange={(next) => field("remoteBasePath", next)} placeholder="/mnt/media/incoming" />
+        <Input label="Root import backend" value={draft.importRoot} onChange={(next) => field("importRoot", next)} placeholder={remoteRoot || "/srv/tvmix/imports"} />
+      </div>
+      <div className="mt-3 rounded-xl border border-[#203248] bg-[#071827] p-3 text-xs text-slate-400">
+        Root effettivo letto ora dal backend: <span className="font-mono text-slate-200">{remoteRoot || "non disponibile"}</span>.
+        Per l’accesso reale ai server remoti, monta/sincronizza il percorso remoto dentro questo root oppure configura `MEDIA_IMPORT_ROOT` sul server backend.
+      </div>
+    </section>
+  );
+}
+
+function LoadingMediaTable({
+  videos,
+  uploads,
+  sessions,
+  transcodes,
+  onTranscode,
+}: {
+  videos: AdminVideo[];
+  uploads: Record<string, UploadState>;
+  sessions: MediaUploadSession[];
+  transcodes: Record<string, TranscodeStatus>;
+  onTranscode: (video: AdminVideo) => void;
+}) {
+  const sessionsByFile = useMemo(
+    () => new Map(sessions.map((session) => [session.fileName, session])),
+    [sessions],
+  );
+
+  return (
+    <section className="admin-panel overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-[1320px] w-full border-collapse text-left text-sm">
+          <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <tr>
+              <th className="w-[330px] px-4 py-3 font-semibold">Media originale</th>
+              <th className="px-4 py-3 font-semibold">Durata / fps</th>
+              <th className="px-4 py-3 font-semibold">Risoluzione / formato</th>
+              <th className="px-4 py-3 font-semibold">Audio</th>
+              <th className="w-[180px] px-4 py-3 font-semibold">Upload</th>
+              <th className="w-[210px] px-4 py-3 font-semibold">Conversione</th>
+              <th className="px-4 py-3 font-semibold">HLS</th>
+              <th className="w-[160px] px-4 py-3 text-right font-semibold">Azioni</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1b2b3d]">
+            {videos.map((video) => {
+              const upload = uploads[video.originalFileName ?? video.title];
+              const session = video.originalFileName ? sessionsByFile.get(video.originalFileName) : undefined;
+              const uploadPercent = upload?.progress ?? (session ? Math.round((session.uploadedParts.length / Math.max(session.totalParts, 1)) * 100) : video.sourceObjectKey ? 100 : 0);
+              const status = transcodes[video.id];
+              const conversionPercent = transcodePercent(status) || (video.processingStatus === "READY" ? 100 : 0);
+              const converted = Boolean(video.hlsUrl || video.convertedObjectKey || video.processingStatus === "READY");
+              return (
+                <tr key={video.id} className="align-top transition hover:bg-[#071827]/70">
+                  <td className="px-4 py-4">
+                    <div className="flex min-w-0 gap-3">
+                      <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg bg-[#102238]">
+                        <LoadingPreview video={video} />
+                      </div>
+                      <div className="min-w-0 pt-0.5">
+                        <h3 className="max-w-[190px] truncate font-semibold text-white" title={video.originalFileName ?? video.title}>
+                          {video.originalFileName ?? video.title}
+                        </h3>
+                        <p className="mt-1 truncate font-mono text-[11px] text-slate-500" title={video.sourceObjectKey ?? ""}>
+                          {video.sourceObjectKey ?? "originale non disponibile"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">Upload: {formatDate(video.createdAt)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-xs">
+                    <p className="font-semibold text-slate-200">{formatDuration(video.duration)}</p>
+                    <p className="mt-1 text-slate-500">{fpsFromQuality(video.videoQuality)}</p>
+                  </td>
+                  <td className="px-4 py-4 text-xs">
+                    <p className="font-semibold text-slate-200">{resolutionFromQuality(video.videoQuality)}</p>
+                    <p className="mt-1 text-slate-500">{video.mediaFormat ?? "—"}</p>
+                  </td>
+                  <td className="max-w-[170px] px-4 py-4 text-xs text-slate-300">
+                    {summarizeAudio(video.audioTracks)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <ProgressRow label={upload?.status === "failed" ? "Errore upload" : session ? "Sospeso" : "Caricato"} value={uploadPercent} color="blue" caption={upload?.error ?? `${Math.round(uploadPercent)}%`} compact />
+                  </td>
+                  <td className="px-4 py-4">
+                    <ProgressRow label="HLS" value={conversionPercent} color="yellow" caption={status?.jobState ?? video.processingStatus} compact />
+                  </td>
+                  <td className="px-4 py-4 text-xs">
+                    <HlsPresenceIndicator converted={converted} video={video} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        disabled={!video.sourceObjectKey || ["QUEUED", "PROCESSING"].includes(video.processingStatus)}
+                        onClick={() => onTranscode(video)}
+                        className="admin-secondary-button px-2.5 py-2 text-xs disabled:opacity-45"
+                      >
+                        <PlayCircle size={15} /> Converti
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function LoadingPreview({ video }: { video: AdminVideo }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const previewUrl = playablePreviewUrl(video);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !previewUrl) return;
+    if (previewUrl.includes(".m3u8") && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true });
+      hls.loadSource(previewUrl);
+      hls.attachMedia(element);
+      hlsRef.current = hls;
+    } else {
+      element.src = previewUrl;
+    }
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      element.removeAttribute("src");
+      element.load();
+    };
+  }, [previewUrl]);
+
+  function playPreview() {
+    const element = videoRef.current;
+    if (!element || !previewUrl) return;
+    element.muted = true;
+    void element.play().catch(() => undefined);
+  }
+
+  function pausePreview() {
+    const element = videoRef.current;
+    if (!element) return;
+    element.pause();
+  }
+
+  if (!previewUrl) {
+    return (
+      <div className="grid h-full w-full place-items-center text-slate-600">
+        <FileVideo size={24} />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onMouseEnter={playPreview}
+      onMouseLeave={pausePreview}
+      onFocus={playPreview}
+      onBlur={pausePreview}
+      className="group/preview block h-full w-full"
+      title="Passa il mouse per vedere l’anteprima"
+    >
+      <video
+        ref={videoRef}
+        poster={video.thumbnailUrl ?? undefined}
+        muted
+        playsInline
+        preload="metadata"
+        className="h-full w-full object-cover transition duration-300 group-hover/preview:scale-[1.04]"
+      />
+      <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-70" />
+      <span className="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white opacity-0 transition group-hover/preview:opacity-100">
+        <Play size={14} fill="currentColor" />
+      </span>
+    </button>
+  );
+}
+
+function HlsPresenceIndicator({ converted, video }: { converted: boolean; video: AdminVideo }) {
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold ${converted ? "border-emerald-400/40 text-emerald-300" : "border-[#31445a] text-slate-400"}`}>
+        {converted ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+        {converted ? "Convertito" : "Non convertito"}
+      </span>
+      <p className="max-w-[170px] truncate font-mono text-[11px] text-slate-500" title={video.convertedObjectKey ?? video.hlsUrl ?? ""}>
+        {video.convertedObjectKey ?? video.hlsUrl ?? "master assente"}
+      </p>
     </div>
   );
 }
@@ -374,31 +673,44 @@ function SuspendedUploadCard({ session, onResume }: { session: MediaUploadSessio
   );
 }
 
-function ProgressRow({ label, value, color, caption }: { label: string; value: number; color: "blue" | "yellow"; caption?: string }) {
+function ProgressRow({
+  label,
+  value,
+  color,
+  caption,
+  compact,
+}: {
+  label: string;
+  value: number;
+  color: "blue" | "yellow";
+  caption?: string;
+  compact?: boolean;
+}) {
   return (
-    <div className="mt-3">
+    <div className={compact ? "" : "mt-3"}>
       <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400">
         <span>{label}</span>
         <span>{Math.round(value)}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-[#132438]">
+      <div className={`${compact ? "h-1.5" : "h-2"} overflow-hidden rounded-full bg-[#132438]`}>
         <div
           className={["h-full rounded-full transition-all", color === "blue" ? "bg-[#22bdf3]" : "bg-[#f8c14b]"].join(" ")}
           style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
         />
       </div>
-      {caption ? <p className="mt-1 text-[11px] text-slate-500">{caption}</p> : null}
+      {caption ? <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">{caption}</p> : null}
     </div>
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[#203248] bg-[#071827] p-2">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 truncate font-semibold text-slate-200" title={value}>{value}</p>
-    </div>
-  );
+function resolutionFromQuality(value: string | null) {
+  if (!value) return "—";
+  return value.split("·")[0]?.trim() || value;
+}
+
+function fpsFromQuality(value: string | null) {
+  if (!value?.includes("fps")) return "fps non rilevato";
+  return value.split("·").find((part) => part.includes("fps"))?.trim() ?? "fps non rilevato";
 }
 
 function summarizeAudio(value: unknown) {
