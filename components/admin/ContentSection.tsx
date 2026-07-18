@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Hls from "hls.js";
@@ -26,6 +26,7 @@ type Props = { onNotify: (message: string) => void };
 type VideoForm = {
   title: string;
   slug: string;
+  shortDescription: string;
   description: string;
   thumbnailUrl: string;
   hlsUrl: string;
@@ -55,6 +56,7 @@ function formatBytes(value: number) {
 const blank: VideoForm = {
   title: "",
   slug: "",
+  shortDescription: "",
   description: "",
   thumbnailUrl: "",
   hlsUrl: "",
@@ -302,6 +304,7 @@ export function ContentSection({ onNotify }: Props) {
               const body = {
                 title: form.title,
                 slug: form.slug.replace(/^#/, ""),
+                shortDescription: form.shortDescription || null,
                 description: form.description || null,
                 thumbnailUrl: form.thumbnailUrl || null,
                 hlsUrl: form.hlsUrl || null,
@@ -445,15 +448,15 @@ function ContentTable({
   return (
     <section className="admin-panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1320px] w-full border-collapse text-left text-sm">
           <thead className="bg-[#071827] text-[11px] uppercase tracking-[0.16em] text-slate-500">
             <tr>
-              <th className="w-[340px] px-4 py-3 font-semibold">Media</th>
-              <th className="px-4 py-3 font-semibold">Durata</th>
-              <th className="px-4 py-3 font-semibold">Qualità / formato</th>
+              <th className="w-[390px] px-4 py-3 font-semibold">Media</th>
+              <th className="px-4 py-3 font-semibold">Qualità / formato / durata</th>
               <th className="px-4 py-3 font-semibold">Tracce audio</th>
-              <th className="px-4 py-3 font-semibold">Catalogo</th>
-              <th className="px-4 py-3 font-semibold">HLS</th>
+              <th className="px-4 py-3 font-semibold">Programma</th>
+              <th className="px-4 py-3 font-semibold">Stagione / Serie</th>
+              <th className="px-4 py-3 font-semibold">Episodio</th>
               <th className="w-[250px] px-4 py-3 text-right font-semibold">Azioni</th>
             </tr>
           </thead>
@@ -478,6 +481,49 @@ function ContentTable({
         </table>
       </div>
     </section>
+  );
+}
+
+function CatalogDetails({ video, type }: { video: Video; type: "program" | "season" | "episode" }) {
+  if (type === "program") {
+    return (
+      <div className="text-xs">
+        <p className="font-semibold text-slate-200">{video.season?.program?.name ?? "â€”"}</p>
+        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.season?.programId ?? "â€”"}</p>
+      </div>
+    );
+  }
+  if (type === "season") {
+    return (
+      <div className="text-xs">
+        <p className="font-semibold text-slate-200">{video.season?.title || (video.season ? `Stagione ${video.season.number}` : "â€”")}</p>
+        <p className="mt-1 font-mono text-[11px] text-slate-500">{video.seasonId ?? "â€”"}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs">
+      <p className="font-semibold text-slate-200">{video.episodeNumber ? `Episodio ${video.episodeNumber}` : "â€”"}</p>
+      <p className="mt-1 font-mono text-[11px] text-slate-500">{video.episodeCode ?? "â€”"}</p>
+    </div>
+  );
+}
+
+function HlsStatePill({ video }: { video: Video }) {
+  const state = video.processingStatus === "READY" && Boolean(video.hlsUrl)
+    ? "on"
+    : ["QUEUED", "PROCESSING"].includes(video.processingStatus)
+      ? "queue"
+      : "off";
+  const className = state === "on"
+    ? "border-emerald-400/40 text-emerald-300"
+    : state === "queue"
+      ? "border-amber-300/40 text-amber-200"
+      : "border-[#31445a] text-slate-400";
+  return (
+    <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${className}`}>
+      HLS {state === "on" ? "ON" : state === "queue" ? "in coda" : "OFF"}
+    </span>
   );
 }
 
@@ -507,8 +553,8 @@ function ContentTableRow({
   onVast: () => void;
 }) {
   const duration = describeDuration(video);
-  const hlsReady = video.processingStatus === "READY" && Boolean(video.hlsUrl);
   const canResume = Boolean(suspendedUpload) && !backgroundUpload && ["UPLOADING", "FAILED", "PENDING"].includes(video.processingStatus);
+  const cataloged = Boolean(video.seasonId || video.episodeNumber || video.episodeCode);
 
   return (
     <tr className="align-top transition hover:bg-[#071827]/70">
@@ -517,15 +563,18 @@ function ContentTableRow({
           <div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg bg-[#102238]">
             <HoverVideoPreview video={video} onOpen={onOpenPlayer} />
             <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
-              {playableAdminUrl(video) ? "Hover play · click" : "Anteprima"}
+              {playableAdminUrl(video) ? "Hover play Â· click" : "Anteprima"}
             </span>
           </div>
           <div className="min-w-0 pt-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h3 className="max-w-[160px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
-              <StatusPill status={video.processingStatus} />
-              <span className={`rounded border px-2 py-0.5 text-[10px] ${video.published ? "border-emerald-400/40 text-emerald-400" : "border-[#31445a] text-slate-400"}`}>
-                {video.published ? "Pubblicato" : "Bozza"}
+            <h3 className="max-w-[210px] truncate font-semibold text-white" title={video.title}>{video.title}</h3>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <HlsStatePill video={video} />
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${cataloged ? "border-emerald-400/40 text-emerald-300" : "border-[#31445a] text-slate-400"}`}>
+                Catalogo {cataloged ? "ON" : "OFF"}
+              </span>
+              <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${video.published ? "border-[#22bdf3]/45 text-[#22bdf3]" : "border-[#31445a] text-slate-400"}`}>
+                {video.published ? "Pubblicato" : "Non pubblicato"}
               </span>
             </div>
             <p className="mt-1 truncate font-mono text-xs text-slate-500">#{video.slug}</p>
@@ -534,29 +583,28 @@ function ContentTableRow({
             {backgroundUpload ? (
               <Progress
                 value={backgroundUpload.progress}
-                label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload background"} · ${backgroundUpload.fileName}`}
+                label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload background"} Â· ${backgroundUpload.fileName}`}
               />
             ) : null}
           </div>
         </div>
       </td>
       <td className="px-4 py-4 text-xs">
-        <p className="font-semibold text-slate-200">{duration.time}</p>
-        <p className="mt-1 text-slate-500">{duration.fps}</p>
-      </td>
-      <td className="px-4 py-4 text-xs">
         <p className="font-semibold text-slate-200">{video.videoQuality ?? "non rilevata"}</p>
         <p className="mt-1 text-slate-500">{video.mediaFormat ?? (video.hlsUrl ? "HLS" : "non rilevato")}</p>
+        <p className="mt-1 text-slate-500">{duration.time} · {duration.fps}</p>
       </td>
       <td className="max-w-[170px] px-4 py-4 text-xs text-slate-300">
         {summarizeAudio(video.audioTracks)}
       </td>
       <td className="px-4 py-4 text-xs">
-        <CatalogIndicator video={video} />
+        <CatalogDetails video={video} type="program" />
       </td>
       <td className="px-4 py-4 text-xs">
-        <HlsIndicator video={video} />
-        {hlsReady ? <p className="mt-1 truncate text-slate-500" title={video.convertedObjectKey ?? video.hlsUrl ?? ""}>{fileNameOf(video.convertedObjectKey) ?? "master.m3u8"}</p> : null}
+        <CatalogDetails video={video} type="season" />
+      </td>
+      <td className="px-4 py-4 text-xs">
+        <CatalogDetails video={video} type="episode" />
       </td>
       <td className="px-4 py-4">
         <div className="flex flex-wrap justify-end gap-1.5">
@@ -610,8 +658,8 @@ function CatalogIndicator({ video }: { video: Video }) {
       </span>
       <p className="text-slate-300">{video.season.program?.name ?? video.season.programId}</p>
       <p className="font-mono text-[11px] text-slate-500">
-        SER {video.season.programId} · ST {video.seasonId}
-        {video.episodeCode ? ` · EP ${video.episodeCode}` : video.episodeNumber ? ` · EP ${video.episodeNumber}` : ""}
+        SER {video.season.programId} Â· ST {video.seasonId}
+        {video.episodeCode ? ` Â· EP ${video.episodeCode}` : video.episodeNumber ? ` Â· EP ${video.episodeNumber}` : ""}
       </p>
     </div>
   );
@@ -644,7 +692,7 @@ function ResumeUploadButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         className="admin-secondary-button px-2.5 py-2 text-xs"
-        title={`Riprendi ${session.fileName} dalle parti già caricate (${uploadedParts}/${session.totalParts})`}
+        title={`Riprendi ${session.fileName} dalle parti giÃ  caricate (${uploadedParts}/${session.totalParts})`}
       >
         <Upload size={15} />
         Riprendi upload
@@ -679,7 +727,7 @@ function MediaInfoModal({ video, onClose }: { video: Video; onClose: () => void 
   const originalPath = video.sourceObjectKey ?? "non disponibile";
 
   return (
-    <AdminModal title={`Info media · ${video.title}`} onClose={onClose}>
+    <AdminModal title={`Info media Â· ${video.title}`} onClose={onClose}>
       <div className="grid gap-3 text-sm">
         <InfoRow label="Nome file originale" value={video.originalFileName ?? fileNameOf(video.sourceObjectKey) ?? "non caricato"} />
         <InfoRow label="Percorso file originale" value={originalPath} monospace />
@@ -696,7 +744,7 @@ function MediaInfoModal({ video, onClose }: { video: Video; onClose: () => void 
 
 function VastConfigModal({ video, onClose }: { video: Video; onClose: () => void }) {
   return (
-    <AdminModal title={`VAST config · ${video.title}`} onClose={onClose}>
+    <AdminModal title={`VAST config Â· ${video.title}`} onClose={onClose}>
       <div className="space-y-4">
         <p className="rounded border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
           Pulsante predisposto. Per salvare una configurazione VAST persistente serve aggiungere il modello dati e le API backend dedicate.
@@ -754,7 +802,7 @@ function ContentCard({
       <div className="relative aspect-video overflow-hidden rounded-lg bg-[#102238]">
         <HoverVideoPreview video={video} onOpen={onOpenPlayer} />
         <span className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
-          {playableAdminUrl(video) ? "Hover play · Click player" : "Anteprima"}
+          {playableAdminUrl(video) ? "Hover play Â· Click player" : "Anteprima"}
         </span>
       </div>
 
@@ -779,8 +827,8 @@ function ContentCard({
 
         <p className="mt-1 text-sm text-slate-400">
           {video.category.name}
-          {video.season ? ` · ${video.season.program?.name ?? video.season.programId} · ${video.season.title || `Stagione ${video.season.number}`}` : ""}
-          {video.episodeCode ? ` · EP ${video.episodeCode}` : ""}
+          {video.season ? ` Â· ${video.season.program?.name ?? video.season.programId} Â· ${video.season.title || `Stagione ${video.season.number}`}` : ""}
+          {video.episodeCode ? ` Â· EP ${video.episodeCode}` : ""}
         </p>
 
         <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
@@ -790,7 +838,7 @@ function ContentCard({
           <Meta label="Cartella originale" value={originalFolder ?? "non disponibile"} />
           <Meta label="Cartella HLS" value={convertedFolder ?? "non convertito"} />
           <Meta label="Durata" value={formatDuration(video.duration)} />
-          <Meta label="Qualità" value={video.videoQuality ?? "non rilevata"} />
+          <Meta label="QualitÃ " value={video.videoQuality ?? "non rilevata"} />
           <Meta label="Formato" value={video.mediaFormat ?? (video.hlsUrl ? "HLS" : "non rilevato")} />
           <Meta label="Tracce audio" value={audioSummary} />
         </div>
@@ -799,7 +847,7 @@ function ContentCard({
           <div className="mt-3">
             <Progress
               value={backgroundUpload.progress}
-              label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload in background"} · ${backgroundUpload.fileName}`}
+              label={`${backgroundUpload.status === "failed" ? "Upload fallito" : "Upload in background"} Â· ${backgroundUpload.fileName}`}
             />
           </div>
         ) : null}
@@ -1029,7 +1077,7 @@ function VideoPlayerModal({
   }
 
   return (
-    <AdminModal title={`Player · ${video.title}`} onClose={onClose}>
+    <AdminModal title={`Player Â· ${video.title}`} onClose={onClose}>
       <div className="space-y-4">
         <div className="relative aspect-video overflow-hidden rounded-xl border border-[#203248] bg-black">
           {playerUrl ? (
@@ -1132,6 +1180,7 @@ function VideoEditor({
       ? {
           title: video.title,
           slug: `#${video.slug}`,
+          shortDescription: video.shortDescription ?? "",
           description: video.description ?? "",
           thumbnailUrl: video.thumbnailUrl ?? "",
           hlsUrl: video.hlsUrl ?? "",
@@ -1214,8 +1263,14 @@ function VideoEditor({
         </label>
 
         <label className="sm:col-span-2">
-          <span className="admin-label">Descrizione</span>
-          <textarea value={form.description} onChange={(event) => field("description", event.target.value)} className="admin-input mt-2 h-24 py-3" />
+          <span className="admin-label">Sinossi breve</span>
+          <textarea value={form.shortDescription} onChange={(event) => field("shortDescription", event.target.value)} maxLength={500} className="admin-input mt-2 h-20 py-3" />
+          <span className="mt-1 block text-[11px] text-slate-500">Massimo 500 caratteri, usata per card, slider e preview.</span>
+        </label>
+
+        <label className="sm:col-span-2">
+          <span className="admin-label">Sinossi lunga</span>
+          <textarea value={form.description} onChange={(event) => field("description", event.target.value)} className="admin-input mt-2 h-28 py-3" />
         </label>
 
         <label>
@@ -1230,6 +1285,7 @@ function VideoEditor({
             <option value="">Nessun programma</option>
             {programs.map((program) => <option key={program.id} value={program.id}>{program.name} ({program.id})</option>)}
           </select>
+          <span className="mt-1 block font-mono text-[11px] text-slate-500">ID programma: {form.programId || "â€”"}</span>
         </label>
         <label>
           <span className="admin-label">Stagione / Serie</span>
@@ -1237,12 +1293,14 @@ function VideoEditor({
             <option value="">Nessuna stagione</option>
             {seasons.map((season) => <option key={season.id} value={season.id}>{season.title || `Stagione ${season.number}`} ({season.id})</option>)}
           </select>
+          <span className="mt-1 block font-mono text-[11px] text-slate-500">ID stagione/serie: {form.seasonId || "â€”"}</span>
         </label>
         <div className="grid grid-cols-2 gap-3">
           <Input label="N. episodio" type="number" value={form.episodeNumber} onChange={(value) => field("episodeNumber", value)} />
           <label>
             <span className="admin-label">ID episodio</span>
             <input readOnly value={form.episodeCode} placeholder="automatico" className="admin-input mt-2 font-mono tracking-[0.18em] text-[#22bdf3]" />
+            <span className="mt-1 block text-[11px] text-slate-500">Codice generato da ID programma + stagione + episodio.</span>
           </label>
         </div>
 
@@ -1393,7 +1451,7 @@ function summarizeAudio(value: unknown) {
   if (Array.isArray(value)) {
     if (!value.length) return "nessuna";
     const tracks = value.map((track, index) => summarizeAudioTrack(track, index + 1)).filter(Boolean);
-    return tracks.length ? tracks.join(" · ") : `${value.length} traccia/e`;
+    return tracks.length ? tracks.join(" Â· ") : `${value.length} traccia/e`;
   }
   if (value && typeof value === "object") return summarizeAudioTrack(value, 1) || "disponibile";
   return "non rilevate";
@@ -1434,3 +1492,5 @@ function stringifyMetadata(value: unknown) {
 function firstString(...values: unknown[]) {
   return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim() ?? null;
 }
+
+

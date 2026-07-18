@@ -17,6 +17,7 @@ export type Video = {
   id: string;
   title: string;
   slug: string;
+  shortDescription: string | null;
   description: string | null;
   thumbnailUrl: string | null;
   hlsUrl: string | null;

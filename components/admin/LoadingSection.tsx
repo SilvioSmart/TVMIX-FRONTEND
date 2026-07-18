@@ -145,6 +145,12 @@ function playablePreviewUrl(video: AdminVideo) {
   return originalPreviewUrl(video) ?? video.hlsUrl;
 }
 
+function parentRemotePath(value: string) {
+  const parts = value.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
+  parts.pop();
+  return parts.join("/");
+}
+
 function uploaderLabel(value: string | null | undefined) {
   if (!value) return "utente non rilevato";
   if (!value.includes("@")) return value;
@@ -356,7 +362,20 @@ export function LoadingSection({ onNotify }: Props) {
             <RefreshCw size={16} /> Aggiorna
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Root import backend: <span className="font-mono">{remoteRoot || "non disponibile"}</span></p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded border border-[#203248] bg-[#071827] px-2 py-1 text-slate-400">
+            Root: <span className="font-mono text-slate-200">{remoteRoot || "non disponibile"}</span>
+          </span>
+          <span className="rounded border border-[#203248] bg-[#071827] px-2 py-1 text-slate-400">
+            Percorso: <span className="font-mono text-slate-200">/{remotePath}</span>
+          </span>
+          <button type="button" className="admin-secondary-button px-2.5 py-1.5 text-xs" onClick={() => setRemotePath("")}>
+            <FolderOpen size={14} /> Root
+          </button>
+          <button type="button" disabled={!remotePath} className="admin-secondary-button px-2.5 py-1.5 text-xs disabled:opacity-45" onClick={() => setRemotePath(parentRemotePath(remotePath))}>
+            <FolderOpen size={14} /> Su
+          </button>
+        </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {remoteFiles.map((file) => (
             <div key={file.path} className="rounded-xl border border-[#203248] bg-[#071827] p-3">
