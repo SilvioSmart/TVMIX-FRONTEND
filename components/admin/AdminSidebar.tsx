@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronLeft, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { navigation, type AdminSection, type AppearanceSubnavItem, type ContentSubnavKey, type LiveSubnavKey, type NavItem } from "./admin-data";
+import { navigation, type AdminSection, type AppearanceSubnavItem, type ContentSubnavKey, type LiveSubnavKey, type NavItem, type NewsSubnavKey } from "./admin-data";
 import type { AppearanceMenuKey } from "./admin-api";
 
 type AdminSidebarProps = {
@@ -10,6 +10,7 @@ type AdminSidebarProps = {
   activeAppearance: AppearanceMenuKey;
   activeContent: ContentSubnavKey;
   activeLive: LiveSubnavKey;
+  activeNews: NewsSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
   collapsed: boolean;
   mobileOpen: boolean;
@@ -19,6 +20,7 @@ type AdminSidebarProps = {
   onSelectAppearance: (section: AppearanceMenuKey) => void;
   onSelectContent: (section: ContentSubnavKey) => void;
   onSelectLive: (section: LiveSubnavKey) => void;
+  onSelectNews: (section: NewsSubnavKey) => void;
   items?: NavItem[];
 };
 
@@ -27,6 +29,7 @@ export function AdminSidebar({
   activeAppearance,
   activeContent,
   activeLive,
+  activeNews,
   appearanceMenu,
   collapsed,
   mobileOpen,
@@ -36,10 +39,12 @@ export function AdminSidebar({
   onSelectAppearance,
   onSelectContent,
   onSelectLive,
+  onSelectNews,
   items = navigation,
 }: AdminSidebarProps) {
   const appearanceOpen = active === "appearance";
   const liveOpen = active === "live";
+  const newsOpen = active === "news";
   const contentOpen = active === "content";
 
   return (
@@ -81,6 +86,7 @@ export function AdminSidebar({
             const isAppearance = item.id === "appearance";
             const isContent = item.id === "content";
             const isLive = item.id === "live";
+            const isNews = item.id === "news";
             const children = isAppearance ? appearanceMenu : item.children;
 
             return (
@@ -91,7 +97,7 @@ export function AdminSidebar({
                   aria-expanded={children?.length ? selected : undefined}
                   onClick={() => {
                     onSelect(item.id);
-                    if (!isAppearance && !isLive && !isContent) onMobileClose();
+                    if (!isAppearance && !isLive && !isContent && !isNews) onMobileClose();
                   }}
                   className={[
                     "relative flex h-12 w-full items-center rounded-lg text-sm font-semibold transition",
@@ -118,14 +124,16 @@ export function AdminSidebar({
                   ) : null}
                 </button>
 
-                {!collapsed && ((isAppearance && appearanceOpen) || (isLive && liveOpen) || (isContent && contentOpen)) && children?.length ? (
+                {!collapsed && ((isAppearance && appearanceOpen) || (isLive && liveOpen) || (isContent && contentOpen) || (isNews && newsOpen)) && children?.length ? (
                   <div className="ml-4 mt-2 space-y-1 border-l border-[#1d3044] pl-3">
                     {children.map((child) => {
                       const childSelected = isAppearance
                         ? activeAppearance === child.key
                         : isContent
                           ? activeContent === child.key
-                          : activeLive === child.key;
+                          : isLive
+                            ? activeLive === child.key
+                            : activeNews === child.key;
                       return (
                         <button
                           key={child.key}
@@ -134,6 +142,7 @@ export function AdminSidebar({
                             if (isAppearance) onSelectAppearance(child.key as AppearanceMenuKey);
                             if (isContent) onSelectContent(child.key as ContentSubnavKey);
                             if (isLive) onSelectLive(child.key as LiveSubnavKey);
+                            if (isNews) onSelectNews(child.key as NewsSubnavKey);
                             onMobileClose();
                           }}
                           className={[

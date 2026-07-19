@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import type { AdminSection, AppearanceSubnavItem, ContentSubnavKey, LiveSubnavKey } from "./admin-data";
+import type { AdminSection, AppearanceSubnavItem, ContentSubnavKey, LiveSubnavKey, NewsSubnavKey } from "./admin-data";
 import { CatalogSection } from "./CatalogSection";
 import { ContentSection, Header, Input } from "./ContentSection";
 import { LoadingSection } from "./LoadingSection";
@@ -23,6 +23,7 @@ import { AppearanceCarouselConfigSection } from "./AppearanceCarouselConfigSecti
 import { AppearanceMenuConfigSection } from "./AppearanceMenuConfigSection";
 import { AppearanceModulesConfigSection } from "./AppearanceModulesConfigSection";
 import { LiveSection } from "./LiveSection";
+import { NewsSection } from "./NewsSection";
 import { UsersSection } from "./UsersSection";
 import type { AppearanceMenuKey } from "./admin-api";
 
@@ -31,18 +32,20 @@ type Props = {
   activeContent: ContentSubnavKey;
   appearanceSection: AppearanceMenuKey;
   activeLive: LiveSubnavKey;
+  activeNews: NewsSubnavKey;
   appearanceMenu: AppearanceSubnavItem[];
   onSelectLive: (section: LiveSubnavKey) => void;
   onNotify: (message: string) => void;
 };
 
-export function PlatformSections({ section, activeContent, appearanceSection, activeLive, appearanceMenu, onSelectLive, onNotify }: Props) {
+export function PlatformSections({ section, activeContent, appearanceSection, activeLive, activeNews, appearanceMenu, onSelectLive, onNotify }: Props) {
   if (section === "content") {
     if (activeContent === "loading") return <LoadingSection onNotify={onNotify} />;
     if (activeContent === "route-cfg") return <RouteConfigSection onNotify={onNotify} />;
     return <ContentSection onNotify={onNotify} />;
   }
   if (section === "live") return <LiveSection activeMode={activeLive} onModeChange={onSelectLive} onNotify={onNotify} />;
+  if (section === "news") return <NewsSection activeSection={activeNews} onNotify={onNotify} />;
   if (section === "catalog") return <CatalogSection onNotify={onNotify} />;
   if (section === "users") return <UsersSection onNotify={onNotify} />;
   if (section === "appearance") {

@@ -3,6 +3,7 @@ import {
   Clapperboard,
   FolderOpen,
   Home,
+  Newspaper,
   Palette,
   Radio,
   Settings,
@@ -14,6 +15,7 @@ export type AdminSection =
   | "overview"
   | "content"
   | "live"
+  | "news"
   | "catalog"
   | "users"
   | "appearance"
@@ -39,11 +41,18 @@ export type LiveSubnavItem = {
   description?: string | null;
 };
 
+export type NewsSubnavKey = "9notice" | "tg9";
+export type NewsSubnavItem = {
+  key: NewsSubnavKey;
+  label: string;
+  description?: string | null;
+};
+
 export type NavItem = {
   id: AdminSection;
   label: string;
   icon: LucideIcon;
-  children?: Array<AppearanceSubnavItem | ContentSubnavItem | LiveSubnavItem>;
+  children?: Array<AppearanceSubnavItem | ContentSubnavItem | LiveSubnavItem | NewsSubnavItem>;
 };
 
 export const fallbackAppearanceMenu: AppearanceSubnavItem[] = [
@@ -65,10 +74,16 @@ export const contentMenu: ContentSubnavItem[] = [
   { key: "route-cfg", label: "ROUTE CFG", description: "Rotte SSH, SFTP, Rsync e mount per import esterni" },
 ];
 
+export const newsMenu: NewsSubnavItem[] = [
+  { key: "9notice", label: "9notice", description: "Notizie editoriali con griglia e scheda principale" },
+  { key: "tg9", label: "tg9", description: "Redazione, scalette e contenuti TG9" },
+];
+
 export const navigation: NavItem[] = [
   { id: "overview", label: "Panoramica", icon: Home },
   { id: "content", label: "Contenuti", icon: Clapperboard, children: contentMenu },
   { id: "live", label: "Dirette TV", icon: Radio, children: liveMenu },
+  { id: "news", label: "News", icon: Newspaper, children: newsMenu },
   { id: "catalog", label: "Catalogo", icon: FolderOpen },
   { id: "users", label: "Utenti", icon: CircleUserRound },
   { id: "appearance", label: "Aspetto", icon: Palette, children: fallbackAppearanceMenu },

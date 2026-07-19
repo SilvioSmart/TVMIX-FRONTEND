@@ -10,6 +10,7 @@ import {
   type AppearanceSubnavItem,
   type ContentSubnavKey,
   type LiveSubnavKey,
+  type NewsSubnavKey,
   type NavItem,
 } from "./admin-data";
 import { OverviewSection } from "./OverviewSection";
@@ -32,6 +33,9 @@ function canUseSection(user: AdminUser, section: AdminSection) {
   }
   if (section === "catalog") return user.permissions.includes("CATALOG_MANAGE");
   if (section === "live") return user.permissions.includes("LIVE_MANAGE");
+  if (section === "news") {
+    return user.permissions.includes("CONTENT_VIEW") || user.permissions.includes("CONTENT_MANAGE");
+  }
   if (section === "appearance") return user.permissions.includes("APPEARANCE_MANAGE");
   if (section === "settings") return user.permissions.includes("SETTINGS_MANAGE");
   return false;
@@ -42,6 +46,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
   const [activeContent, setActiveContent] = useState<ContentSubnavKey>("loading");
   const [activeAppearance, setActiveAppearance] = useState<AppearanceMenuKey>("logo-name");
   const [activeLive, setActiveLive] = useState<LiveSubnavKey>("LIVE_STREAMING");
+  const [activeNews, setActiveNews] = useState<NewsSubnavKey>("9notice");
   const [appearanceMenu, setAppearanceMenu] =
     useState<AppearanceSubnavItem[]>(fallbackAppearanceMenu);
   const [collapsed, setCollapsed] = useState(false);
@@ -109,6 +114,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
         activeAppearance={activeAppearance}
         activeContent={activeContent}
         activeLive={activeLive}
+        activeNews={activeNews}
         appearanceMenu={appearanceMenu}
         collapsed={collapsed}
         mobileOpen={mobileOpen}
@@ -126,6 +132,10 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
         onSelectLive={(section) => {
           setActive("live");
           setActiveLive(section);
+        }}
+        onSelectNews={(section) => {
+          setActive("news");
+          setActiveNews(section);
         }}
         items={availableNavigation}
       />
@@ -210,6 +220,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
               section={active}
               activeContent={activeContent}
               activeLive={activeLive}
+              activeNews={activeNews}
               onSelectLive={setActiveLive}
               appearanceSection={activeAppearance}
               appearanceMenu={appearanceMenu}
