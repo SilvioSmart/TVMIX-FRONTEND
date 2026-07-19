@@ -1,200 +1,473 @@
 "use client";
 
-import { CalendarClock, ImageIcon, Newspaper } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Edit3, ImagePlus, Plus, RefreshCw, Trash2, Upload, Video } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { NewsSubnavKey } from "./admin-data";
-import { Header } from "./ContentSection";
+import {
+  adminRequest,
+  formatDate,
+  type ListResponse,
+  type NoticeArticle,
+  type Tg9Video,
+  uploadNoticeImageToR2,
+  uploadTg9VideoToR2,
+} from "./admin-api";
+import { AdminModal, ConfirmButton, ResourceState } from "./AdminResourceUI";
+import { Header, Input, SearchBox } from "./ContentSection";
 
 type Props = {
   activeSection: NewsSubnavKey;
   onNotify: (message: string) => void;
 };
 
-type Notice = {
-  id: string;
+type NoticeForm = {
   category: string;
   title: string;
+  slug: string;
+  excerpt: string;
   body: string;
   imageUrl: string;
-  insertedAt: string;
+  imageObjectKey: string;
+  sortOrder: string;
+  published: boolean;
 };
 
-const notices: Notice[] = [
-  {
-    id: "n9-001",
-    category: "Attualità",
-    title: "La piattaforma TVMIX apre una nuova finestra sull'informazione locale",
-    insertedAt: "19/07/2026 18:42",
-    imageUrl: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80",
-    body: "Una nuova area editoriale raccoglie aggiornamenti, approfondimenti e storie dal territorio. La redazione potrà valorizzare le notizie più recenti con una scheda principale e una griglia dinamica di contenuti selezionabili.",
-  },
-  {
-    id: "n9-002",
-    category: "Cronaca",
-    title: "Nuovi servizi digitali per cittadini e imprese",
-    insertedAt: "19/07/2026 17:15",
-    imageUrl: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=900&q=80",
-    body: "Sportelli online, notifiche in tempo reale e nuove procedure semplificate entrano nella quotidianità dei territori. Il percorso coinvolge amministrazioni, operatori e associazioni locali.",
-  },
-  {
-    id: "n9-003",
-    category: "Cultura",
-    title: "Estate di eventi tra musica, teatro e mostre",
-    insertedAt: "19/07/2026 16:06",
-    imageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
-    body: "Il calendario culturale si arricchisce di appuntamenti serali, rassegne all'aperto e percorsi museali. Le iniziative puntano a coinvolgere pubblico locale e visitatori.",
-  },
-  {
-    id: "n9-004",
-    category: "Sport",
-    title: "Le società sportive preparano la nuova stagione",
-    insertedAt: "19/07/2026 14:30",
-    imageUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
-    body: "Allenamenti, calendari e nuove iscrizioni segnano l'avvio della programmazione sportiva. Le squadre lavorano alla preparazione atletica e alla definizione degli organici.",
-  },
-  {
-    id: "n9-005",
-    category: "Ambiente",
-    title: "Monitoraggio ambientale, dati aggiornati in tempo reale",
-    insertedAt: "19/07/2026 12:18",
-    imageUrl: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80",
-    body: "Sensori, mappe e report territoriali aiutano a leggere l'evoluzione degli indicatori ambientali. Il sistema punta a rendere più accessibili le informazioni ai cittadini.",
-  },
-  {
-    id: "n9-006",
-    category: "Economia",
-    title: "Imprese locali, focus su innovazione e formazione",
-    insertedAt: "18/07/2026 19:55",
-    imageUrl: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=80",
-    body: "Nuovi programmi formativi sostengono le competenze digitali e la crescita delle piccole imprese. Il confronto coinvolge professionisti, enti e realtà produttive del territorio.",
-  },
-];
+type Tg9Form = {
+  title: string;
+  slug: string;
+  description: string;
+  videoUrl: string;
+  videoObjectKey: string;
+  posterUrl: string;
+  sortOrder: string;
+  published: boolean;
+};
 
 export function NewsSection({ activeSection, onNotify }: Props) {
-  if (activeSection === "tg9") {
-    return <Tg9Section onNotify={onNotify} />;
-  }
-
-  return <NineNoticeSection />;
+  if (activeSection === "tg9") return <Tg9AdminSection onNotify={onNotify} />;
+  return <NoticeAdminSection onNotify={onNotify} />;
 }
 
-function NineNoticeSection() {
-  const latestNotice = useMemo(() => notices[0], []);
-  const [selectedId, setSelectedId] = useState(latestNotice.id);
-  const selectedNotice = notices.find((notice) => notice.id === selectedId) ?? latestNotice;
+function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void }) {
+  const [items, setItems] = useState<NoticeArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<NoticeArticle | null | "new">(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (search.trim()) params.set("search", search.trim());
+      const response = await adminRequest<ListResponse<NoticeArticle>>(`news/notice?${params.toString()}`);
+      setItems(response.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Notizie 9notice non disponibili");
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function remove(item: NoticeArticle, deleteFiles: boolean) {
+    await adminRequest(`news/notice/${item.id}?deleteFiles=${deleteFiles ? "true" : "false"}`, { method: "DELETE" });
+    onNotify("Notizia eliminata");
+    await load();
+  }
 
   return (
     <div className="space-y-6">
-      <Header
-        title="News · 9notice"
-        description="Organizza le notizie in una griglia editoriale: l'ultima notizia è in evidenza, oppure seleziona una cella per visualizzarla nella scheda grande."
-      />
+      <Header title="News · 9notice" description="Gestisci le notizie pubblicate nella pagina frontend /9notice. Le immagini vengono archiviate in tvmix/tvmix-media/news/notice_slide/.">
+        <button type="button" onClick={() => setEditing("new")} className="admin-primary-button">
+          <Plus size={16} /> Nuova notizia
+        </button>
+      </Header>
 
-      <section className="admin-panel overflow-hidden">
-        <article className="grid min-h-[320px] gap-0 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)]">
-          <div className="flex flex-col justify-center p-5 sm:p-7 lg:p-8">
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#22bdf3]">
-              <span className="rounded-full border border-[#22bdf3]/35 bg-[#22bdf3]/10 px-3 py-1">{selectedNotice.category}</span>
-              <span className="inline-flex items-center gap-1.5 text-slate-400">
-                <CalendarClock size={13} />
-                {selectedNotice.insertedAt}
-              </span>
-            </div>
-            <h2 className="max-w-3xl text-2xl font-black tracking-[-0.045em] text-white sm:text-4xl">
-              {selectedNotice.title}
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-[15px]">
-              {selectedNotice.body}
-            </p>
-          </div>
-
-          <div className="relative min-h-[240px] overflow-hidden bg-[#071321] lg:min-h-full">
-            <img
-              src={selectedNotice.imageUrl}
-              alt={selectedNotice.title}
-              className="h-full min-h-[240px] w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#050c16]/35 via-transparent to-transparent" />
-          </div>
-        </article>
-      </section>
-
-      <section className="admin-panel p-4 sm:p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="admin-section-title">Griglia notizie</h3>
-            <p className="mt-1 text-xs text-slate-500">Seleziona una notizia per portarla nella scheda principale.</p>
-          </div>
-          <span className="rounded-full border border-[#26394d] px-3 py-1 text-[11px] font-semibold text-slate-400">
-            {notices.length} notizie
-          </span>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {notices.map((notice) => {
-            const selected = notice.id === selectedNotice.id;
-            return (
-              <button
-                key={notice.id}
-                type="button"
-                onClick={() => setSelectedId(notice.id)}
-                className={[
-                  "group overflow-hidden rounded-2xl border bg-[#071321] text-left transition",
-                  selected
-                    ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35),0_18px_55px_rgba(34,189,243,0.12)]"
-                    : "border-[#1d3044] hover:border-[#22bdf3]/45 hover:bg-[#0a1727]",
-                ].join(" ")}
-              >
-                <div className="relative aspect-[16/9] overflow-hidden bg-[#0b1624]">
-                  <img
-                    src={notice.imageUrl}
-                    alt={notice.title}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-                </div>
-                <div className="space-y-2 p-4">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
-                    <span className="text-[#22bdf3]">{notice.category}</span>
-                    <span>·</span>
-                    <span>{notice.insertedAt}</span>
-                  </div>
-                  <h4 className="line-clamp-2 text-sm font-bold leading-5 text-slate-100">{notice.title}</h4>
-                  <p className="line-clamp-3 text-xs leading-5 text-slate-500">{notice.body}</p>
-                </div>
-              </button>
-            );
-          })}
+      <section className="admin-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <SearchBox value={search} onChange={setSearch} placeholder="Cerca categoria, titolo o testo..." />
+          <button type="button" onClick={() => void load()} className="admin-secondary-button lg:ml-auto">
+            <RefreshCw size={16} /> Aggiorna
+          </button>
         </div>
       </section>
+
+      <ResourceState loading={loading} error={error} empty={!items.length ? "Nessuna notizia 9notice creata." : undefined} />
+
+      {!loading && !error && items.length ? (
+        <section className="admin-panel overflow-x-auto">
+          <table className="min-w-[1060px] w-full text-left text-sm">
+            <thead className="border-b border-[#1d3044] text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Immagine</th>
+                <th className="px-4 py-3">Notizia</th>
+                <th className="px-4 py-3">Categoria</th>
+                <th className="px-4 py-3">Ordine</th>
+                <th className="px-4 py-3">Stato</th>
+                <th className="px-4 py-3">Inserimento</th>
+                <th className="px-4 py-3 text-right">Azioni</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#102033]">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-white/[0.025]">
+                  <td className="px-4 py-3">
+                    <img src={item.imageUrl} alt={item.title} className="h-14 w-24 rounded-lg object-cover" />
+                  </td>
+                  <td className="max-w-md px-4 py-3">
+                    <p className="font-semibold text-slate-100">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.excerpt || item.body}</p>
+                    <p className="mt-1 font-mono text-[11px] text-[#22bdf3]">/{item.slug}</p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">{item.category}</td>
+                  <td className="px-4 py-3 text-slate-400">{item.sortOrder}</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.published ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>
+                      {item.published ? "pubblicata" : "bozza"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {formatDate(item.createdAt)}
+                    <span className="block">{item.createdBy ?? "***"}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" className="admin-icon-button" onClick={() => setEditing(item)}><Edit3 size={16} /></button>
+                      <ConfirmButton label={`Elimina ${item.title}`} onConfirm={() => void remove(item, false)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
+      {editing ? (
+        <NoticeEditor
+          item={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            onNotify(editing === "new" ? "Notizia creata" : "Notizia aggiornata");
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function Tg9Section({ onNotify }: { onNotify: (message: string) => void }) {
+function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [form, setForm] = useState<NoticeForm>({
+    category: item?.category ?? "",
+    title: item?.title ?? "",
+    slug: item?.slug ?? "",
+    excerpt: item?.excerpt ?? "",
+    body: item?.body ?? "",
+    imageUrl: item?.imageUrl ?? "",
+    imageObjectKey: item?.imageObjectKey ?? "",
+    sortOrder: String(item?.sortOrder ?? 0),
+    published: item?.published ?? false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const canSave = form.category.trim() && form.title.trim() && form.body.trim() && form.imageUrl.trim();
+
+  function field<K extends keyof NoticeForm>(key: K, value: NoticeForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function uploadImage(file?: File | null) {
+    if (!file) return;
+    setError(null);
+    try {
+      const uploaded = await uploadNoticeImageToR2(file, setUploading);
+      field("imageUrl", uploaded.publicUrl);
+      field("imageObjectKey", uploaded.objectKey);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Upload immagine non riuscito");
+    } finally {
+      setUploading(0);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(item ? `news/notice/${item.id}` : "news/notice", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          category: form.category,
+          title: form.title,
+          slug: form.slug || undefined,
+          excerpt: form.excerpt || null,
+          body: form.body,
+          imageUrl: form.imageUrl,
+          imageObjectKey: form.imageObjectKey || null,
+          sortOrder: Number(form.sortOrder || 0),
+          published: form.published,
+        }),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AdminModal title={item ? "Modifica notizia 9notice" : "Nuova notizia 9notice"} onClose={onClose}>
+      <form className="space-y-4" onSubmit={submit}>
+        {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="Categoria" value={form.category} onChange={(value) => field("category", value)} required />
+          <Input label="Ordine" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
+        </div>
+        <Input label="Titolo" value={form.title} onChange={(value) => field("title", value)} required />
+        <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} placeholder="automatico se vuoto" />
+        <Textarea label="Prime righe / excerpt" value={form.excerpt} onChange={(value) => field("excerpt", value)} rows={3} />
+        <Textarea label="Testo notizia" value={form.body} onChange={(value) => field("body", value)} rows={7} required />
+        <div>
+          <span className="admin-label">Immagine notizia</span>
+          <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <input readOnly value={form.imageUrl} className="admin-input" placeholder="URL immagine R2" />
+            <label className="admin-secondary-button cursor-pointer justify-center">
+              <ImagePlus size={16} /> Upload
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => void uploadImage(event.target.files?.[0])} />
+            </label>
+          </div>
+          {uploading ? <p className="mt-2 text-xs text-[#22bdf3]">Upload {uploading}%</p> : null}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={form.published} onChange={(event) => field("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
+          Pubblica su /9notice
+        </label>
+        <ModalButtons onClose={onClose} saving={saving} disabled={!canSave} />
+      </form>
+    </AdminModal>
+  );
+}
+
+function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) {
+  const [items, setItems] = useState<Tg9Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<Tg9Video | null | "new">(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (search.trim()) params.set("search", search.trim());
+      const response = await adminRequest<ListResponse<Tg9Video>>(`news/tg9?${params.toString()}`);
+      setItems(response.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Video TG9 non disponibili");
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function remove(item: Tg9Video) {
+    await adminRequest(`news/tg9/${item.id}?deleteFiles=false`, { method: "DELETE" });
+    onNotify("Video TG9 eliminato");
+    await load();
+  }
+
   return (
     <div className="space-y-6">
-      <Header
-        title="News · tg9"
-        description="Area predisposta per scalette, servizi video e gestione redazionale TG9."
-      >
-        <button type="button" onClick={() => onNotify("Sezione TG9 predisposta")} className="admin-secondary-button">
-          <Newspaper size={16} />
-          Predisposta
+      <Header title="News · tg9" description="Gestisci il carousel video pubblico /tg9. I filmati vengono archiviati in tvmix/tvmix-media/news/tg9_video/.">
+        <button type="button" onClick={() => setEditing("new")} className="admin-primary-button">
+          <Plus size={16} /> Nuovo video TG9
         </button>
       </Header>
-
-      <section className="admin-panel p-6">
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#26394d] bg-[#071321]/70 p-10 text-center">
-          <span className="grid size-14 place-items-center rounded-2xl bg-[#102238] text-[#22bdf3]">
-            <ImageIcon size={24} />
-          </span>
-          <h2 className="mt-4 text-lg font-bold text-white">Pagina TG9 pronta per la configurazione</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Il sottomenù è attivo. La struttura editoriale TG9 potrà essere collegata a scalette, clip e notizie video dedicate.
-          </p>
+      <section className="admin-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <SearchBox value={search} onChange={setSearch} placeholder="Cerca video TG9..." />
+          <button type="button" onClick={() => void load()} className="admin-secondary-button lg:ml-auto">
+            <RefreshCw size={16} /> Aggiorna
+          </button>
         </div>
       </section>
+      <ResourceState loading={loading} error={error} empty={!items.length ? "Nessun video TG9 creato." : undefined} />
+      {!loading && !error && items.length ? (
+        <section className="admin-panel overflow-x-auto">
+          <table className="min-w-[980px] w-full text-left text-sm">
+            <thead className="border-b border-[#1d3044] text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Video</th>
+                <th className="px-4 py-3">Titolo</th>
+                <th className="px-4 py-3">Ordine</th>
+                <th className="px-4 py-3">Stato</th>
+                <th className="px-4 py-3">Inserimento</th>
+                <th className="px-4 py-3 text-right">Azioni</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#102033]">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-white/[0.025]">
+                  <td className="px-4 py-3">
+                    <video src={item.videoUrl} poster={item.posterUrl ?? undefined} className="h-16 w-28 rounded-lg bg-black object-cover" muted preload="metadata" />
+                  </td>
+                  <td className="max-w-lg px-4 py-3">
+                    <p className="font-semibold text-slate-100">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description ?? "Nessuna descrizione"}</p>
+                    <p className="mt-1 font-mono text-[11px] text-[#22bdf3]">/{item.slug}</p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-400">{item.sortOrder}</td>
+                  <td className="px-4 py-3"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.published ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>{item.published ? "pubblicato" : "bozza"}</span></td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{formatDate(item.createdAt)}<span className="block">{item.createdBy ?? "***"}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button type="button" className="admin-icon-button" onClick={() => setEditing(item)}><Edit3 size={16} /></button>
+                      <ConfirmButton label={`Elimina ${item.title}`} onConfirm={() => void remove(item)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+      {editing ? (
+        <Tg9Editor
+          item={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            onNotify(editing === "new" ? "Video TG9 creato" : "Video TG9 aggiornato");
+            await load();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Tg9Editor({ item, onClose, onSaved }: { item: Tg9Video | null; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [form, setForm] = useState<Tg9Form>({
+    title: item?.title ?? "",
+    slug: item?.slug ?? "",
+    description: item?.description ?? "",
+    videoUrl: item?.videoUrl ?? "",
+    videoObjectKey: item?.videoObjectKey ?? "",
+    posterUrl: item?.posterUrl ?? "",
+    sortOrder: String(item?.sortOrder ?? 0),
+    published: item?.published ?? false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const canSave = form.title.trim() && form.videoUrl.trim();
+
+  function field<K extends keyof Tg9Form>(key: K, value: Tg9Form[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function uploadVideo(file?: File | null) {
+    if (!file) return;
+    setError(null);
+    try {
+      const uploaded = await uploadTg9VideoToR2(file, setUploading);
+      field("videoUrl", uploaded.publicUrl);
+      field("videoObjectKey", uploaded.objectKey);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Upload video TG9 non riuscito");
+    } finally {
+      setUploading(0);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(item ? `news/tg9/${item.id}` : "news/tg9", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          title: form.title,
+          slug: form.slug || undefined,
+          description: form.description || null,
+          videoUrl: form.videoUrl,
+          videoObjectKey: form.videoObjectKey || null,
+          posterUrl: form.posterUrl || null,
+          sortOrder: Number(form.sortOrder || 0),
+          published: form.published,
+        }),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AdminModal title={item ? "Modifica video TG9" : "Nuovo video TG9"} onClose={onClose}>
+      <form className="space-y-4" onSubmit={submit}>
+        {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <Input label="Titolo" value={form.title} onChange={(value) => field("title", value)} required />
+        <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} placeholder="automatico se vuoto" />
+        <Textarea label="Descrizione" value={form.description} onChange={(value) => field("description", value)} rows={4} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="Ordine carousel" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
+          <Input label="Poster URL opzionale" value={form.posterUrl} onChange={(value) => field("posterUrl", value)} />
+        </div>
+        <div>
+          <span className="admin-label">Filmato TG9</span>
+          <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <input readOnly value={form.videoUrl} className="admin-input" placeholder="URL video R2" />
+            <label className="admin-secondary-button cursor-pointer justify-center">
+              <Upload size={16} /> Upload
+              <input type="file" accept="video/mp4,video/quicktime,video/x-matroska,.mp4,.mov,.mkv" className="hidden" onChange={(event) => void uploadVideo(event.target.files?.[0])} />
+            </label>
+          </div>
+          {uploading ? <p className="mt-2 text-xs text-[#22bdf3]">Upload {uploading}%</p> : null}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={form.published} onChange={(event) => field("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
+          Pubblica su /tg9
+        </label>
+        <ModalButtons onClose={onClose} saving={saving} disabled={!canSave} />
+      </form>
+    </AdminModal>
+  );
+}
+
+function Textarea({ label, value, onChange, rows, required }: { label: string; value: string; onChange: (value: string) => void; rows: number; required?: boolean }) {
+  return (
+    <label className="block">
+      <span className="admin-label">{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={rows} required={required} className="admin-input mt-2 py-3" />
+    </label>
+  );
+}
+
+function ModalButtons({ onClose, saving, disabled }: { onClose: () => void; saving: boolean; disabled?: boolean | string }) {
+  return (
+    <div className="flex justify-end gap-2 pt-2">
+      <button type="button" onClick={onClose} className="admin-secondary-button">Annulla</button>
+      <button type="submit" disabled={saving || Boolean(disabled)} className="admin-primary-button disabled:opacity-55">
+        {saving ? "Salvataggio..." : "Salva"}
+      </button>
     </div>
   );
 }

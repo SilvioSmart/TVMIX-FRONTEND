@@ -92,6 +92,39 @@ export type CatalogAvailableEpisode = {
   category: { id: string; name: string };
 };
 
+export type NoticeArticle = {
+  id: string;
+  category: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  body: string;
+  imageUrl: string;
+  imageObjectKey: string | null;
+  sortOrder: number;
+  published: boolean;
+  publishedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Tg9Video = {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  videoUrl: string;
+  videoObjectKey: string | null;
+  posterUrl: string | null;
+  sortOrder: number;
+  published: boolean;
+  publishedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LiveStream = {
   id: string;
   name: string;
@@ -601,7 +634,7 @@ export async function uploadFileToR2(
 export async function uploadMediaAssetToR2(
   file: File,
   onProgress: (percentage: number) => void,
-  scope: "slide" | "thumbnail" | "locandina",
+  scope: "slide" | "thumbnail" | "locandina" | "notice_slide" | "tg9_video",
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -654,6 +687,20 @@ export async function uploadSlideMediaToR2(
   onProgress: (percentage: number) => void,
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return uploadMediaAssetToR2(file, onProgress, "slide");
+}
+
+export async function uploadNoticeImageToR2(
+  file: File,
+  onProgress: (percentage: number) => void,
+): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
+  return uploadMediaAssetToR2(file, onProgress, "notice_slide");
+}
+
+export async function uploadTg9VideoToR2(
+  file: File,
+  onProgress: (percentage: number) => void,
+): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
+  return uploadMediaAssetToR2(file, onProgress, "tg9_video");
 }
 
 export async function adminRequest<T>(
