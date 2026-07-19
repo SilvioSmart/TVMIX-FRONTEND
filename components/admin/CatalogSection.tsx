@@ -35,6 +35,8 @@ type Editor =
   | { kind: "program"; categoryId: string; value: CatalogProgram | null }
   | { kind: "season"; programId: string; value: CatalogSeason | null };
 
+type CatalogRowTone = "category" | "program" | "season" | "episode";
+
 type Props = { onNotify: (message: string) => void };
 
 export function CatalogSection({ onNotify }: Props) {
@@ -215,6 +217,7 @@ function CategoryNode({
     <div>
       <TreeRow
         level={0}
+        tone="category"
         open={open}
         expandable
         icon={<FolderOpen size={18} />}
@@ -269,6 +272,7 @@ function ProgramNode({
     <div>
       <TreeRow
         level={1}
+        tone="program"
         open={open}
         expandable
         icon={<Tv size={17} />}
@@ -323,6 +327,7 @@ function SeasonNode({
     <div>
       <TreeRow
         level={2}
+        tone="season"
         open={open}
         expandable
         icon={<Layers3 size={16} />}
@@ -340,11 +345,11 @@ function SeasonNode({
       {open ? (
         <div className="border-t border-[#132436]">
           {season.episodes.length ? season.episodes.map((episode) => (
-            <div key={episode.id} className="group flex min-h-14 items-center gap-3 border-b border-[#102033] py-2.5 pl-12 pr-3 last:border-b-0 sm:pl-[116px] sm:pr-4">
-              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[#102238] text-slate-400"><Clapperboard size={15} /></span>
+            <div key={episode.id} className={`${catalogRowToneClasses.episode.row} group flex min-h-14 items-center gap-3 border-b py-2.5 pl-12 pr-3 last:border-b-0 sm:pl-[116px] sm:pr-4`}>
+              <span className={`grid size-8 shrink-0 place-items-center rounded-md ${catalogRowToneClasses.episode.icon}`}><Clapperboard size={15} /></span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-200">{episode.title}</p>
-                <p className="truncate text-[11px] text-slate-500">{episode.slug} · {episode.published ? "Pubblicato" : "Bozza"}</p>
+                <p className={`truncate text-sm font-medium ${catalogRowToneClasses.episode.title}`}>{episode.title}</p>
+                <p className={`truncate text-[11px] ${catalogRowToneClasses.episode.subtitle}`}>{episode.slug} · {episode.published ? "Pubblicato" : "Bozza"}</p>
               </div>
               <ConfirmButton label={`Rimuovi ${episode.title} dalla stagione`} onConfirm={() => void onRemove(`catalog/seasons/${season.id}/episodes/${episode.id}`, "Episodio rimosso dalla stagione")} className="admin-icon-button opacity-60 hover:text-amber-300 group-hover:opacity-100"><Unlink size={15} /></ConfirmButton>
             </div>
@@ -357,6 +362,7 @@ function SeasonNode({
 
 function TreeRow({
   level,
+  tone,
   open,
   expandable,
   icon,
@@ -366,6 +372,7 @@ function TreeRow({
   actions,
 }: {
   level: number;
+  tone: CatalogRowTone;
   open: boolean;
   expandable: boolean;
   icon: React.ReactNode;
@@ -374,18 +381,19 @@ function TreeRow({
   onToggle: () => void;
   actions: React.ReactNode;
 }) {
+  const toneClasses = catalogRowToneClasses[tone];
   return (
     <div
-      className="group flex min-h-16 items-start gap-2 px-3 py-2.5 hover:bg-white/[0.025] sm:items-center sm:px-4"
+      className={`${toneClasses.row} group flex min-h-16 items-start gap-2 px-3 py-2.5 sm:items-center sm:px-4`}
       style={{ paddingLeft: `${16 + level * 28}px` }}
     >
       <button type="button" onClick={onToggle} aria-expanded={open} aria-label={`${open ? "Comprimi" : "Espandi"} ${title}`} className="grid size-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-white/5 hover:text-white">
         {expandable ? <ChevronRight size={17} className={`transition-transform ${open ? "rotate-90" : ""}`} /> : null}
       </button>
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#102238] text-[#22bdf3]">{icon}</span>
+      <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${toneClasses.icon}`}>{icon}</span>
       <button type="button" onClick={onToggle} className="min-w-0 flex-1 pt-1 text-left sm:pt-0">
-        <span className="block truncate text-sm font-semibold text-slate-100">{title}</span>
-        <span className="block truncate text-[11px] text-slate-500">{subtitle}</span>
+        <span className={`block truncate text-sm font-semibold ${toneClasses.title}`}>{title}</span>
+        <span className={`block truncate text-[11px] ${toneClasses.subtitle}`}>{subtitle}</span>
       </button>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5 opacity-80 group-hover:opacity-100">{actions}</div>
     </div>
@@ -395,6 +403,33 @@ function TreeRow({
 function Action({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return <button type="button" aria-label={label} title={label} onClick={onClick} className="admin-icon-button">{children}</button>;
 }
+
+const catalogRowToneClasses: Record<CatalogRowTone, { row: string; icon: string; title: string; subtitle: string }> = {
+  category: {
+    row: "border-l-4 border-cyan-400/80 bg-cyan-400/[0.075] hover:bg-cyan-400/[0.12]",
+    icon: "border border-cyan-300/35 bg-cyan-400/15 text-cyan-200",
+    title: "text-cyan-50",
+    subtitle: "text-cyan-200/65",
+  },
+  program: {
+    row: "border-l-4 border-violet-400/80 bg-violet-400/[0.07] hover:bg-violet-400/[0.11]",
+    icon: "border border-violet-300/35 bg-violet-400/15 text-violet-200",
+    title: "text-violet-50",
+    subtitle: "text-violet-200/65",
+  },
+  season: {
+    row: "border-l-4 border-amber-400/80 bg-amber-400/[0.065] hover:bg-amber-400/[0.105]",
+    icon: "border border-amber-300/35 bg-amber-400/15 text-amber-200",
+    title: "text-amber-50",
+    subtitle: "text-amber-200/65",
+  },
+  episode: {
+    row: "border-l-4 border-emerald-400/70 border-b-emerald-400/15 bg-emerald-400/[0.045] hover:bg-emerald-400/[0.085]",
+    icon: "border border-emerald-300/30 bg-emerald-400/15 text-emerald-200",
+    title: "text-emerald-50",
+    subtitle: "text-emerald-200/60",
+  },
+};
 
 function EmptyBranch({ level, label }: { level: number; label: string }) {
   return <div className="flex min-h-14 items-center gap-3 py-3 text-xs text-slate-600" style={{ paddingLeft: `${52 + level * 28}px` }}><FolderTree size={15} />{label}</div>;
