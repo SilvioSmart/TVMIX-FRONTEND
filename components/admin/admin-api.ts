@@ -292,6 +292,7 @@ type MultipartUploadedPart = {
 type MultipartCompleteResponse = {
   uploadId: string;
   objectKey: string;
+  publicUrl: string;
   originalFileName: string;
 };
 
@@ -546,8 +547,9 @@ export async function uploadFileToR2(
   options?: {
     resumeSession?: MediaUploadSession;
     keepSessionOnFailure?: boolean;
+    scope?: "video" | "tg9_video";
   },
-): Promise<{ uploadId: string; objectKey: string; originalFileName: string }> {
+): Promise<{ uploadId: string; objectKey: string; publicUrl?: string; originalFileName: string }> {
   if (options?.resumeSession) {
     if (options.resumeSession.fileName !== file.name) {
       throw new Error(`Seleziona lo stesso file originale: ${options.resumeSession.fileName}`);
@@ -566,6 +568,7 @@ export async function uploadFileToR2(
     fileName: file.name,
     contentType,
     size: file.size,
+    scope: options?.scope ?? "video",
     ...(logicalUploadId ? { videoId: logicalUploadId } : {}),
   });
   const alreadyUploaded = new Map<number, MultipartUploadedPart>(
@@ -611,6 +614,7 @@ export async function uploadFileToR2(
       fileName: file.name,
       contentType,
       size: file.size,
+      scope: options?.scope ?? "video",
       parts,
     });
 
@@ -618,6 +622,7 @@ export async function uploadFileToR2(
     return {
       uploadId: created.uploadId,
       objectKey: completed.objectKey,
+      publicUrl: completed.publicUrl,
       originalFileName: completed.originalFileName,
     };
   } catch (error) {
@@ -700,7 +705,14 @@ export async function uploadTg9VideoToR2(
   file: File,
   onProgress: (percentage: number) => void,
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
-  return uploadMediaAssetToR2(file, onProgress, "tg9_video");
+  const uploaded = await uploadFileToR2(file, onProgress, undefined, { scope: "tg9_video" });
+  if (!uploaded.publicUrl) throw new Error("Upload TG9 completato senza URL pubblico");
+  return {
+    uploadId: uploaded.uploadId,
+    objectKey: uploaded.objectKey,
+    publicUrl: uploaded.publicUrl,
+    originalFileName: uploaded.originalFileName,
+  };
 }
 
 export async function adminRequest<T>(
