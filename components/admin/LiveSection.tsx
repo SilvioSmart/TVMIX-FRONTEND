@@ -41,7 +41,7 @@ const formatDateTime = (value: string) =>
   }).format(new Date(value));
 
 const durationMinutes = (item: Pick<LiveEpgItem, "startsAt" | "endsAt">) =>
-  Math.max(5, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000));
+  Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000));
 
 const dayStart = (date = new Date()) => {
   const start = new Date(date);
@@ -96,6 +96,7 @@ const emptyEpgForm = (stream: LiveStream) => {
   const ends = new Date(starts.getTime() + 30 * 60000);
   return {
     id: "",
+    videoId: "",
     title: "",
     description: "",
     startsAt: isoLocal(starts),
@@ -274,7 +275,7 @@ function LiveStreamCard({
 
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onEpg} className="admin-secondary-button">
-              <CalendarClock size={16} /> Guida EPG
+              <CalendarClock size={16} /> {stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"}
             </button>
             <button aria-label={`Modifica ${stream.name}`} onClick={onEdit} className="admin-icon-button">
               <Pencil size={17} />
@@ -397,7 +398,7 @@ function InlineEpgRail({ stream, onOpenEditor }: { stream: LiveStream; onOpenEdi
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
           <ListVideo size={15} className="text-[#22bdf3]" />
-          {stream.streamType === "PLAYLIST" ? "Programmi playlist" : "Programmi EPG"}
+          {stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Programmi EPG"}
         </div>
         <button type="button" onClick={onOpenEditor} className="text-xs font-bold text-[#22bdf3] hover:text-white">
           Gestisci
@@ -411,7 +412,7 @@ function InlineEpgRail({ stream, onOpenEditor }: { stream: LiveStream; onOpenEdi
           onClick={onOpenEditor}
           className="w-full rounded-lg border border-dashed border-[#31445a] px-3 py-4 text-left text-xs text-slate-500 hover:border-[#22bdf3]/60 hover:text-slate-300"
         >
-          Nessun programma configurato. Apri la gestione per comporre la guida.
+          Nessun programma configurato. Apri la gestione per comporre {stream.streamType === "PLAYLIST" ? "la MEDIALIST" : "la guida"}.
         </button>
       ) : null}
       {!loading && items.length ? (
@@ -476,6 +477,7 @@ function EpgEditor({
   function editItem(item: LiveEpgItem) {
     setForm({
       id: item.id,
+      videoId: item.videoId ?? "",
       title: item.title,
       description: item.description ?? "",
       startsAt: isoLocal(new Date(item.startsAt)),
@@ -490,7 +492,7 @@ function EpgEditor({
     setError(null);
     const payload = {
       liveStreamId: stream.id,
-      videoId: null,
+      videoId: form.videoId || null,
       title: form.title,
       description: form.description || null,
       startsAt: new Date(form.startsAt).toISOString(),
@@ -557,9 +559,9 @@ function EpgEditor({
     }
   }
 
-  async function appendVideoToPlaylist(video: Video, startsAt?: Date) {
+  async function appendVideoToPlaylist(video: Video) {
     const last = items.at(-1);
-    const starts = startsAt ?? (last ? new Date(last.endsAt) : dayStart());
+    const starts = last ? new Date(last.endsAt) : dayStart();
     starts.setSeconds(0, 0);
     const minutes = Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
     const ends = new Date(starts.getTime() + minutes * 60000);
@@ -575,7 +577,7 @@ function EpgEditor({
         thumbnailUrl: video.thumbnailUrl ?? null,
       }),
     });
-    onNotify("Clip aggiunta alla playlist");
+    onNotify(`Clip aggiunta alla MEDIALIST: ${minutes} min`);
     await load();
   }
 
@@ -619,7 +621,7 @@ function EpgEditor({
           });
         }),
       );
-      onNotify("Ordine guida EPG salvato");
+      onNotify(stream.streamType === "PLAYLIST" ? "Ordine MEDIALIST salvato" : "Ordine guida EPG salvato");
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Riordino EPG non riuscito");
@@ -629,12 +631,12 @@ function EpgEditor({
   }
 
   return (
-    <AdminModal title={`Guida EPG · ${stream.name}`} onClose={onClose}>
+    <AdminModal title={`${stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"} · ${stream.name}`} onClose={onClose}>
       <div className="grid max-h-[78vh] gap-5 overflow-y-auto xl:grid-cols-[360px_1fr]">
-        {stream.streamType === "LIVE_STREAMING" ? (
+        {stream.streamType === "LIVE_STREAMING" || form.id ? (
         <form onSubmit={saveItem} className="space-y-4 rounded-xl border border-[#203248] bg-[#071321]/70 p-4">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="admin-section-title">{form.id ? "Modifica programma" : "Nuovo programma EPG"}</h3>
+            <h3 className="admin-section-title">{form.id ? (stream.streamType === "PLAYLIST" ? "Modifica media" : "Modifica programma") : "Nuovo programma EPG"}</h3>
             {form.id ? (
               <button type="button" className="admin-icon-button" onClick={() => setForm(emptyEpgForm(stream))}>
                 <X size={16} />
@@ -657,7 +659,7 @@ function EpgEditor({
           <Input label="Thumbnail programma" type="url" value={form.thumbnailUrl} onChange={(value) => setForm({ ...form, thumbnailUrl: value })} />
           {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
           <button className="admin-primary-button w-full justify-center" disabled={saving}>
-            <Save size={16} /> {saving ? "Salvataggio..." : form.id ? "Salva programma" : "Aggiungi alla guida"}
+            <Save size={16} /> {saving ? "Salvataggio..." : form.id ? "Salva modifiche" : "Aggiungi alla guida"}
           </button>
           {stream.streamType === "LIVE_STREAMING" ? (
             <label className="admin-secondary-button w-full cursor-pointer justify-center">
@@ -677,13 +679,13 @@ function EpgEditor({
         </form>
         ) : null}
 
-        <section className={`rounded-xl border border-[#203248] bg-[#071321]/70 ${stream.streamType === "PLAYLIST" ? "xl:col-span-2" : ""}`}>
+        <section className={`rounded-xl border border-[#203248] bg-[#071321]/70 ${stream.streamType === "PLAYLIST" && !form.id ? "xl:col-span-2" : ""}`}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] p-4">
             <div>
-              <h3 className="admin-section-title">{stream.streamType === "PLAYLIST" ? "Timeline playlist 24 ore" : "Timeline programmi"}</h3>
+              <h3 className="admin-section-title">{stream.streamType === "PLAYLIST" ? "Timeline MEDIALIST 24 ore" : "Timeline programmi"}</h3>
               <p className="mt-1 text-xs text-slate-500">
                 {stream.streamType === "PLAYLIST"
-                  ? "Trascina le clip dell'archivio direttamente sulla timeline giornaliera."
+                  ? "Trascina le clip dell'archivio sulla timeline: verranno incollate in sequenza usando la durata reale del media."
                   : "Trascina le righe per cambiare ordine; il salvataggio ricrea la sequenza oraria mantenendo le durate."}
               </p>
             </div>
@@ -783,12 +785,8 @@ function PlaylistTimeline({
     setDropActive(false);
     const raw = event.dataTransfer.getData("application/x-tvmix-video-json");
     if (!raw) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), event.currentTarget.scrollWidth);
-    const minute = Math.round((x / event.currentTarget.scrollWidth) * 1440);
-    const startsAt = new Date(start.getTime() + minute * 60000);
     try {
-      void onDropVideo(JSON.parse(raw) as Video, startsAt);
+      void onDropVideo(JSON.parse(raw) as Video);
     } catch {
       return;
     }
@@ -822,7 +820,7 @@ function PlaylistTimeline({
           ))}
           {!items.length ? (
             <div className="absolute inset-x-0 top-14 rounded-xl border border-dashed border-[#31445a] px-4 py-12 text-center text-sm text-slate-500">
-              Trascina qui una clip dall'archivio per inserirla nella timeline da 24 ore.
+              Trascina qui una clip dall'archivio: verrà incollata in coda alla MEDIALIST usando la durata del media.
             </div>
           ) : null}
           {items.map((item) => {
