@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Clock, Play } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
 
@@ -17,6 +17,8 @@ type HomeModulesProps = {
   fallbackModules: HomeModule[];
   onSelect: (item: MediaItem) => void;
 };
+
+const PLAYLIST_CYCLE_SECONDS = 12 * 60 * 60;
 
 function RailButton({
   label,
@@ -116,6 +118,34 @@ function proxyPlaybackUrl(value?: string | null) {
   }
 }
 
+function secondsOfHalfDay(time: number) {
+  const date = new Date(time);
+  return ((date.getHours() % 12) * 3600) + date.getMinutes() * 60 + date.getSeconds();
+}
+
+function secondsFromItemDay(value: string) {
+  const date = new Date(value);
+  return (date.getHours() % 12) * 3600 + date.getMinutes() * 60 + date.getSeconds();
+}
+
+function activePlaylistItem(module: HomeModule, now: number) {
+  const cycleSecond = secondsOfHalfDay(now);
+  for (const item of module.epg) {
+    if (!item.video?.hlsUrl) continue;
+    const startsAt = secondsFromItemDay(item.startsAt);
+    const duration = Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 1000));
+    const endsAt = Math.min(PLAYLIST_CYCLE_SECONDS, startsAt + duration);
+    if (cycleSecond >= startsAt && cycleSecond < endsAt) {
+      return {
+        item,
+        seekTo: cycleSecond - startsAt,
+        progress: ((cycleSecond - startsAt) / duration) * 100,
+      };
+    }
+  }
+  return null;
+}
+
 function MediaThumbnail({
   item,
   poster = false,
@@ -192,10 +222,12 @@ function SonicLivePlayer({
   item,
   module,
   onSelect,
+  seekTo,
 }: {
   item?: MediaItem;
   module: HomeModule;
   onSelect: (item: MediaItem) => void;
+  seekTo?: number;
 }) {
   if (!item) {
     return (
@@ -207,7 +239,7 @@ function SonicLivePlayer({
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <div className="relative aspect-video w-full overflow-hidden bg-black">
         {item.hlsUrl ? (
-          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} />
+          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} seekTo={seekTo} seekKey={seekTo !== undefined ? `${item.id}-${Math.floor(seekTo)}` : item.id} />
         ) : (
           <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
@@ -415,8 +447,19 @@ function PosterRailModule({ module, onSelect }: { module: HomeModule; onSelect: 
 function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const stream = module.liveStream;
+  const [now, setNow] = useState(() => Date.now());
+  const playlistState = stream?.streamType === "PLAYLIST" ? activePlaylistItem(module, now) : null;
   const liveItem: MediaItem | undefined = stream
-    ? {
+    ? stream.streamType === "PLAYLIST"
+      ? playlistState?.item.video
+        ? {
+            ...playlistState.item.video,
+            subtitle: "Playlist sincronizzata",
+            live: true,
+            progress: playlistState.progress,
+          }
+        : undefined
+      : {
         id: stream.id,
         title: stream.name,
         subtitle: stream.status === "LIVE" ? "In diretta" : stream.status,
@@ -426,7 +469,13 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
         live: stream.status === "LIVE",
       }
     : undefined;
-  const now = useMemo(() => Date.now(), []);
+
+  useEffect(() => {
+    if (stream?.streamType !== "PLAYLIST") return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [stream?.streamType]);
+
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
@@ -435,14 +484,14 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(239,68,68,0.16),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
-          <SonicLivePlayer item={liveItem} module={module} onSelect={onSelect} />
+          <SonicLivePlayer item={liveItem} module={module} onSelect={onSelect} seekTo={playlistState?.seekTo} />
 
           <div className="flex min-w-0 flex-col justify-between gap-4">
             <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-start">
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-300">
                   <span className="size-2 rounded-full bg-red-400 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
-                  Live & guida TV
+                  {stream?.streamType === "PLAYLIST" ? "Playlist 12 ore" : "Live & guida TV"}
                 </p>
                 <h2 className="mt-1 max-w-4xl text-[clamp(1.35rem,2.45vw,2.7rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
                   {module.title}
@@ -478,7 +527,14 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
                   const start = new Date(item.startsAt).getTime();
                   const end = new Date(item.endsAt).getTime();
                   const durationMinutes = Math.max(30, Math.round((end - start) / 60000));
-                  const progress = now >= start && now <= end ? ((now - start) / (end - start)) * 100 : 0;
+                  const playlistStart = secondsFromItemDay(item.startsAt);
+                  const playlistEnd = Math.min(PLAYLIST_CYCLE_SECONDS, playlistStart + Math.max(1, Math.round((end - start) / 1000)));
+                  const cycleSecond = secondsOfHalfDay(now);
+                  const progress = stream?.streamType === "PLAYLIST"
+                    ? cycleSecond >= playlistStart && cycleSecond <= playlistEnd
+                      ? ((cycleSecond - playlistStart) / Math.max(1, playlistEnd - playlistStart)) * 100
+                      : 0
+                    : now >= start && now <= end ? ((now - start) / (end - start)) * 100 : 0;
                   const isLive = progress > 0 && progress < 100;
                   return (
                     <article

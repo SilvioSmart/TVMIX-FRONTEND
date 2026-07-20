@@ -51,6 +51,7 @@ export type EpgItem = {
   startsAt: string;
   endsAt: string;
   thumbnailUrl?: string | null;
+  video?: MediaItem | null;
 };
 
 export type LiveModuleStream = {
@@ -58,6 +59,7 @@ export type LiveModuleStream = {
   name: string;
   slug: string;
   description?: string | null;
+  streamType?: "LIVE_STREAMING" | "PLAYLIST";
   hlsUrl: string;
   posterUrl?: string | null;
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
@@ -76,8 +78,13 @@ export type HomeModule = {
   epg: EpgItem[];
 };
 
-type ApiHomeModule = Omit<HomeModule, "items"> & {
+type ApiEpgItem = Omit<EpgItem, "video"> & {
+  video?: ApiVideo | null;
+};
+
+type ApiHomeModule = Omit<HomeModule, "items" | "epg"> & {
   items?: ApiVideo[];
+  epg?: ApiEpgItem[];
 };
 
 type ApiMenuItem = {
@@ -229,7 +236,10 @@ function mapHomeModule(module: ApiHomeModule): HomeModule {
   return {
     ...module,
     items: module.items?.map(mapVideo) ?? [],
-    epg: module.epg ?? [],
+    epg: module.epg?.map((item) => ({
+      ...item,
+      video: item.video ? mapVideo(item.video) : null,
+    })) ?? [],
   };
 }
 
