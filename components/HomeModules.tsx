@@ -20,6 +20,13 @@ type HomeModulesProps = {
 
 const PLAYLIST_CYCLE_SECONDS = 12 * 60 * 60;
 
+type PlaylistPlayback = {
+  epgId: string;
+  item: MediaItem;
+  seekTo: number;
+  key: string;
+};
+
 function RailButton({
   label,
   onClick,
@@ -146,6 +153,34 @@ function activePlaylistItem(module: HomeModule, now: number) {
   return null;
 }
 
+function sortedPlayablePlaylistItems(module: HomeModule) {
+  return module.epg
+    .filter((item) => Boolean(item.video?.hlsUrl))
+    .map((item) => ({
+      item,
+      startsAt: secondsFromItemDay(item.startsAt),
+    }))
+    .sort((a, b) => a.startsAt - b.startsAt);
+}
+
+function nextPlaylistPlayback(module: HomeModule, currentEpgId: string): PlaylistPlayback | null {
+  const playable = sortedPlayablePlaylistItems(module);
+  if (!playable.length) return null;
+  const index = playable.findIndex((entry) => entry.item.id === currentEpgId);
+  const next = playable[index >= 0 ? (index + 1) % playable.length : 0];
+  if (!next.item.video?.hlsUrl) return null;
+  return {
+    epgId: next.item.id,
+    item: {
+      ...next.item.video,
+      subtitle: "Playlist sincronizzata",
+      live: true,
+    },
+    seekTo: 0,
+    key: `${next.item.id}-${Date.now()}`,
+  };
+}
+
 function MediaThumbnail({
   item,
   poster = false,
@@ -223,11 +258,21 @@ function SonicLivePlayer({
   module,
   onSelect,
   seekTo,
+  playbackKey,
+  autoPlay = false,
+  deferPlayback = false,
+  onStartPlayback,
+  onEnded,
 }: {
   item?: MediaItem;
   module: HomeModule;
   onSelect: (item: MediaItem) => void;
   seekTo?: number;
+  playbackKey?: string;
+  autoPlay?: boolean;
+  deferPlayback?: boolean;
+  onStartPlayback?: () => void;
+  onEnded?: () => void;
 }) {
   if (!item) {
     return (
@@ -238,10 +283,36 @@ function SonicLivePlayer({
   return (
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <div className="relative aspect-video w-full overflow-hidden bg-black">
-        {item.hlsUrl ? (
-          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} seekTo={seekTo} seekKey={seekTo !== undefined ? `${item.id}-${Math.floor(seekTo)}` : item.id} />
+        {item.hlsUrl && !deferPlayback ? (
+          <VideoPlayer
+            key={playbackKey ?? item.id}
+            src={item.hlsUrl}
+            poster={item.image}
+            title={item.title}
+            autoPlay={autoPlay}
+            seekTo={seekTo}
+            seekKey={seekTo !== undefined ? `${item.id}-${Math.floor(seekTo)}` : item.id}
+            onEnded={onEnded}
+          />
         ) : (
-          <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
+          <>
+            <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
+            {item.hlsUrl && deferPlayback ? (
+              <button
+                type="button"
+                onClick={onStartPlayback}
+                className="absolute inset-0 grid place-items-center bg-black/18 text-white/75 transition hover:bg-black/28 hover:text-white"
+                aria-label="Avvia playlist dal playhead"
+              >
+                <span className="grid place-items-center drop-shadow-[0_18px_35px_rgba(0,0,0,0.95)]">
+                  <Play size={112} fill="currentColor" strokeWidth={1.2} className="translate-x-1 opacity-80 sm:size-36" />
+                  <span className="mt-3 rounded-full bg-black/55 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em]">
+                    Avvia dal playhead
+                  </span>
+                </span>
+              </button>
+            ) : null}
+          </>
         )}
       </div>
       <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
@@ -448,17 +519,18 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
   const railRef = useRef<HTMLDivElement>(null);
   const stream = module.liveStream;
   const [now, setNow] = useState(() => Date.now());
+  const [playlistPlayback, setPlaylistPlayback] = useState<PlaylistPlayback | null>(null);
   const playlistState = stream?.streamType === "PLAYLIST" ? activePlaylistItem(module, now) : null;
   const liveItem: MediaItem | undefined = stream
     ? stream.streamType === "PLAYLIST"
-      ? playlistState?.item.video
+      ? playlistPlayback?.item ?? (playlistState?.item.video
         ? {
             ...playlistState.item.video,
             subtitle: "Playlist sincronizzata",
             live: true,
             progress: playlistState.progress,
           }
-        : undefined
+        : undefined)
       : {
         id: stream.id,
         title: stream.name,
@@ -476,6 +548,31 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
     return () => window.clearInterval(timer);
   }, [stream?.streamType]);
 
+  useEffect(() => {
+    if (stream?.streamType !== "PLAYLIST") setPlaylistPlayback(null);
+  }, [stream?.streamType]);
+
+  function startPlaylistFromPlayhead() {
+    const state = activePlaylistItem(module, Date.now());
+    if (!state?.item.video) return;
+    setPlaylistPlayback({
+      epgId: state.item.id,
+      item: {
+        ...state.item.video,
+        subtitle: "Playlist sincronizzata",
+        live: true,
+        progress: state.progress,
+      },
+      seekTo: state.seekTo,
+      key: `${state.item.id}-${Date.now()}`,
+    });
+  }
+
+  function playNextPlaylistItem() {
+    if (!playlistPlayback) return;
+    setPlaylistPlayback(nextPlaylistPlayback(module, playlistPlayback.epgId));
+  }
+
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
@@ -484,7 +581,17 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(239,68,68,0.16),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
-          <SonicLivePlayer item={liveItem} module={module} onSelect={onSelect} seekTo={playlistState?.seekTo} />
+          <SonicLivePlayer
+            item={liveItem}
+            module={module}
+            onSelect={onSelect}
+            seekTo={playlistPlayback?.seekTo}
+            playbackKey={playlistPlayback?.key}
+            autoPlay={Boolean(playlistPlayback)}
+            deferPlayback={stream?.streamType === "PLAYLIST" && !playlistPlayback}
+            onStartPlayback={startPlaylistFromPlayhead}
+            onEnded={stream?.streamType === "PLAYLIST" ? playNextPlaylistItem : undefined}
+          />
 
           <div className="flex min-w-0 flex-col justify-between gap-4">
             <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-start">

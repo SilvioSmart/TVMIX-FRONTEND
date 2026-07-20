@@ -18,6 +18,7 @@ type VideoPlayerProps = {
   autoPlay?: boolean;
   seekTo?: number;
   seekKey?: string | number;
+  onEnded?: () => void;
   className?: string;
 };
 
@@ -40,11 +41,13 @@ export default function VideoPlayer({
   autoPlay = false,
   seekTo,
   seekKey,
+  onEnded,
   className = "",
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const onEndedRef = useRef(onEnded);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [previousVolume, setPreviousVolume] = useState(1);
@@ -54,6 +57,10 @@ export default function VideoPlayer({
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -94,11 +101,13 @@ export default function VideoPlayer({
     const syncPause = () => setPlaying(false);
     const syncTime = () => setCurrentTime(video.currentTime);
     const syncDuration = () => setDuration(video.duration);
+    const syncEnded = () => onEndedRef.current?.();
     video.addEventListener("play", syncPlay);
     video.addEventListener("pause", syncPause);
     video.addEventListener("timeupdate", syncTime);
     video.addEventListener("loadedmetadata", syncDuration);
     video.addEventListener("durationchange", syncDuration);
+    video.addEventListener("ended", syncEnded);
 
     return () => {
       video.removeEventListener("play", syncPlay);
@@ -106,6 +115,7 @@ export default function VideoPlayer({
       video.removeEventListener("timeupdate", syncTime);
       video.removeEventListener("loadedmetadata", syncDuration);
       video.removeEventListener("durationchange", syncDuration);
+      video.removeEventListener("ended", syncEnded);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.removeAttribute("src");

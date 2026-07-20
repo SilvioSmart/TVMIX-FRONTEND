@@ -510,6 +510,7 @@ function EpgEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [previewActive, setPreviewActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -777,7 +778,11 @@ function EpgEditor({
 
   return (
     <AdminModal title={`${stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"} · ${stream.name}`} onClose={onClose} size={stream.streamType === "PLAYLIST" ? "fullscreen" : "default"}>
-      <div className={`grid gap-5 overflow-y-auto ${stream.streamType === "PLAYLIST" ? "max-h-[calc(100svh-8.5rem)] xl:grid-cols-[420px_1fr]" : "max-h-[78vh] xl:grid-cols-[360px_1fr]"}`}>
+      <div
+        onMouseEnter={() => setPreviewActive(true)}
+        onMouseLeave={() => setPreviewActive(false)}
+        className={`grid gap-5 overflow-y-auto ${stream.streamType === "PLAYLIST" ? "max-h-[calc(100svh-8.5rem)] xl:grid-cols-[420px_1fr]" : "max-h-[78vh] xl:grid-cols-[360px_1fr]"}`}
+      >
         {stream.streamType === "LIVE_STREAMING" || form.id ? (
         <form onSubmit={saveItem} className="space-y-4 rounded-xl border border-[#203248] bg-[#071321]/70 p-4">
           <div className="flex items-center justify-between gap-2">
@@ -857,6 +862,7 @@ function EpgEditor({
               onMoveItem={movePlaylistItem}
               onEdit={editItem}
               onRemove={removeItem}
+              previewActive={previewActive}
             />
           ) : null}
           {!loading && stream.streamType !== "PLAYLIST" && !items.length ? <p className="p-4 text-sm text-slate-400">Nessun programma EPG per questo canale.</p> : null}
@@ -915,6 +921,7 @@ function PlaylistTimeline({
   onMoveItem,
   onEdit,
   onRemove,
+  previewActive,
 }: {
   items: LiveEpgItem[];
   draggingId: string | null;
@@ -923,6 +930,7 @@ function PlaylistTimeline({
   onMoveItem: (item: LiveEpgItem, startsAt: Date) => Promise<void>;
   onEdit: (item: LiveEpgItem) => void;
   onRemove: (item: LiveEpgItem) => Promise<void>;
+  previewActive: boolean;
 }) {
   const [dropActive, setDropActive] = useState(false);
   const [playheadSecond, setPlayheadSecond] = useState(() => currentPlaylistSecond());
@@ -996,7 +1004,7 @@ function PlaylistTimeline({
     <div className="space-y-4 p-4">
       <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
         <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#020a13]">
-          {activeSource ? (
+          {activeSource && previewActive ? (
             <VideoPlayer
               key={`${activeItem?.id}-${activeSource}`}
               src={activeSource}
@@ -1009,8 +1017,10 @@ function PlaylistTimeline({
           ) : (
             <div className="grid aspect-video place-items-center bg-black text-center text-sm text-slate-500">
               <div>
-                <p className="font-semibold text-slate-300">Nessun media in play</p>
-                <p className="mt-1 text-xs">Sposta il playhead su un clip della MEDIALIST.</p>
+                <p className="font-semibold text-slate-300">{previewActive ? "Nessun media in play" : "Preview sospesa"}</p>
+                <p className="mt-1 text-xs">
+                  {previewActive ? "Sposta il playhead su un clip della MEDIALIST." : "Rientra nel popup per riattivare l'anteprima."}
+                </p>
               </div>
             </div>
           )}
