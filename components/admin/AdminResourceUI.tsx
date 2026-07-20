@@ -33,11 +33,20 @@ export function AdminModal({
   title,
   children,
   onClose,
+  size = "default",
 }: {
   title: string;
   children: React.ReactNode;
   onClose: () => void;
+  size?: "default" | "wide" | "fullscreen";
 }) {
+  const sizeClass =
+    size === "fullscreen"
+      ? "max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] sm:max-h-[calc(100svh-2rem)]"
+      : size === "wide"
+        ? "max-w-[min(92rem,calc(100vw-1rem))] sm:max-h-[calc(100svh-2rem)]"
+        : "max-w-[min(42rem,calc(100vw-1rem))] sm:max-h-[90vh]";
+
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/70 p-2 sm:p-4">
       <button type="button" aria-label="Chiudi finestra" className="absolute inset-0" onClick={onClose} />
@@ -45,7 +54,7 @@ export function AdminModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="admin-panel relative z-10 max-h-[calc(100svh-1rem)] w-full max-w-[min(42rem,calc(100vw-1rem))] overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6"
+        className={`admin-panel relative z-10 max-h-[calc(100svh-1rem)] w-full overflow-y-auto p-4 sm:p-6 ${sizeClass}`}
       >
         <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
           <h3 className="min-w-0 truncate text-base font-bold text-white sm:text-lg">{title}</h3>

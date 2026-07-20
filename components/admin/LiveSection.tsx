@@ -14,7 +14,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { type DragEvent, type FormEvent, type MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type DragEvent, type FormEvent, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoPlayer from "../VideoPlayer";
 import {
   adminRequest,
@@ -700,8 +700,8 @@ function EpgEditor({
   }
 
   return (
-    <AdminModal title={`${stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"} · ${stream.name}`} onClose={onClose}>
-      <div className="grid max-h-[78vh] gap-5 overflow-y-auto xl:grid-cols-[360px_1fr]">
+    <AdminModal title={`${stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"} · ${stream.name}`} onClose={onClose} size={stream.streamType === "PLAYLIST" ? "fullscreen" : "default"}>
+      <div className={`grid gap-5 overflow-y-auto ${stream.streamType === "PLAYLIST" ? "max-h-[calc(100svh-8.5rem)] xl:grid-cols-[420px_1fr]" : "max-h-[78vh] xl:grid-cols-[360px_1fr]"}`}>
         {stream.streamType === "LIVE_STREAMING" || form.id ? (
         <form onSubmit={saveItem} className="space-y-4 rounded-xl border border-[#203248] bg-[#071321]/70 p-4">
           <div className="flex items-center justify-between gap-2">
@@ -851,6 +851,9 @@ function PlaylistTimeline({
   const [dropActive, setDropActive] = useState(false);
   const [playheadMinute, setPlayheadMinute] = useState(() => minutesFromDayStart(new Date()));
   const [playingTimeline, setPlayingTimeline] = useState(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const pixelsPerMinute = 6;
+  const timelineWidth = 1440 * pixelsPerMinute;
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [items],
@@ -862,6 +865,8 @@ function PlaylistTimeline({
     const itemEnd = minutesFromDayStart(new Date(item.endsAt), start);
     return playheadMinute >= itemStart && playheadMinute < itemEnd;
   }) ?? null;
+  const activeItemStartMinute = activeItem ? minutesFromDayStart(new Date(activeItem.startsAt), start) : 0;
+  const activeSeekSeconds = activeItem ? Math.max(0, (playheadMinute - activeItemStartMinute) * 60) : undefined;
 
   useEffect(() => {
     if (!playingTimeline) return;
@@ -871,10 +876,18 @@ function PlaylistTimeline({
     return () => window.clearInterval(timer);
   }, [playingTimeline]);
 
+  useEffect(() => {
+    const timeline = timelineRef.current;
+    if (!timeline) return;
+    const playheadX = playheadMinute * pixelsPerMinute;
+    const target = Math.max(0, playheadX - timeline.clientWidth / 2);
+    timeline.scrollTo({ left: target, behavior: "smooth" });
+  }, [playheadMinute]);
+
   function minuteFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), event.currentTarget.scrollWidth);
-    return Math.max(0, Math.min(1439, Math.round((x / event.currentTarget.scrollWidth) * 1440)));
+    const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), timelineWidth);
+    return Math.max(0, Math.min(1439, Math.round(x / pixelsPerMinute)));
   }
 
   function startsAtFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
@@ -911,6 +924,8 @@ function PlaylistTimeline({
               poster={activeItem.thumbnailUrl ?? activeItem.video.thumbnailUrl ?? undefined}
               title={activeItem.title}
               autoPlay={playingTimeline}
+              seekTo={activeSeekSeconds}
+              seekKey={`${activeItem.id}-${playheadMinute}`}
               className="rounded-none"
             />
           ) : (
@@ -959,6 +974,7 @@ function PlaylistTimeline({
         </div>
       </div>
       <div
+        ref={timelineRef}
         onDragOver={(event) => {
           event.preventDefault();
           setDropActive(true);
@@ -971,7 +987,7 @@ function PlaylistTimeline({
           dropActive ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-[#203248]",
         ].join(" ")}
       >
-        <div className="relative h-[260px] min-w-[1440px]">
+        <div className="relative h-[300px]" style={{ minWidth: `${timelineWidth}px` }}>
           <div className="absolute inset-x-0 top-0 grid text-[10px] font-bold text-slate-500" style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}>
             {hourMarks.slice(0, 24).map((hour) => (
               <span key={hour} className="border-l border-white/10 pl-1">
@@ -985,7 +1001,7 @@ function PlaylistTimeline({
           ))}
           <div
             className="absolute bottom-0 top-7 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
-            style={{ left: `${(playheadMinute / 1440) * 100}%` }}
+            style={{ left: `${playheadMinute * pixelsPerMinute}px` }}
           >
             <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
               {formatMinuteOfDay(playheadMinute)}
@@ -1019,8 +1035,8 @@ function PlaylistTimeline({
                   draggingId === item.id ? "opacity-60" : "",
                 ].join(" ")}
                 style={{
-                  left: `${(startMinutes / 1440) * 100}%`,
-                  width: `${Math.max((widthMinutes / 1440) * 100, 4)}%`,
+                  left: `${startMinutes * pixelsPerMinute}px`,
+                  width: `${Math.max(1, widthMinutes) * pixelsPerMinute}px`,
                 }}
               >
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#22bdf3]">

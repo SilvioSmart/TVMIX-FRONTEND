@@ -16,6 +16,8 @@ type VideoPlayerProps = {
   poster?: string;
   title?: string;
   autoPlay?: boolean;
+  seekTo?: number;
+  seekKey?: string | number;
   className?: string;
 };
 
@@ -36,6 +38,8 @@ export default function VideoPlayer({
   poster,
   title = "TVMIX Player",
   autoPlay = false,
+  seekTo,
+  seekKey,
   className = "",
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +112,19 @@ export default function VideoPlayer({
       video.load();
     };
   }, [autoPlay, src]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || seekTo === undefined || !Number.isFinite(seekTo)) return;
+    const next = Math.max(0, seekTo);
+    const applySeek = () => {
+      if (Math.abs(video.currentTime - next) > 0.75) video.currentTime = next;
+      if (autoPlay && video.paused) void video.play().catch(() => setControlsVisible(true));
+    };
+    if (video.readyState >= 1) applySeek();
+    else video.addEventListener("loadedmetadata", applySeek, { once: true });
+    return () => video.removeEventListener("loadedmetadata", applySeek);
+  }, [autoPlay, seekKey, seekTo]);
 
   useEffect(() => {
     if (playing && controlsVisible) {
