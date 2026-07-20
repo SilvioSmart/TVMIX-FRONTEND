@@ -14,7 +14,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { type DragEvent, type FormEvent, useCallback, useEffect, useState } from "react";
+import { type DragEvent, type FormEvent, type MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import VideoPlayer from "../VideoPlayer";
 import {
   adminRequest,
@@ -48,6 +48,21 @@ const dayStart = (date = new Date()) => {
   start.setHours(0, 0, 0, 0);
   return start;
 };
+
+const minutesFromDayStart = (date: Date, start = dayStart(date)) =>
+  Math.max(0, Math.round((date.getTime() - start.getTime()) / 60000));
+
+const dateAtMinute = (start: Date, minute: number) =>
+  new Date(start.getTime() + Math.max(0, Math.min(1440, minute)) * 60000);
+
+const clipDurationMinutes = (item: LiveEpgItem) =>
+  Math.max(1, Math.ceil((item.video?.duration ?? durationMinutes(item) * 60) / 60));
+
+const videoDurationMinutes = (video: Video) =>
+  Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
+
+const formatMinuteOfDay = (minute: number) =>
+  `${String(Math.floor(Math.max(0, minute) / 60)).padStart(2, "0")}:${String(Math.max(0, minute) % 60).padStart(2, "0")}`;
 
 const streamTypeLabels: Record<LiveStream["streamType"], string> = {
   LIVE_STREAMING: "Live streaming",
@@ -559,26 +574,80 @@ function EpgEditor({
     }
   }
 
-  async function appendVideoToPlaylist(video: Video) {
-    const last = items.at(-1);
-    const starts = last ? new Date(last.endsAt) : dayStart();
-    starts.setSeconds(0, 0);
-    const minutes = Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
-    const ends = new Date(starts.getTime() + minutes * 60000);
-    await adminRequest("epg", {
-      method: "POST",
-      body: JSON.stringify({
-        liveStreamId: stream.id,
-        videoId: video.id,
-        title: video.title,
-        description: video.description ?? null,
-        startsAt: starts.toISOString(),
-        endsAt: ends.toISOString(),
-        thumbnailUrl: video.thumbnailUrl ?? null,
-      }),
+  function validatePlaylistSlot(starts: Date, ends: Date, ignoreId?: string) {
+    const base = dayStart(starts);
+    const dayEnd = new Date(base.getTime() + 1440 * 60000);
+    if (starts < base || ends > dayEnd) {
+      throw new Error("Il media deve rimanere dentro la timeline giornaliera 00:00-24:00");
+    }
+    const collision = items.find((item) => {
+      if (item.id === ignoreId) return false;
+      const itemStart = new Date(item.startsAt);
+      const itemEnd = new Date(item.endsAt);
+      return starts < itemEnd && ends > itemStart;
     });
-    onNotify(`Clip aggiunta alla MEDIALIST: ${minutes} min`);
-    await load();
+    if (collision) {
+      throw new Error(`Sovrapposizione non consentita con "${collision.title}"`);
+    }
+  }
+
+  async function placeVideoOnPlaylist(video: Video, startsAt: Date) {
+    const starts = new Date(startsAt);
+    starts.setSeconds(0, 0);
+    const minutes = videoDurationMinutes(video);
+    const ends = new Date(starts.getTime() + minutes * 60000);
+    try {
+      validatePlaylistSlot(starts, ends);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Posizione non valida");
+      return;
+    }
+    setError(null);
+    try {
+      await adminRequest("epg", {
+        method: "POST",
+        body: JSON.stringify({
+          liveStreamId: stream.id,
+          videoId: video.id,
+          title: video.title,
+          description: video.description ?? null,
+          startsAt: starts.toISOString(),
+          endsAt: ends.toISOString(),
+          thumbnailUrl: video.thumbnailUrl ?? null,
+        }),
+      });
+      onNotify(`Clip posizionata in MEDIALIST alle ${formatMinuteOfDay(minutesFromDayStart(starts))}`);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Inserimento media non riuscito");
+    }
+  }
+
+  async function movePlaylistItem(item: LiveEpgItem, startsAt: Date) {
+    const starts = new Date(startsAt);
+    starts.setSeconds(0, 0);
+    const minutes = clipDurationMinutes(item);
+    const ends = new Date(starts.getTime() + minutes * 60000);
+    try {
+      validatePlaylistSlot(starts, ends, item.id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Spostamento non valido");
+      return;
+    }
+    setError(null);
+    try {
+      await adminRequest(`epg/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          startsAt: starts.toISOString(),
+          endsAt: ends.toISOString(),
+        }),
+      });
+      onNotify(`Media riposizionato alle ${formatMinuteOfDay(minutesFromDayStart(starts))}`);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Spostamento media non riuscito");
+    }
   }
 
   async function removeItem(item: LiveEpgItem) {
@@ -693,20 +762,23 @@ function EpgEditor({
               <button type="button" className="admin-secondary-button" onClick={load}>
                 <RefreshCw size={15} /> Aggiorna
               </button>
-              <button type="button" className="admin-primary-button" onClick={saveDragOrder} disabled={saving || items.length < 2}>
-                <Save size={15} /> Salva ordine
-              </button>
+              {stream.streamType !== "PLAYLIST" ? (
+                <button type="button" className="admin-primary-button" onClick={saveDragOrder} disabled={saving || items.length < 2}>
+                  <Save size={15} /> Salva ordine
+                </button>
+              ) : null}
             </div>
           </div>
 
+          {error ? <p className="mx-4 mt-4 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
           {loading ? <p className="p-4 text-sm text-slate-400">Caricamento guida...</p> : null}
           {!loading && stream.streamType === "PLAYLIST" ? (
             <PlaylistTimeline
               items={items}
               draggingId={draggingId}
               onDragItem={setDraggingId}
-              onDropItem={dropOn}
-              onDropVideo={appendVideoToPlaylist}
+              onDropVideo={placeVideoOnPlaylist}
+              onMoveItem={movePlaylistItem}
               onEdit={editItem}
               onRemove={removeItem}
             />
@@ -763,37 +835,129 @@ function PlaylistTimeline({
   items,
   draggingId,
   onDragItem,
-  onDropItem,
   onDropVideo,
+  onMoveItem,
   onEdit,
   onRemove,
 }: {
   items: LiveEpgItem[];
   draggingId: string | null;
   onDragItem: (id: string | null) => void;
-  onDropItem: (targetId: string) => void;
-  onDropVideo: (video: Video, startsAt?: Date) => Promise<void>;
+  onDropVideo: (video: Video, startsAt: Date) => Promise<void>;
+  onMoveItem: (item: LiveEpgItem, startsAt: Date) => Promise<void>;
   onEdit: (item: LiveEpgItem) => void;
   onRemove: (item: LiveEpgItem) => Promise<void>;
 }) {
   const [dropActive, setDropActive] = useState(false);
+  const [playheadMinute, setPlayheadMinute] = useState(() => minutesFromDayStart(new Date()));
+  const [playingTimeline, setPlayingTimeline] = useState(false);
+  const sortedItems = useMemo(
+    () => [...items].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
+    [items],
+  );
   const start = dayStart(items[0] ? new Date(items[0].startsAt) : new Date());
   const hourMarks = Array.from({ length: 25 }, (_, index) => index);
+  const activeItem = sortedItems.find((item) => {
+    const itemStart = minutesFromDayStart(new Date(item.startsAt), start);
+    const itemEnd = minutesFromDayStart(new Date(item.endsAt), start);
+    return playheadMinute >= itemStart && playheadMinute < itemEnd;
+  }) ?? null;
+
+  useEffect(() => {
+    if (!playingTimeline) return;
+    const timer = window.setInterval(() => {
+      setPlayheadMinute((minute) => (minute + 1) % 1440);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [playingTimeline]);
+
+  function minuteFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), event.currentTarget.scrollWidth);
+    return Math.max(0, Math.min(1439, Math.round((x / event.currentTarget.scrollWidth) * 1440)));
+  }
+
+  function startsAtFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
+    return dateAtMinute(start, minuteFromPointer(event));
+  }
 
   function dropVideo(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDropActive(false);
+    const itemId = event.dataTransfer.getData("application/x-tvmix-epg-item");
+    if (itemId) {
+      const item = sortedItems.find((candidate) => candidate.id === itemId);
+      if (item) void onMoveItem(item, startsAtFromPointer(event));
+      onDragItem(null);
+      return;
+    }
     const raw = event.dataTransfer.getData("application/x-tvmix-video-json");
     if (!raw) return;
     try {
-      void onDropVideo(JSON.parse(raw) as Video);
+      void onDropVideo(JSON.parse(raw) as Video, startsAtFromPointer(event));
     } catch {
       return;
     }
   }
 
   return (
-    <div className="p-4">
+    <div className="space-y-4 p-4">
+      <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
+        <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#020a13]">
+          {activeItem?.video?.hlsUrl ? (
+            <VideoPlayer
+              key={`${activeItem.id}-${activeItem.video.hlsUrl}`}
+              src={activeItem.video.hlsUrl}
+              poster={activeItem.thumbnailUrl ?? activeItem.video.thumbnailUrl ?? undefined}
+              title={activeItem.title}
+              autoPlay={playingTimeline}
+              className="rounded-none"
+            />
+          ) : (
+            <div className="grid aspect-video place-items-center bg-black text-center text-sm text-slate-500">
+              <div>
+                <p className="font-semibold text-slate-300">Nessun media in play</p>
+                <p className="mt-1 text-xs">Sposta il playhead su un clip della MEDIALIST.</p>
+              </div>
+            </div>
+          )}
+          <div className="border-t border-[#203248] p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#22bdf3]">
+              Playhead {formatMinuteOfDay(playheadMinute)}
+            </p>
+            <p className="mt-1 line-clamp-1 text-sm font-semibold text-white">{activeItem?.title ?? "Timeline vuota in questo punto"}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-[#203248] bg-[#06111d] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-white">Controllo timeline</h4>
+              <p className="mt-1 text-xs text-slate-500">
+                La barra evidenziatrice indica l'orario usato come input del player. L'anteprima scorre a 1 minuto/sec.
+              </p>
+            </div>
+            <button type="button" onClick={() => setPlayingTimeline((value) => !value)} className="admin-primary-button">
+              {playingTimeline ? "Pausa timeline" : "Play timeline"}
+            </button>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={1439}
+            value={playheadMinute}
+            onChange={(event) => setPlayheadMinute(Number(event.target.value))}
+            className="mt-5 w-full accent-[#22bdf3]"
+            aria-label="Posizione playhead MEDIALIST"
+          />
+          <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+            <span>00:00</span>
+            <span>06:00</span>
+            <span>12:00</span>
+            <span>18:00</span>
+            <span>24:00</span>
+          </div>
+        </div>
+      </div>
       <div
         onDragOver={(event) => {
           event.preventDefault();
@@ -801,6 +965,7 @@ function PlaylistTimeline({
         }}
         onDragLeave={() => setDropActive(false)}
         onDrop={dropVideo}
+        onClick={(event) => setPlayheadMinute(minuteFromPointer(event))}
         className={[
           "relative overflow-x-auto rounded-xl border bg-[#020a13] p-4",
           dropActive ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-[#203248]",
@@ -818,23 +983,39 @@ function PlaylistTimeline({
           {hourMarks.map((hour) => (
             <span key={hour} className="absolute bottom-0 top-7 w-px bg-white/5" style={{ left: `${(hour / 24) * 100}%` }} />
           ))}
+          <div
+            className="absolute bottom-0 top-7 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
+            style={{ left: `${(playheadMinute / 1440) * 100}%` }}
+          >
+            <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
+              {formatMinuteOfDay(playheadMinute)}
+            </span>
+          </div>
           {!items.length ? (
             <div className="absolute inset-x-0 top-14 rounded-xl border border-dashed border-[#31445a] px-4 py-12 text-center text-sm text-slate-500">
-              Trascina qui una clip dall'archivio: verrà incollata in coda alla MEDIALIST usando la durata del media.
+              Trascina qui una clip dall'archivio e rilasciala sull'orario desiderato. I video non possono sovrapporsi.
             </div>
           ) : null}
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const startMinutes = Math.max(0, (new Date(item.startsAt).getTime() - start.getTime()) / 60000);
-            const widthMinutes = Math.min(1440, durationMinutes(item));
+            const widthMinutes = Math.min(1440, clipDurationMinutes(item));
             return (
               <article
                 key={item.id}
                 draggable
-                onDragStart={() => onDragItem(item.id)}
+                onDragStart={(event) => {
+                  onDragItem(item.id);
+                  event.dataTransfer.setData("application/x-tvmix-epg-item", item.id);
+                }}
+                onDragEnd={() => onDragItem(null)}
                 onDragOver={(event) => event.preventDefault()}
-                onDrop={() => onDropItem(item.id)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPlayheadMinute(minutesFromDayStart(new Date(item.startsAt), start));
+                }}
                 className={[
                   "absolute top-14 flex h-36 cursor-grab flex-col overflow-hidden rounded-xl border border-[#22bdf3]/30 bg-[#071321] p-3 shadow-xl transition hover:border-[#22bdf3]",
+                  activeItem?.id === item.id ? "ring-2 ring-[#ffcc33]/80" : "",
                   draggingId === item.id ? "opacity-60" : "",
                 ].join(" ")}
                 style={{
@@ -847,7 +1028,7 @@ function PlaylistTimeline({
                   {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
                 </div>
                 <h4 className="mt-2 line-clamp-2 text-sm font-semibold text-white">{item.title}</h4>
-                <p className="mt-auto text-[11px] text-slate-500">{durationMinutes(item)} min</p>
+                <p className="mt-auto text-[11px] text-slate-500">{clipDurationMinutes(item)} min</p>
                 <div className="mt-2 flex gap-1">
                   <button type="button" className="admin-icon-button size-7" onClick={() => onEdit(item)}>
                     <Pencil size={13} />
