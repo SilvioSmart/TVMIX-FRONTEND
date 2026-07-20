@@ -935,7 +935,7 @@ function PlaylistTimeline({
   const [dropActive, setDropActive] = useState(false);
   const [playheadSecond, setPlayheadSecond] = useState(() => currentPlaylistSecond());
   const [syncTimeline, setSyncTimeline] = useState(true);
-  const [timelineZoom, setTimelineZoom] = useState(1);
+  const [timelineZoom, setTimelineZoom] = useState(0.18);
   const timelineRef = useRef<HTMLDivElement>(null);
   const pixelsPerSecond = 0.14 * timelineZoom;
   const secondsPerCycle = PLAYLIST_CYCLE_SECONDS;
@@ -1093,7 +1093,7 @@ function PlaylistTimeline({
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Zoom</span>
             <input
               type="range"
-              min={0.55}
+              min={0.16}
               max={2.6}
               step={0.05}
               value={timelineZoom}
@@ -1103,6 +1103,9 @@ function PlaylistTimeline({
             />
             <span className="w-12 text-right text-xs font-black text-[#22bdf3]">{Math.round(timelineZoom * 100)}%</span>
           </label>
+          <button type="button" onClick={() => setTimelineZoom(0.18)} className="admin-secondary-button">
+            Vedi 12 ore
+          </button>
         </div>
 
       <div

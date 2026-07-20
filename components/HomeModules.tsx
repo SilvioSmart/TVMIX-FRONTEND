@@ -135,6 +135,13 @@ function secondsFromItemDay(value: string) {
   return (date.getHours() % 12) * 3600 + date.getMinutes() * 60 + date.getSeconds();
 }
 
+function formatCycleTime(second: number) {
+  const safe = Math.max(0, Math.min(PLAYLIST_CYCLE_SECONDS, Math.round(second)));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function activePlaylistItem(module: HomeModule, now: number) {
   const cycleSecond = secondsOfHalfDay(now);
   for (const item of module.epg) {
@@ -515,6 +522,90 @@ function PosterRailModule({ module, onSelect }: { module: HomeModule; onSelect: 
   );
 }
 
+function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: number }) {
+  const cycleSecond = secondsOfHalfDay(now);
+  const hourMarks = Array.from({ length: 13 }, (_, index) => index);
+  const playlistItems = module.epg
+    .filter((item) => Boolean(item.video?.hlsUrl))
+    .map((item) => {
+      const startsAt = secondsFromItemDay(item.startsAt);
+      const duration = Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 1000));
+      const endsAt = Math.min(PLAYLIST_CYCLE_SECONDS, startsAt + duration);
+      const isActive = cycleSecond >= startsAt && cycleSecond < endsAt;
+      const progress = isActive ? ((cycleSecond - startsAt) / Math.max(1, endsAt - startsAt)) * 100 : 0;
+      return { item, startsAt, endsAt, duration, isActive, progress };
+    })
+    .sort((a, b) => a.startsAt - b.startsAt);
+
+  if (!playlistItems.length) {
+    return (
+      <div className="rounded-[18px] border border-white/10 bg-[#050b14]/86 p-4">
+        <EmptyModuleNotice text="Nessuna clip programmata nella timeline playlist." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14]/86 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.34)]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">Timeline 12 ore</p>
+          <p className="mt-1 text-xs text-white/46">La barra gialla indica il punto usato dal player quando premi play.</p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#ffcc33]">
+          Playhead {formatCycleTime(cycleSecond)}
+        </span>
+      </div>
+
+      <div className="relative h-[270px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
+        <div className="absolute inset-x-4 top-4 grid text-[9px] font-black uppercase tracking-[0.12em] text-white/42" style={{ gridTemplateColumns: "repeat(12, minmax(0, 1fr))" }}>
+          {hourMarks.slice(0, 12).map((hour) => (
+            <span key={hour} className="border-l border-white/10 pl-1">
+              {String(hour).padStart(2, "0")}:00
+            </span>
+          ))}
+        </div>
+        <div className="absolute inset-x-4 top-11 h-px bg-white/10" />
+        {hourMarks.map((hour) => (
+          <span key={hour} className="absolute bottom-4 top-11 w-px bg-white/5" style={{ left: `calc(1rem + ${(hour / 12) * 100}% - ${(hour / 12) * 2}rem)` }} />
+        ))}
+        <div
+          className="absolute bottom-4 top-11 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
+          style={{ left: `calc(1rem + ${(cycleSecond / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(cycleSecond / PLAYLIST_CYCLE_SECONDS) * 2}rem)` }}
+        >
+          <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
+            {formatCycleTime(cycleSecond)}
+          </span>
+        </div>
+
+        {playlistItems.map(({ item, startsAt, duration, isActive, progress }) => (
+          <article
+            key={item.id}
+            className={`absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl ${
+              isActive ? "border-[#ffcc33] bg-red-500/[0.16] ring-2 ring-[#ffcc33]/70" : "border-cyan/25 bg-[#071321]"
+            }`}
+            style={{
+              left: `calc(1rem + ${(startsAt / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(startsAt / PLAYLIST_CYCLE_SECONDS) * 2}rem)`,
+              width: `max(44px, calc(${(duration / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(duration / PLAYLIST_CYCLE_SECONDS) * 2}rem))`,
+            }}
+          >
+            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan/90">
+              {formatCycleTime(startsAt)}
+            </div>
+            <h3 className="mt-2 line-clamp-2 text-sm font-black uppercase leading-tight text-white">
+              {item.title}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-white/52">{item.description}</p>
+            <span className="mt-auto block h-1.5 overflow-hidden rounded-full bg-white/10">
+              <span className={`block h-full rounded-full ${isActive ? "bg-[#ffcc33]" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isActive ? 3 : 0)}%` }} />
+            </span>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const stream = module.liveStream;
@@ -608,12 +699,17 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
                 ) : null}
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
-                <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
-                <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
-              </div>
+              {stream?.streamType !== "PLAYLIST" ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
+                  <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
+                </div>
+              ) : null}
             </div>
 
+            {stream?.streamType === "PLAYLIST" ? (
+              <PublicPlaylistTimeline module={module} now={now} />
+            ) : (
             <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14]/86 shadow-[0_20px_70px_rgba(0,0,0,0.34)]">
               <div className="flex min-w-[860px] border-b border-white/10 bg-white/[0.045] text-[10px] font-black uppercase tracking-[0.16em] text-white/46">
                 {Array.from({ length: 7 }).map((_, index) => {
@@ -681,6 +777,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>
