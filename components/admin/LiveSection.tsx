@@ -43,6 +43,9 @@ const formatDateTime = (value: string) =>
 const durationMinutes = (item: Pick<LiveEpgItem, "startsAt" | "endsAt">) =>
   Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000));
 
+const durationSeconds = (item: Pick<LiveEpgItem, "startsAt" | "endsAt">) =>
+  Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 1000));
+
 const dayStart = (date = new Date()) => {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
@@ -55,14 +58,57 @@ const minutesFromDayStart = (date: Date, start = dayStart(date)) =>
 const dateAtMinute = (start: Date, minute: number) =>
   new Date(start.getTime() + Math.max(0, Math.min(1440, minute)) * 60000);
 
+const secondsFromDayStart = (date: Date, start = dayStart(date)) =>
+  Math.max(0, Math.round((date.getTime() - start.getTime()) / 1000));
+
+const dateAtSecond = (start: Date, second: number) =>
+  new Date(start.getTime() + Math.max(0, Math.min(86400, second)) * 1000);
+
 const clipDurationMinutes = (item: LiveEpgItem) =>
   Math.max(1, Math.ceil((item.video?.duration ?? durationMinutes(item) * 60) / 60));
 
 const videoDurationMinutes = (video: Video) =>
   Math.max(1, Math.ceil((video.duration ?? 1800) / 60));
 
+const clipDurationSeconds = (item: LiveEpgItem) =>
+  Math.max(1, Math.round(item.video?.duration ?? durationSeconds(item)));
+
+const videoDurationSeconds = (video: Video) =>
+  Math.max(1, Math.round(video.duration ?? 1800));
+
 const formatMinuteOfDay = (minute: number) =>
   `${String(Math.floor(Math.max(0, minute) / 60)).padStart(2, "0")}:${String(Math.max(0, minute) % 60).padStart(2, "0")}`;
+
+const formatSecondOfDay = (second: number) => {
+  const safe = Math.max(0, Math.min(86400, Math.round(second)));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
+
+const formatDurationCompact = (seconds: number) => {
+  const safe = Math.max(1, Math.round(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const rest = safe % 60;
+  if (hours) return `${hours}h ${minutes}m ${rest}s`;
+  if (minutes) return `${minutes}m ${rest}s`;
+  return `${rest}s`;
+};
+
+const MEDIA_HOST = "media.tvmix.it";
+
+function proxyMediaUrl(value?: string | null) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.hostname === MEDIA_HOST) return `/api/media${url.pathname}${url.search}`;
+  } catch {
+    return value;
+  }
+  return value;
+}
 
 const streamTypeLabels: Record<LiveStream["streamType"], string> = {
   LIVE_STREAMING: "Live streaming",
@@ -591,11 +637,31 @@ function EpgEditor({
     }
   }
 
+  function snapPlaylistStart(startsAt: Date, durationMs: number, ignoreId?: string) {
+    const snapMs = 10_000;
+    let snapped = new Date(startsAt);
+    for (const item of items) {
+      if (item.id === ignoreId) continue;
+      const boundaries = [new Date(item.startsAt).getTime(), new Date(item.endsAt).getTime()];
+      for (const boundary of boundaries) {
+        if (Math.abs(snapped.getTime() - boundary) <= snapMs) {
+          snapped = new Date(boundary);
+        }
+        const startWhenEndingAtBoundary = boundary - durationMs;
+        if (Math.abs(snapped.getTime() - startWhenEndingAtBoundary) <= snapMs) {
+          snapped = new Date(startWhenEndingAtBoundary);
+        }
+      }
+    }
+    return snapped;
+  }
+
   async function placeVideoOnPlaylist(video: Video, startsAt: Date) {
-    const starts = new Date(startsAt);
-    starts.setSeconds(0, 0);
-    const minutes = videoDurationMinutes(video);
-    const ends = new Date(starts.getTime() + minutes * 60000);
+    const seconds = videoDurationSeconds(video);
+    const durationMs = seconds * 1000;
+    const starts = snapPlaylistStart(new Date(startsAt), durationMs);
+    starts.setMilliseconds(0);
+    const ends = new Date(starts.getTime() + durationMs);
     try {
       validatePlaylistSlot(starts, ends);
     } catch (reason) {
@@ -616,7 +682,7 @@ function EpgEditor({
           thumbnailUrl: video.thumbnailUrl ?? null,
         }),
       });
-      onNotify(`Clip posizionata in MEDIALIST alle ${formatMinuteOfDay(minutesFromDayStart(starts))}`);
+      onNotify(`Clip posizionata in MEDIALIST alle ${formatSecondOfDay(secondsFromDayStart(starts))}`);
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Inserimento media non riuscito");
@@ -624,10 +690,11 @@ function EpgEditor({
   }
 
   async function movePlaylistItem(item: LiveEpgItem, startsAt: Date) {
-    const starts = new Date(startsAt);
-    starts.setSeconds(0, 0);
-    const minutes = clipDurationMinutes(item);
-    const ends = new Date(starts.getTime() + minutes * 60000);
+    const seconds = clipDurationSeconds(item);
+    const durationMs = seconds * 1000;
+    const starts = snapPlaylistStart(new Date(startsAt), durationMs, item.id);
+    starts.setMilliseconds(0);
+    const ends = new Date(starts.getTime() + durationMs);
     try {
       validatePlaylistSlot(starts, ends, item.id);
     } catch (reason) {
@@ -643,7 +710,7 @@ function EpgEditor({
           endsAt: ends.toISOString(),
         }),
       });
-      onNotify(`Media riposizionato alle ${formatMinuteOfDay(minutesFromDayStart(starts))}`);
+      onNotify(`Media riposizionato alle ${formatSecondOfDay(secondsFromDayStart(starts))}`);
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Spostamento media non riuscito");
@@ -849,29 +916,44 @@ function PlaylistTimeline({
   onRemove: (item: LiveEpgItem) => Promise<void>;
 }) {
   const [dropActive, setDropActive] = useState(false);
-  const [playheadMinute, setPlayheadMinute] = useState(() => minutesFromDayStart(new Date()));
+  const [playheadSecond, setPlayheadSecond] = useState(() => secondsFromDayStart(new Date()));
   const [playingTimeline, setPlayingTimeline] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const pixelsPerMinute = 6;
-  const timelineWidth = 1440 * pixelsPerMinute;
+  const pixelsPerSecond = 0.14;
+  const secondsPerDay = 86400;
+  const timelineWidth = secondsPerDay * pixelsPerSecond;
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
     [items],
   );
   const start = dayStart(items[0] ? new Date(items[0].startsAt) : new Date());
+  const startMs = start.getTime();
   const hourMarks = Array.from({ length: 25 }, (_, index) => index);
   const activeItem = sortedItems.find((item) => {
-    const itemStart = minutesFromDayStart(new Date(item.startsAt), start);
-    const itemEnd = minutesFromDayStart(new Date(item.endsAt), start);
-    return playheadMinute >= itemStart && playheadMinute < itemEnd;
+    const itemStart = secondsFromDayStart(new Date(item.startsAt), start);
+    const itemEnd = secondsFromDayStart(new Date(item.endsAt), start);
+    return playheadSecond >= itemStart && playheadSecond < itemEnd;
   }) ?? null;
-  const activeItemStartMinute = activeItem ? minutesFromDayStart(new Date(activeItem.startsAt), start) : 0;
-  const activeSeekSeconds = activeItem ? Math.max(0, (playheadMinute - activeItemStartMinute) * 60) : undefined;
+  const activeItemStartSecond = activeItem ? secondsFromDayStart(new Date(activeItem.startsAt), start) : 0;
+  const activeSeekSeconds = activeItem ? Math.max(0, playheadSecond - activeItemStartSecond) : undefined;
+  const activeSource = proxyMediaUrl(activeItem?.video?.hlsUrl);
+
+  useEffect(() => {
+    if (!sortedItems.length) return;
+    const hasActiveClip = sortedItems.some((item) => {
+      const itemStart = secondsFromDayStart(new Date(item.startsAt), start);
+      const itemEnd = secondsFromDayStart(new Date(item.endsAt), start);
+      return playheadSecond >= itemStart && playheadSecond < itemEnd;
+    });
+    if (!hasActiveClip) {
+      setPlayheadSecond(secondsFromDayStart(new Date(sortedItems[0].startsAt), start));
+    }
+  }, [playheadSecond, sortedItems, startMs]);
 
   useEffect(() => {
     if (!playingTimeline) return;
     const timer = window.setInterval(() => {
-      setPlayheadMinute((minute) => (minute + 1) % 1440);
+      setPlayheadSecond((second) => (second + 1) % secondsPerDay);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [playingTimeline]);
@@ -879,19 +961,19 @@ function PlaylistTimeline({
   useEffect(() => {
     const timeline = timelineRef.current;
     if (!timeline) return;
-    const playheadX = playheadMinute * pixelsPerMinute;
+    const playheadX = playheadSecond * pixelsPerSecond;
     const target = Math.max(0, playheadX - timeline.clientWidth / 2);
     timeline.scrollTo({ left: target, behavior: "smooth" });
-  }, [playheadMinute]);
+  }, [playheadSecond]);
 
-  function minuteFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
+  function secondFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = Math.min(Math.max(event.clientX - rect.left + event.currentTarget.scrollLeft, 0), timelineWidth);
-    return Math.max(0, Math.min(1439, Math.round(x / pixelsPerMinute)));
+    return Math.max(0, Math.min(secondsPerDay - 1, Math.round(x / pixelsPerSecond)));
   }
 
   function startsAtFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
-    return dateAtMinute(start, minuteFromPointer(event));
+    return dateAtSecond(start, secondFromPointer(event));
   }
 
   function dropVideo(event: DragEvent<HTMLDivElement>) {
@@ -917,15 +999,15 @@ function PlaylistTimeline({
     <div className="space-y-4 p-4">
       <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
         <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#020a13]">
-          {activeItem?.video?.hlsUrl ? (
+          {activeSource ? (
             <VideoPlayer
-              key={`${activeItem.id}-${activeItem.video.hlsUrl}`}
-              src={activeItem.video.hlsUrl}
-              poster={activeItem.thumbnailUrl ?? activeItem.video.thumbnailUrl ?? undefined}
-              title={activeItem.title}
+              key={`${activeItem?.id}-${activeSource}`}
+              src={activeSource}
+              poster={activeItem?.thumbnailUrl ?? activeItem?.video?.thumbnailUrl ?? undefined}
+              title={activeItem?.title}
               autoPlay={playingTimeline}
               seekTo={activeSeekSeconds}
-              seekKey={`${activeItem.id}-${playheadMinute}`}
+              seekKey={`${activeItem?.id}-${playheadSecond}`}
               className="rounded-none"
             />
           ) : (
@@ -938,7 +1020,7 @@ function PlaylistTimeline({
           )}
           <div className="border-t border-[#203248] p-3">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#22bdf3]">
-              Playhead {formatMinuteOfDay(playheadMinute)}
+              Playhead {formatSecondOfDay(playheadSecond)}
             </p>
             <p className="mt-1 line-clamp-1 text-sm font-semibold text-white">{activeItem?.title ?? "Timeline vuota in questo punto"}</p>
           </div>
@@ -948,7 +1030,7 @@ function PlaylistTimeline({
             <div>
               <h4 className="text-sm font-bold text-white">Controllo timeline</h4>
               <p className="mt-1 text-xs text-slate-500">
-                La barra evidenziatrice indica l'orario usato come input del player. L'anteprima scorre a 1 minuto/sec.
+                La barra evidenziatrice indica l'orario usato come input del player. L'anteprima scorre in tempo reale, 1 secondo alla volta.
               </p>
             </div>
             <button type="button" onClick={() => setPlayingTimeline((value) => !value)} className="admin-primary-button">
@@ -958,9 +1040,10 @@ function PlaylistTimeline({
           <input
             type="range"
             min={0}
-            max={1439}
-            value={playheadMinute}
-            onChange={(event) => setPlayheadMinute(Number(event.target.value))}
+            max={secondsPerDay - 1}
+            step={1}
+            value={playheadSecond}
+            onChange={(event) => setPlayheadSecond(Number(event.target.value))}
             className="mt-5 w-full accent-[#22bdf3]"
             aria-label="Posizione playhead MEDIALIST"
           />
@@ -981,7 +1064,7 @@ function PlaylistTimeline({
         }}
         onDragLeave={() => setDropActive(false)}
         onDrop={dropVideo}
-        onClick={(event) => setPlayheadMinute(minuteFromPointer(event))}
+        onClick={(event) => setPlayheadSecond(secondFromPointer(event))}
         className={[
           "relative overflow-x-auto rounded-xl border bg-[#020a13] p-4",
           dropActive ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-[#203248]",
@@ -1001,10 +1084,10 @@ function PlaylistTimeline({
           ))}
           <div
             className="absolute bottom-0 top-7 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
-            style={{ left: `${playheadMinute * pixelsPerMinute}px` }}
+            style={{ left: `${playheadSecond * pixelsPerSecond}px` }}
           >
-            <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
-              {formatMinuteOfDay(playheadMinute)}
+            <span className="absolute -left-10 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
+              {formatSecondOfDay(playheadSecond)}
             </span>
           </div>
           {!items.length ? (
@@ -1013,8 +1096,8 @@ function PlaylistTimeline({
             </div>
           ) : null}
           {sortedItems.map((item) => {
-            const startMinutes = Math.max(0, (new Date(item.startsAt).getTime() - start.getTime()) / 60000);
-            const widthMinutes = Math.min(1440, clipDurationMinutes(item));
+            const startSeconds = Math.max(0, Math.round((new Date(item.startsAt).getTime() - start.getTime()) / 1000));
+            const widthSeconds = Math.min(secondsPerDay, clipDurationSeconds(item));
             return (
               <article
                 key={item.id}
@@ -1027,7 +1110,7 @@ function PlaylistTimeline({
                 onDragOver={(event) => event.preventDefault()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setPlayheadMinute(minutesFromDayStart(new Date(item.startsAt), start));
+                  setPlayheadSecond(secondsFromDayStart(new Date(item.startsAt), start));
                 }}
                 className={[
                   "absolute top-14 flex h-36 cursor-grab flex-col overflow-hidden rounded-xl border border-[#22bdf3]/30 bg-[#071321] p-3 shadow-xl transition hover:border-[#22bdf3]",
@@ -1035,16 +1118,16 @@ function PlaylistTimeline({
                   draggingId === item.id ? "opacity-60" : "",
                 ].join(" ")}
                 style={{
-                  left: `${startMinutes * pixelsPerMinute}px`,
-                  width: `${Math.max(1, widthMinutes) * pixelsPerMinute}px`,
+                  left: `${startSeconds * pixelsPerSecond}px`,
+                  width: `${Math.max(8, widthSeconds * pixelsPerSecond)}px`,
                 }}
               >
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#22bdf3]">
                   <GripVertical size={14} />
-                  {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                  {new Date(item.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                 </div>
                 <h4 className="mt-2 line-clamp-2 text-sm font-semibold text-white">{item.title}</h4>
-                <p className="mt-auto text-[11px] text-slate-500">{clipDurationMinutes(item)} min</p>
+                <p className="mt-auto text-[11px] text-slate-500">{formatDurationCompact(clipDurationSeconds(item))}</p>
                 <div className="mt-2 flex gap-1">
                   <button type="button" className="admin-icon-button size-7" onClick={() => onEdit(item)}>
                     <Pencil size={13} />
