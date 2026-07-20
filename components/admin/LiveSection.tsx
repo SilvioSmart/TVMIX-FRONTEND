@@ -935,8 +935,9 @@ function PlaylistTimeline({
   const [dropActive, setDropActive] = useState(false);
   const [playheadSecond, setPlayheadSecond] = useState(() => currentPlaylistSecond());
   const [syncTimeline, setSyncTimeline] = useState(true);
+  const [timelineZoom, setTimelineZoom] = useState(1);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const pixelsPerSecond = 0.14;
+  const pixelsPerSecond = 0.14 * timelineZoom;
   const secondsPerCycle = PLAYLIST_CYCLE_SECONDS;
   const timelineWidth = secondsPerCycle * pixelsPerSecond;
   const sortedItems = useMemo(
@@ -969,7 +970,7 @@ function PlaylistTimeline({
     const playheadX = playheadSecond * pixelsPerSecond;
     const target = Math.max(0, playheadX - timeline.clientWidth / 2);
     timeline.scrollTo({ left: target, behavior: "smooth" });
-  }, [playheadSecond]);
+  }, [pixelsPerSecond, playheadSecond]);
 
   function secondFromPointer(event: DragEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1002,7 +1003,20 @@ function PlaylistTimeline({
 
   return (
     <div className="space-y-4 p-4">
-      <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
+      <section className="rounded-2xl border border-[#203248] bg-[#06111d]/80 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="admin-section-title">Player preview e controllo playhead</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Il player usa il punto in cui la barra/playhead coincide con la timeline.
+            </p>
+          </div>
+          <span className="rounded-full border border-[#31445a] px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#22bdf3]">
+            {syncTimeline ? "Sincronizzato" : "Manuale"}
+          </span>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
         <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#020a13]">
           {activeSource && previewActive ? (
             <VideoPlayer
@@ -1031,7 +1045,7 @@ function PlaylistTimeline({
             <p className="mt-1 line-clamp-1 text-sm font-semibold text-white">{activeItem?.title ?? "Timeline vuota in questo punto"}</p>
           </div>
         </div>
-        <div className="rounded-xl border border-[#203248] bg-[#06111d] p-4">
+        <div className="rounded-xl border border-[#203248] bg-[#071321] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-bold text-white">Controllo timeline</h4>
@@ -1065,6 +1079,32 @@ function PlaylistTimeline({
           </div>
         </div>
       </div>
+      </section>
+
+      <section className="rounded-2xl border border-[#203248] bg-[#06111d]/80 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="admin-section-title">Timeline MEDIALIST 12 ore</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Trascina le clip sulla timeline. Usa lo zoom per regolare la precisione visiva orizzontale.
+            </p>
+          </div>
+          <label className="flex min-w-[240px] items-center gap-3 rounded-xl border border-[#203248] bg-[#071321] px-3 py-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Zoom</span>
+            <input
+              type="range"
+              min={0.55}
+              max={2.6}
+              step={0.05}
+              value={timelineZoom}
+              onChange={(event) => setTimelineZoom(Number(event.target.value))}
+              className="w-full accent-[#22bdf3]"
+              aria-label="Zoom orizzontale timeline"
+            />
+            <span className="w-12 text-right text-xs font-black text-[#22bdf3]">{Math.round(timelineZoom * 100)}%</span>
+          </label>
+        </div>
+
       <div
         ref={timelineRef}
         onDragOver={(event) => {
@@ -1089,7 +1129,7 @@ function PlaylistTimeline({
           </div>
           <div className="absolute inset-x-0 top-7 h-px bg-white/10" />
           {hourMarks.map((hour) => (
-            <span key={hour} className="absolute bottom-0 top-7 w-px bg-white/5" style={{ left: `${(hour / 24) * 100}%` }} />
+            <span key={hour} className="absolute bottom-0 top-7 w-px bg-white/5" style={{ left: `${(hour / 12) * 100}%` }} />
           ))}
           <div
             className="absolute bottom-0 top-7 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
@@ -1150,6 +1190,7 @@ function PlaylistTimeline({
           })}
         </div>
       </div>
+      </section>
     </div>
   );
 }
@@ -1181,7 +1222,7 @@ function ArchiveClipPicker() {
   }, [loadVideos]);
 
   return (
-    <section className="rounded-xl border border-[#203248] bg-[#071321]/70 xl:col-span-2">
+    <section className="rounded-2xl border border-[#203248] bg-[#071321]/70 xl:col-span-2">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#203248] p-4">
         <div>
           <h3 className="admin-section-title">Archivio clip per playlist</h3>
@@ -1194,7 +1235,7 @@ function ArchiveClipPicker() {
       </div>
       {loading ? <p className="px-4 pb-4 text-sm text-slate-500">Caricamento clip...</p> : null}
       {!loading ? (
-        <div className="grid gap-3 p-4 pt-0 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 p-3 pt-0 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
           {videos.map((video) => (
             <article
               key={video.id}
@@ -1203,7 +1244,7 @@ function ArchiveClipPicker() {
                 event.dataTransfer.setData("application/x-tvmix-video", video.id);
                 event.dataTransfer.setData("application/x-tvmix-video-json", JSON.stringify(video));
               }}
-              className="cursor-grab overflow-hidden rounded-xl border border-[#203248] bg-[#06111d] transition hover:border-[#22bdf3]/60"
+              className="cursor-grab overflow-hidden rounded-lg border border-[#203248] bg-[#06111d] transition hover:border-[#22bdf3]/60"
             >
               <div className="aspect-video bg-[#020a13]">
                 {video.thumbnailUrl ? (
@@ -1211,9 +1252,9 @@ function ArchiveClipPicker() {
                   <img src={video.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                 ) : null}
               </div>
-              <div className="p-3">
-                <p className="line-clamp-2 text-sm font-semibold text-white">{video.title}</p>
-                <p className="mt-1 text-xs text-slate-500">{video.category?.name ?? "Archivio"} · {Math.ceil((video.duration ?? 0) / 60) || "?"} min</p>
+              <div className="p-2">
+                <p className="line-clamp-2 text-xs font-semibold leading-tight text-white">{video.title}</p>
+                <p className="mt-1 text-[10px] text-slate-500">{video.category?.name ?? "Archivio"} · {Math.ceil((video.duration ?? 0) / 60) || "?"} min</p>
               </div>
             </article>
           ))}
