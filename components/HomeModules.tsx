@@ -247,7 +247,7 @@ function FeaturedPlayer({
       className="relative aspect-video w-full overflow-hidden rounded-md bg-black text-left shadow-2xl shadow-black/30 lg:min-w-[min(44vw,560px)]"
     >
       {item.hlsUrl ? (
-        <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} />
+        <VideoPlayer src={item.hlsUrl} poster={item.image} title={item.title} vastUrl={item.vastUrl} />
       ) : (
         <Image src={item.image} alt="" fill sizes="560px" className="object-cover" />
       )}
@@ -298,6 +298,7 @@ function SonicLivePlayer({
             src={item.hlsUrl}
             poster={item.image}
             title={item.title}
+            vastUrl={item.vastUrl}
             autoPlay={autoPlay}
             seekTo={seekTo}
             seekKey={seekTo !== undefined ? `${item.id}-${Math.floor(seekTo)}` : item.id}
@@ -371,7 +372,7 @@ function SonicPlaylistFeatured({
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <div className="relative aspect-video w-full overflow-hidden bg-black">
         {item.hlsUrl ? (
-          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} />
+          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} vastUrl={item.vastUrl} />
         ) : (
           <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}

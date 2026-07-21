@@ -15,6 +15,7 @@ type VideoPlayerProps = {
   src: string;
   poster?: string;
   title?: string;
+  vastUrl?: string | null;
   autoPlay?: boolean;
   seekTo?: number;
   seekKey?: string | number;
@@ -39,6 +40,7 @@ export default function VideoPlayer({
   src,
   poster,
   title = "TVMIX Player",
+  vastUrl,
   autoPlay = false,
   seekTo,
   seekKey,
@@ -52,6 +54,7 @@ export default function VideoPlayer({
   const onEndedRef = useRef(onEnded);
   const onPauseRef = useRef(onPause);
   const playerIdRef = useRef(`tvmix-player-${Math.random().toString(36).slice(2)}`);
+  const vastRequestedRef = useRef<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [previousVolume, setPreviousVolume] = useState(1);
@@ -70,10 +73,35 @@ export default function VideoPlayer({
     onPauseRef.current = onPause;
   }, [onPause]);
 
+  const requestVast = useCallback(async () => {
+    if (!vastUrl) return;
+    if (vastRequestedRef.current === vastUrl) return;
+
+    vastRequestedRef.current = vastUrl;
+    try {
+      await fetch(vastUrl, {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store",
+        keepalive: true,
+      });
+    } catch {
+      // Non blocca la riproduzione se il server VAST non risponde o limita CORS.
+    }
+  }, [vastUrl]);
+
+  const playVideo = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    await requestVast();
+    await video.play();
+  }, [requestVast]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    vastRequestedRef.current = null;
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -95,11 +123,11 @@ export default function VideoPlayer({
           label: level.height ? `${level.height}p` : `Livello ${index + 1}`,
         }));
         setQualities(levels);
-        if (autoPlay) void video.play().catch(() => setControlsVisible(true));
+        if (autoPlay) void playVideo().catch(() => setControlsVisible(true));
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
-      if (autoPlay) void video.play().catch(() => setControlsVisible(true));
+      if (autoPlay) void playVideo().catch(() => setControlsVisible(true));
     } else {
       video.src = src;
       video.load();
@@ -143,7 +171,7 @@ export default function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [autoPlay, src]);
+  }, [autoPlay, playVideo, src]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -151,12 +179,12 @@ export default function VideoPlayer({
     const next = Math.max(0, seekTo);
     const applySeek = () => {
       if (Math.abs(video.currentTime - next) > 0.75) video.currentTime = next;
-      if (autoPlay && video.paused) void video.play().catch(() => setControlsVisible(true));
+      if (autoPlay && video.paused) void playVideo().catch(() => setControlsVisible(true));
     };
     if (video.readyState >= 1) applySeek();
     else video.addEventListener("loadedmetadata", applySeek, { once: true });
     return () => video.removeEventListener("loadedmetadata", applySeek);
-  }, [autoPlay, seekKey, seekTo]);
+  }, [autoPlay, playVideo, seekKey, seekTo]);
 
   useEffect(() => {
     if (playing && controlsVisible) {
@@ -177,9 +205,9 @@ export default function VideoPlayer({
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play().catch(() => setControlsVisible(true));
+    if (video.paused) void playVideo().catch(() => setControlsVisible(true));
     else video.pause();
-  }, []);
+  }, [playVideo]);
 
   const setVideoVolume = (nextVolume: number) => {
     const video = videoRef.current;

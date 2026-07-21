@@ -84,6 +84,7 @@ export function HomePage({ content }: HomePageProps) {
         title={selectedMedia.title}
         poster={selectedMedia.image}
         src={selectedMedia.hlsUrl}
+        vastUrl={selectedMedia.vastUrl}
       />
     </>
   );

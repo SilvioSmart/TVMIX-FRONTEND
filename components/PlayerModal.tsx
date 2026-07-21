@@ -16,6 +16,7 @@ type PlayerModalProps = {
   title: string;
   poster?: string;
   src?: string;
+  vastUrl?: string | null;
 };
 
 export function PlayerModal({
@@ -24,6 +25,7 @@ export function PlayerModal({
   title,
   poster,
   src,
+  vastUrl,
 }: PlayerModalProps) {
   if (!open) return null;
 
@@ -52,7 +54,7 @@ export function PlayerModal({
           </button>
         </div>
         {src ? (
-          <VideoPlayer src={src} poster={poster} title={title} autoPlay />
+          <VideoPlayer src={src} poster={poster} title={title} vastUrl={vastUrl} autoPlay />
         ) : (
           <div className="grid aspect-video place-items-center bg-black px-6 text-center text-white/70">
             Questo contenuto non ha ancora uno stream HLS pubblicato.

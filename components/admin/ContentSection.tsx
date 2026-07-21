@@ -391,7 +391,18 @@ export function ContentSection({ onNotify }: Props) {
       ) : null}
 
       {infoVideo ? <MediaInfoModal video={infoVideo} onClose={() => setInfoVideo(null)} /> : null}
-      {vastVideo ? <VastConfigModal video={vastVideo} onClose={() => setVastVideo(null)} /> : null}
+      {vastVideo ? (
+        <VastConfigModal
+          video={vastVideo}
+          onClose={() => setVastVideo(null)}
+          onSaved={async (updated) => {
+            setVideos((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+            setVastVideo(null);
+            onNotify("Configurazione VAST salvata");
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -834,24 +845,48 @@ function MediaInfoModal({ video, onClose }: { video: Video; onClose: () => void 
   );
 }
 
-function VastConfigModal({ video, onClose }: { video: Video; onClose: () => void }) {
+function VastConfigModal({ video, onClose, onSaved }: { video: Video; onClose: () => void; onSaved: (video: Video) => Promise<void> }) {
+  const [enabled, setEnabled] = useState(Boolean(video.vastUrl));
+  const [vastUrl, setVastUrl] = useState(video.vastUrl ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = { vastUrl: enabled && vastUrl.trim() ? vastUrl.trim() : null };
+      const response = await adminRequest<{ data: Video }>(`videos/${video.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      await onSaved(response.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio VAST non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AdminModal title={`VAST config Â· ${video.title}`} onClose={onClose}>
       <div className="space-y-4">
-        <p className="rounded border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">
-          Pulsante predisposto. Per salvare una configurazione VAST persistente serve aggiungere il modello dati e le API backend dedicate.
+        <p className="rounded border border-[#22bdf3]/25 bg-[#22bdf3]/10 px-3 py-2 text-sm text-cyan-100">
+          Configura il link VAST da richiamare prima della riproduzione di questa clip.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Pre-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
-          <Input label="Mid-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
-          <Input label="Post-roll VAST URL" value="" onChange={() => undefined} placeholder="https://..." />
-          <label className="flex items-center gap-3 pt-7 text-sm text-slate-300">
-            <input type="checkbox" disabled className="size-4 accent-[#16b9f4]" />
+        <div className="grid gap-3">
+          <Input label="VAST URL" type="url" value={vastUrl} onChange={setVastUrl} placeholder="https://..." />
+          <label className="flex items-center gap-3 text-sm text-slate-300">
+            <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="size-4 accent-[#16b9f4]" />
             Abilita annunci per questo media
           </label>
         </div>
-        <div className="flex justify-end">
+        {error ? <p className="rounded border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="admin-secondary-button">Chiudi</button>
+          <button type="button" onClick={() => void save()} disabled={saving || (enabled && !vastUrl.trim())} className="admin-primary-button">
+            {saving ? "Salvataggio..." : "Salva VAST"}
+          </button>
         </div>
       </div>
     </AdminModal>

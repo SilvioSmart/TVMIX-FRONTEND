@@ -5,6 +5,7 @@ export type MediaItem = {
   image: string;
   description?: string;
   hlsUrl?: string;
+  vastUrl?: string;
   duration?: number;
   archiveLabel?: string;
   categoryName?: string;

@@ -16,6 +16,7 @@ type ApiVideo = {
   description?: string | null;
   thumbnailUrl?: string | null;
   hlsUrl?: string | null;
+  vastUrl?: string | null;
   duration?: number | null;
   episodeNumber?: number | null;
   episodeCode?: string | null;
@@ -174,6 +175,7 @@ function mapVideo(video: ApiVideo): MediaItem {
     description: video.description ?? undefined,
     image: video.thumbnailUrl || FALLBACK_POSTER,
     hlsUrl: proxyMediaUrl(video.hlsUrl),
+    vastUrl: video.vastUrl ?? undefined,
     duration: video.duration ?? undefined,
     archiveLabel: seasonLabel ?? video.category?.name ?? "Archivio TVMIX",
     categoryName: video.category?.name ?? undefined,

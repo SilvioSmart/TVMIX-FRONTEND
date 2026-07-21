@@ -21,6 +21,7 @@ export type Video = {
   description: string | null;
   thumbnailUrl: string | null;
   hlsUrl: string | null;
+  vastUrl: string | null;
   sourceObjectKey: string | null;
   originalFileName: string | null;
   uploadedBy: string | null;
@@ -148,7 +149,7 @@ export type LiveEpgItem = {
   startsAt: string;
   endsAt: string;
   thumbnailUrl: string | null;
-  video?: Pick<Video, "id" | "title" | "slug" | "thumbnailUrl" | "hlsUrl" | "duration" | "category"> | null;
+  video?: Pick<Video, "id" | "title" | "slug" | "thumbnailUrl" | "hlsUrl" | "vastUrl" | "duration" | "category"> | null;
   liveStream?: Pick<LiveStream, "id" | "name" | "slug">;
   createdAt: string;
   updatedAt: string;

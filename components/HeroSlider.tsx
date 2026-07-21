@@ -20,6 +20,7 @@ type HeroSlide = {
     title: string;
     thumbnailUrl?: string | null;
     hlsUrl?: string | null;
+    vastUrl?: string | null;
   } | null;
 };
 
@@ -37,6 +38,7 @@ type ApiCarouselSlide = {
     title: string;
     thumbnailUrl?: string | null;
     hlsUrl?: string | null;
+    vastUrl?: string | null;
   } | null;
 };
 
@@ -168,6 +170,7 @@ export function HeroSlider({
         subtitle: activeSlide.subtitle ?? undefined,
         description: activeSlide.description ?? undefined,
         hlsUrl: activeSlide.video?.hlsUrl ?? undefined,
+        vastUrl: activeSlide.video?.vastUrl ?? undefined,
       },
     );
   };
