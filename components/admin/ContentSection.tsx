@@ -736,7 +736,13 @@ function ContentTableRow({
           <button type="button" aria-label={`Info media ${video.title}`} onClick={onInfo} className="admin-icon-button" title="Info media">
             <Info size={16} />
           </button>
-          <button type="button" aria-label={`VAST config ${video.title}`} onClick={onVast} className="admin-icon-button" title="VAST config">
+          <button
+            type="button"
+            aria-label={`VAST config ${video.title}`}
+            onClick={onVast}
+            className={`admin-icon-button ${video.vastUrl ? "border-amber-300/70 bg-amber-300/10 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.18)]" : ""}`}
+            title={video.vastUrl ? "VAST attivo" : "VAST config"}
+          >
             <BadgeDollarSign size={16} />
           </button>
         </div>

@@ -29,12 +29,83 @@ type QualityLevel = {
   label: string;
 };
 
+type VastAd = {
+  mediaUrl: string;
+  impressionUrls: string[];
+  startTrackingUrls: string[];
+  completeTrackingUrls: string[];
+};
+
 const formatTime = (value: number) => {
   if (!Number.isFinite(value)) return "0:00";
   const minutes = Math.floor(value / 60);
   const seconds = Math.floor(value % 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
+
+function xmlText(node: Element | null | undefined) {
+  return node?.textContent?.trim() ?? "";
+}
+
+function requestTracking(urls: string[]) {
+  for (const url of urls) {
+    if (!url) continue;
+    try {
+      void fetch(url, { method: "GET", mode: "no-cors", cache: "no-store", keepalive: true });
+    } catch {
+      // I tracking pixel non devono mai bloccare il player.
+    }
+  }
+}
+
+function bestVastMediaFile(document: XMLDocument) {
+  const mediaFiles = Array.from(document.querySelectorAll("MediaFile"))
+    .map((node) => ({
+      url: xmlText(node),
+      type: node.getAttribute("type") ?? "",
+      delivery: node.getAttribute("delivery") ?? "",
+      width: Number(node.getAttribute("width") ?? 0),
+    }))
+    .filter((file) => file.url);
+
+  return (
+    mediaFiles.find((file) => file.type.includes("mp4") && file.delivery !== "streaming") ??
+    mediaFiles.find((file) => file.type.includes("mp4")) ??
+    mediaFiles.find((file) => file.type.includes("webm")) ??
+    mediaFiles.find((file) => file.type.includes("mpegurl") || file.url.includes(".m3u8")) ??
+    mediaFiles.sort((a, b) => b.width - a.width)[0]
+  )?.url;
+}
+
+async function fetchVastDocument(vastUrl: string) {
+  const response = await fetch(`/api/vast?url=${encodeURIComponent(vastUrl)}`, {
+    cache: "no-store",
+    headers: { Accept: "application/xml,text/xml,*/*" },
+  });
+  if (!response.ok) throw new Error("VAST non disponibile");
+  const xml = await response.text();
+  const document = new DOMParser().parseFromString(xml, "application/xml");
+  if (document.querySelector("parsererror")) throw new Error("XML VAST non valido");
+  return document;
+}
+
+async function resolveVastAd(vastUrl: string, depth = 0): Promise<VastAd | null> {
+  if (depth > 3) return null;
+  const document = await fetchVastDocument(vastUrl);
+  const wrapperUrl = xmlText(document.querySelector("Wrapper VASTAdTagURI"));
+  if (wrapperUrl) return resolveVastAd(wrapperUrl, depth + 1);
+
+  const mediaUrl = bestVastMediaFile(document);
+  if (!mediaUrl) return null;
+
+  const trackingEvents = Array.from(document.querySelectorAll("Tracking"));
+  return {
+    mediaUrl,
+    impressionUrls: Array.from(document.querySelectorAll("Impression")).map((node) => xmlText(node)),
+    startTrackingUrls: trackingEvents.filter((node) => node.getAttribute("event") === "start").map((node) => xmlText(node)),
+    completeTrackingUrls: trackingEvents.filter((node) => node.getAttribute("event") === "complete").map((node) => xmlText(node)),
+  };
+}
 
 export default function VideoPlayer({
   src,
@@ -50,11 +121,15 @@ export default function VideoPlayer({
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const adVideoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const adHlsRef = useRef<Hls | null>(null);
   const onEndedRef = useRef(onEnded);
   const onPauseRef = useRef(onPause);
   const playerIdRef = useRef(`tvmix-player-${Math.random().toString(36).slice(2)}`);
-  const vastRequestedRef = useRef<string | null>(null);
+  const vastPlayedRef = useRef<string | null>(null);
+  const activeAdRef = useRef<VastAd | null>(null);
+  const [adActive, setAdActive] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [previousVolume, setPreviousVolume] = useState(1);
@@ -73,35 +148,76 @@ export default function VideoPlayer({
     onPauseRef.current = onPause;
   }, [onPause]);
 
-  const requestVast = useCallback(async () => {
-    if (!vastUrl) return;
-    if (vastRequestedRef.current === vastUrl) return;
-
-    vastRequestedRef.current = vastUrl;
-    try {
-      await fetch(vastUrl, {
-        method: "GET",
-        mode: "no-cors",
-        cache: "no-store",
-        keepalive: true,
-      });
-    } catch {
-      // Non blocca la riproduzione se il server VAST non risponde o limita CORS.
-    }
-  }, [vastUrl]);
-
-  const playVideo = useCallback(async () => {
+  const playContentVideo = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
-    await requestVast();
     await video.play();
-  }, [requestVast]);
+  }, []);
+
+  const stopAd = useCallback(() => {
+    const adVideo = adVideoRef.current;
+    if (adVideo) {
+      adVideo.pause();
+      adVideo.removeAttribute("src");
+      adVideo.load();
+    }
+    adHlsRef.current?.destroy();
+    adHlsRef.current = null;
+    activeAdRef.current = null;
+    setAdActive(false);
+  }, []);
+
+  const playAd = useCallback(async (ad: VastAd) => {
+    const adVideo = adVideoRef.current;
+    const contentVideo = videoRef.current;
+    if (!adVideo) return false;
+
+    contentVideo?.pause();
+    adHlsRef.current?.destroy();
+    adHlsRef.current = null;
+    activeAdRef.current = ad;
+    setAdActive(true);
+
+    if (Hls.isSupported() && ad.mediaUrl.includes(".m3u8")) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+      adHlsRef.current = hls;
+      hls.loadSource(ad.mediaUrl);
+      hls.attachMedia(adVideo);
+      await new Promise<void>((resolve) => {
+        hls.on(Hls.Events.MANIFEST_PARSED, () => resolve());
+        window.setTimeout(resolve, 2200);
+      });
+    } else {
+      adVideo.src = ad.mediaUrl;
+      adVideo.load();
+    }
+
+    requestTracking([...ad.impressionUrls, ...ad.startTrackingUrls]);
+    await adVideo.play();
+    window.dispatchEvent(new CustomEvent("tvmix:video-play", { detail: { id: playerIdRef.current } }));
+    return true;
+  }, []);
+
+  const playVideo = useCallback(async () => {
+    const vastKey = `${src}|${vastUrl ?? ""}`;
+    if (vastUrl && vastPlayedRef.current !== vastKey) {
+      vastPlayedRef.current = vastKey;
+      try {
+        const ad = await resolveVastAd(vastUrl);
+        if (ad?.mediaUrl && await playAd(ad)) return;
+      } catch {
+        // Se il VAST non è valido, il contenuto deve partire comunque.
+      }
+    }
+    await playContentVideo();
+  }, [playAd, playContentVideo, src, vastUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    vastRequestedRef.current = null;
+    vastPlayedRef.current = null;
+    stopAd();
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -153,7 +269,9 @@ export default function VideoPlayer({
 
     const pauseWhenAnotherPlayerStarts = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string }>).detail;
-      if (detail?.id === playerIdRef.current || video.paused) return;
+      if (detail?.id === playerIdRef.current) return;
+      if (video.paused && !activeAdRef.current) return;
+      stopAd();
       video.pause();
     };
     window.addEventListener("tvmix:video-play", pauseWhenAnotherPlayerStarts);
@@ -168,10 +286,31 @@ export default function VideoPlayer({
       window.removeEventListener("tvmix:video-play", pauseWhenAnotherPlayerStarts);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      adHlsRef.current?.destroy();
+      adHlsRef.current = null;
       video.removeAttribute("src");
       video.load();
     };
-  }, [autoPlay, playVideo, src]);
+  }, [autoPlay, playVideo, src, stopAd]);
+
+  useEffect(() => {
+    const adVideo = adVideoRef.current;
+    if (!adVideo) return;
+
+    const finishAd = () => {
+      const ad = activeAdRef.current;
+      if (ad) requestTracking(ad.completeTrackingUrls);
+      stopAd();
+      void playContentVideo().catch(() => setControlsVisible(true));
+    };
+
+    adVideo.addEventListener("ended", finishAd);
+    adVideo.addEventListener("error", finishAd);
+    return () => {
+      adVideo.removeEventListener("ended", finishAd);
+      adVideo.removeEventListener("error", finishAd);
+    };
+  }, [playContentVideo, stopAd]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -203,17 +342,29 @@ export default function VideoPlayer({
   }, []);
 
   const togglePlay = useCallback(() => {
+    const adVideo = adVideoRef.current;
+    if (adActive && adVideo) {
+      if (adVideo.paused) void adVideo.play().catch(() => setControlsVisible(true));
+      else adVideo.pause();
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) void playVideo().catch(() => setControlsVisible(true));
     else video.pause();
-  }, [playVideo]);
+  }, [adActive, playVideo]);
 
   const setVideoVolume = (nextVolume: number) => {
     const video = videoRef.current;
-    if (!video) return;
-    video.volume = nextVolume;
-    video.muted = nextVolume === 0;
+    const adVideo = adVideoRef.current;
+    if (video) {
+      video.volume = nextVolume;
+      video.muted = nextVolume === 0;
+    }
+    if (adVideo) {
+      adVideo.volume = nextVolume;
+      adVideo.muted = nextVolume === 0;
+    }
     setVolume(nextVolume);
     if (nextVolume > 0) setPreviousVolume(nextVolume);
   };
@@ -251,6 +402,22 @@ export default function VideoPlayer({
       onTouchStart={() => playing && setControlsVisible(true)}
     >
       <video
+        ref={adVideoRef}
+        playsInline
+        preload="auto"
+        controls={false}
+        aria-label={`Annuncio ${title}`}
+        onClick={togglePlay}
+        className={`absolute inset-0 z-20 h-full w-full bg-black object-contain transition ${
+          adActive ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      {adActive ? (
+        <span className="absolute left-3 top-3 z-30 rounded bg-black/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/80">
+          Pubblicità
+        </span>
+      ) : null}
+      <video
         ref={videoRef}
         poster={poster}
         playsInline
@@ -261,7 +428,7 @@ export default function VideoPlayer({
         className="h-full w-full object-contain"
       />
 
-      {!playing ? (
+      {!playing && !adActive ? (
         <button
           type="button"
           onClick={togglePlay}
