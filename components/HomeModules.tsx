@@ -614,7 +614,7 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
         aria-label="Pan timeline playlist"
       />
 
-      <div className="relative h-[270px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
+      <div className="relative h-[390px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
         <div className="absolute inset-x-4 top-4 grid text-[9px] font-black uppercase tracking-[0.12em] text-white/42" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
           {hourMarks.slice(0, 4).map((hour) => (
             <span key={hour} className="border-l border-white/10 pl-1">
@@ -668,22 +668,26 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
             <span className="mt-auto block h-1.5 overflow-hidden rounded-full bg-white/10">
               <span className={`block h-full rounded-full ${isActive ? "bg-[#ffcc33]" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isActive ? 3 : 0)}%` }} />
             </span>
-            <div className="pointer-events-none absolute inset-2 z-30 flex translate-y-2 flex-col rounded-lg border border-cyan/35 bg-[#020711]/95 p-3 opacity-0 shadow-[0_22px_60px_rgba(0,0,0,0.65)] backdrop-blur-md transition duration-300 group-hover/playlistclip:translate-y-0 group-hover/playlistclip:opacity-100 group-focus-visible/playlistclip:translate-y-0 group-focus-visible/playlistclip:opacity-100">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan/90">
-                  Sinossi
-                </span>
-                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/55">
-                  {formatCycleTime(startsAt)}
-                </span>
+            <div className="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.55rem)] z-30 flex max-h-[210px] min-w-[min(280px,76vw)] translate-y-2 flex-col overflow-hidden rounded-xl border border-cyan/35 bg-[#020711]/97 opacity-0 shadow-[0_24px_70px_rgba(0,0,0,0.75)] backdrop-blur-md transition duration-300 group-hover/playlistclip:pointer-events-auto group-hover/playlistclip:translate-y-0 group-hover/playlistclip:opacity-100 group-focus-within/playlistclip:pointer-events-auto group-focus-within/playlistclip:translate-y-0 group-focus-within/playlistclip:opacity-100">
+              <div className="shrink-0 border-b border-white/10 bg-white/[0.035] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan/90">
+                    Sinossi
+                  </span>
+                  <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/55">
+                    {formatCycleTime(startsAt)}
+                  </span>
+                </div>
+                <h4 className="mt-1 text-xs font-black uppercase leading-tight text-white">
+                  {item.title}
+                </h4>
               </div>
-              <h4 className="mt-1 line-clamp-1 text-xs font-black uppercase leading-tight text-white">
-                {item.title}
-              </h4>
-              <p className="mt-2 line-clamp-4 text-[10px] font-medium leading-4 text-white/76">
-                {synopsis}
-              </p>
-              <div className="mt-auto flex items-end justify-between gap-3 border-t border-white/10 pt-2">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pr-2 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
+                <p className="whitespace-pre-wrap text-[11px] font-medium leading-5 text-white/78">
+                  {synopsis}
+                </p>
+              </div>
+              <div className="shrink-0 flex items-end justify-between gap-3 border-t border-white/10 bg-white/[0.025] p-3 pt-2">
                 <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-[0.13em] text-cyan/80">
                   {item.video?.categoryName ?? "Playlist"}
                 </span>
