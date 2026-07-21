@@ -19,6 +19,7 @@ type VideoPlayerProps = {
   seekTo?: number;
   seekKey?: string | number;
   onEnded?: () => void;
+  onPause?: () => void;
   className?: string;
 };
 
@@ -42,12 +43,15 @@ export default function VideoPlayer({
   seekTo,
   seekKey,
   onEnded,
+  onPause,
   className = "",
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const onEndedRef = useRef(onEnded);
+  const onPauseRef = useRef(onPause);
+  const playerIdRef = useRef(`tvmix-player-${Math.random().toString(36).slice(2)}`);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [previousVolume, setPreviousVolume] = useState(1);
@@ -61,6 +65,10 @@ export default function VideoPlayer({
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
+
+  useEffect(() => {
+    onPauseRef.current = onPause;
+  }, [onPause]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -97,8 +105,14 @@ export default function VideoPlayer({
       video.load();
     }
 
-    const syncPlay = () => setPlaying(true);
-    const syncPause = () => setPlaying(false);
+    const syncPlay = () => {
+      setPlaying(true);
+      window.dispatchEvent(new CustomEvent("tvmix:video-play", { detail: { id: playerIdRef.current } }));
+    };
+    const syncPause = () => {
+      setPlaying(false);
+      if (!video.ended) onPauseRef.current?.();
+    };
     const syncTime = () => setCurrentTime(video.currentTime);
     const syncDuration = () => setDuration(video.duration);
     const syncEnded = () => onEndedRef.current?.();
@@ -109,6 +123,13 @@ export default function VideoPlayer({
     video.addEventListener("durationchange", syncDuration);
     video.addEventListener("ended", syncEnded);
 
+    const pauseWhenAnotherPlayerStarts = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string }>).detail;
+      if (detail?.id === playerIdRef.current || video.paused) return;
+      video.pause();
+    };
+    window.addEventListener("tvmix:video-play", pauseWhenAnotherPlayerStarts);
+
     return () => {
       video.removeEventListener("play", syncPlay);
       video.removeEventListener("pause", syncPause);
@@ -116,6 +137,7 @@ export default function VideoPlayer({
       video.removeEventListener("loadedmetadata", syncDuration);
       video.removeEventListener("durationchange", syncDuration);
       video.removeEventListener("ended", syncEnded);
+      window.removeEventListener("tvmix:video-play", pauseWhenAnotherPlayerStarts);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.removeAttribute("src");

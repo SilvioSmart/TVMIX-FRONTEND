@@ -270,6 +270,7 @@ function SonicLivePlayer({
   deferPlayback = false,
   onStartPlayback,
   onEnded,
+  onPause,
 }: {
   item?: MediaItem;
   module: HomeModule;
@@ -280,6 +281,7 @@ function SonicLivePlayer({
   deferPlayback?: boolean;
   onStartPlayback?: () => void;
   onEnded?: () => void;
+  onPause?: () => void;
 }) {
   if (!item) {
     return (
@@ -300,6 +302,7 @@ function SonicLivePlayer({
             seekTo={seekTo}
             seekKey={seekTo !== undefined ? `${item.id}-${Math.floor(seekTo)}` : item.id}
             onEnded={onEnded}
+            onPause={onPause}
           />
         ) : (
           <>
@@ -664,6 +667,10 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
     setPlaylistPlayback(nextPlaylistPlayback(module, playlistPlayback.epgId));
   }
 
+  function resetPlaylistPlayback() {
+    setPlaylistPlayback(null);
+  }
+
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
@@ -682,6 +689,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
             deferPlayback={stream?.streamType === "PLAYLIST" && !playlistPlayback}
             onStartPlayback={startPlaylistFromPlayhead}
             onEnded={stream?.streamType === "PLAYLIST" ? playNextPlaylistItem : undefined}
+            onPause={stream?.streamType === "PLAYLIST" ? resetPlaylistPlayback : undefined}
           />
 
           <div className="flex min-w-0 flex-col justify-between gap-4">
