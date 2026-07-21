@@ -645,10 +645,12 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
           const visibleStart = Math.max(startsAt, windowStart);
           const visibleEnd = Math.min(endsAt, windowEnd);
           const visibleDuration = Math.max(1, visibleEnd - visibleStart);
+          const synopsis = item.description || item.video?.description || "Sinossi non disponibile per questa clip.";
           return (
           <article
             key={item.id}
-            className={`absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl ${
+            tabIndex={0}
+            className={`group/playlistclip absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl outline-none transition hover:-translate-y-1 hover:border-cyan hover:shadow-[0_24px_60px_rgba(3,169,244,0.18)] focus-visible:-translate-y-1 focus-visible:border-cyan focus-visible:ring-2 focus-visible:ring-cyan/60 ${
               isActive ? "border-[#ffcc33] bg-red-500/[0.16] ring-2 ring-[#ffcc33]/70" : "border-cyan/25 bg-[#071321]"
             }`}
             style={{
@@ -666,6 +668,30 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
             <span className="mt-auto block h-1.5 overflow-hidden rounded-full bg-white/10">
               <span className={`block h-full rounded-full ${isActive ? "bg-[#ffcc33]" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isActive ? 3 : 0)}%` }} />
             </span>
+            <div className="pointer-events-none absolute inset-2 z-30 flex translate-y-2 flex-col rounded-lg border border-cyan/35 bg-[#020711]/95 p-3 opacity-0 shadow-[0_22px_60px_rgba(0,0,0,0.65)] backdrop-blur-md transition duration-300 group-hover/playlistclip:translate-y-0 group-hover/playlistclip:opacity-100 group-focus-visible/playlistclip:translate-y-0 group-focus-visible/playlistclip:opacity-100">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan/90">
+                  Sinossi
+                </span>
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/55">
+                  {formatCycleTime(startsAt)}
+                </span>
+              </div>
+              <h4 className="mt-1 line-clamp-1 text-xs font-black uppercase leading-tight text-white">
+                {item.title}
+              </h4>
+              <p className="mt-2 line-clamp-4 text-[10px] font-medium leading-4 text-white/76">
+                {synopsis}
+              </p>
+              <div className="mt-auto flex items-end justify-between gap-3 border-t border-white/10 pt-2">
+                <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-[0.13em] text-cyan/80">
+                  {item.video?.categoryName ?? "Playlist"}
+                </span>
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/62">
+                  {formatDuration(visibleDuration)}
+                </span>
+              </div>
+            </div>
           </article>
         );
         }) : (
