@@ -1003,11 +1003,11 @@ function PlaylistTimeline({
 
   return (
     <div className="space-y-4 p-4">
-      <section className="rounded-2xl border border-[#203248] bg-[#06111d]/80 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-2xl border border-[#203248] bg-[#06111d]/80 p-3 shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="admin-section-title">Player preview e controllo playhead</h3>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-0.5 text-[11px] text-slate-500">
               Il player usa il punto in cui la barra/playhead coincide con la timeline.
             </p>
           </div>
@@ -1016,7 +1016,7 @@ function PlaylistTimeline({
           </span>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[420px_1fr]">
+        <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
         <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#020a13]">
           {activeSource && previewActive ? (
             <VideoPlayer
@@ -1038,18 +1038,18 @@ function PlaylistTimeline({
               </div>
             </div>
           )}
-          <div className="border-t border-[#203248] p-3">
+          <div className="border-t border-[#203248] p-2">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#22bdf3]">
               Playhead {formatSecondOfDay(playheadSecond)}
             </p>
-            <p className="mt-1 line-clamp-1 text-sm font-semibold text-white">{activeItem?.title ?? "Timeline vuota in questo punto"}</p>
+            <p className="mt-0.5 line-clamp-1 text-xs font-semibold text-white">{activeItem?.title ?? "Timeline vuota in questo punto"}</p>
           </div>
         </div>
-        <div className="rounded-xl border border-[#203248] bg-[#071321] p-4">
+        <div className="rounded-xl border border-[#203248] bg-[#071321] p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-bold text-white">Controllo timeline</h4>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-0.5 text-[11px] text-slate-500">
                 La barra evidenziatrice indica l'orario usato come input del player. L'anteprima scorre in tempo reale, 1 secondo alla volta.
               </p>
             </div>
@@ -1067,10 +1067,10 @@ function PlaylistTimeline({
               setSyncTimeline(false);
               setPlayheadSecond(Number(event.target.value));
             }}
-            className="mt-5 w-full accent-[#22bdf3]"
+            className="mt-3 w-full accent-[#22bdf3]"
             aria-label="Posizione playhead MEDIALIST"
           />
-          <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+          <div className="mt-1.5 flex justify-between text-[10px] font-bold text-slate-500">
             <span>00:00</span>
             <span>03:00</span>
             <span>06:00</span>
