@@ -408,6 +408,8 @@ function SonicPlaylistThumbnail({
   active: boolean;
   onChoose: () => void;
 }) {
+  const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
+
   return (
     <article
       className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
@@ -425,6 +427,25 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-3 z-20 flex translate-y-2 flex-col justify-end rounded-xl border border-cyan/25 bg-[#020711]/92 p-3 opacity-0 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md transition duration-300 group-hover/thumb:translate-y-0 group-hover/thumb:opacity-100 group-focus-within/thumb:translate-y-0 group-focus-within/thumb:opacity-100">
+          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan/90">
+            Sinossi
+          </p>
+          <h4 className="mt-1 line-clamp-1 text-sm font-black uppercase leading-tight text-white">
+            {item.title}
+          </h4>
+          <p className="mt-2 line-clamp-5 text-[11px] font-medium leading-4 text-white/76">
+            {synopsis}
+          </p>
+          <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/10 pt-2">
+            <span className="min-w-0 truncate text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
+              {mediaArchiveLabel(item)}
+            </span>
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.13em] text-white/65">
+              {mediaDurationLabel(item)}
+            </span>
+          </div>
+        </div>
       </div>
       <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
         <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
