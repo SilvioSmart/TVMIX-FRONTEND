@@ -527,7 +527,14 @@ function PosterRailModule({ module, onSelect }: { module: HomeModule; onSelect: 
 
 function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: number }) {
   const cycleSecond = secondsOfHalfDay(now);
-  const hourMarks = Array.from({ length: 13 }, (_, index) => index);
+  const windowSeconds = 4 * 60 * 60;
+  const maxWindowStart = PLAYLIST_CYCLE_SECONDS - windowSeconds;
+  const [windowStart, setWindowStart] = useState(() =>
+    Math.min(maxWindowStart, Math.max(0, Math.floor(Math.max(0, secondsOfHalfDay(Date.now()) - windowSeconds / 2) / 3600) * 3600)),
+  );
+  const windowEnd = windowStart + windowSeconds;
+  const playheadInWindow = cycleSecond >= windowStart && cycleSecond <= windowEnd;
+  const hourMarks = Array.from({ length: 5 }, (_, index) => windowStart + index * 3600);
   const playlistItems = module.epg
     .filter((item) => Boolean(item.video?.hlsUrl))
     .map((item) => {
@@ -538,9 +545,14 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
       const progress = isActive ? ((cycleSecond - startsAt) / Math.max(1, endsAt - startsAt)) * 100 : 0;
       return { item, startsAt, endsAt, duration, isActive, progress };
     })
+    .filter(({ startsAt, endsAt }) => startsAt < windowEnd && endsAt > windowStart)
     .sort((a, b) => a.startsAt - b.startsAt);
+  const pan = (deltaSeconds: number) =>
+    setWindowStart((value) => Math.min(maxWindowStart, Math.max(0, value + deltaSeconds)));
+  const centerOnNow = () =>
+    setWindowStart(Math.min(maxWindowStart, Math.max(0, Math.floor(Math.max(0, cycleSecond - windowSeconds / 2) / 300) * 300)));
 
-  if (!playlistItems.length) {
+  if (!module.epg.some((item) => item.video?.hlsUrl)) {
     return (
       <div className="rounded-[18px] border border-white/10 bg-[#050b14]/86 p-4">
         <EmptyModuleNotice text="Nessuna clip programmata nella timeline playlist." />
@@ -552,44 +564,74 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
     <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14]/86 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.34)]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">Timeline 12 ore</p>
-          <p className="mt-1 text-xs text-white/46">La barra gialla indica il punto usato dal player quando premi play.</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">Timeline playlist · finestra 4 ore</p>
+          <p className="mt-1 text-xs text-white/46">
+            Pan {formatCycleTime(windowStart)}-{formatCycleTime(windowEnd)}. La barra gialla indica il punto usato dal player quando premi play.
+          </p>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#ffcc33]">
-          Playhead {formatCycleTime(cycleSecond)}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => pan(-3600)} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/70 transition hover:border-cyan/60 hover:text-cyan">
+            -1h
+          </button>
+          <button type="button" onClick={centerOnNow} className="rounded-full border border-[#ffcc33]/40 bg-[#ffcc33]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#ffcc33] transition hover:bg-[#ffcc33]/20">
+            Ora {formatCycleTime(cycleSecond)}
+          </button>
+          <button type="button" onClick={() => pan(3600)} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/70 transition hover:border-cyan/60 hover:text-cyan">
+            +1h
+          </button>
+        </div>
       </div>
+      <input
+        type="range"
+        min={0}
+        max={maxWindowStart}
+        step={300}
+        value={windowStart}
+        onChange={(event) => setWindowStart(Number(event.target.value))}
+        className="mb-3 w-full accent-[#ffcc33]"
+        aria-label="Pan timeline playlist"
+      />
 
       <div className="relative h-[270px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
-        <div className="absolute inset-x-4 top-4 grid text-[9px] font-black uppercase tracking-[0.12em] text-white/42" style={{ gridTemplateColumns: "repeat(12, minmax(0, 1fr))" }}>
-          {hourMarks.slice(0, 12).map((hour) => (
+        <div className="absolute inset-x-4 top-4 grid text-[9px] font-black uppercase tracking-[0.12em] text-white/42" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+          {hourMarks.slice(0, 4).map((hour) => (
             <span key={hour} className="border-l border-white/10 pl-1">
-              {String(hour).padStart(2, "0")}:00
+              {formatCycleTime(hour)}
             </span>
           ))}
         </div>
         <div className="absolute inset-x-4 top-11 h-px bg-white/10" />
         {hourMarks.map((hour) => (
-          <span key={hour} className="absolute bottom-4 top-11 w-px bg-white/5" style={{ left: `calc(1rem + ${(hour / 12) * 100}% - ${(hour / 12) * 2}rem)` }} />
+          <span key={hour} className="absolute bottom-4 top-11 w-px bg-white/5" style={{ left: `calc(1rem + ${((hour - windowStart) / windowSeconds) * 100}% - ${((hour - windowStart) / windowSeconds) * 2}rem)` }} />
         ))}
-        <div
-          className="absolute bottom-4 top-11 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
-          style={{ left: `calc(1rem + ${(cycleSecond / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(cycleSecond / PLAYLIST_CYCLE_SECONDS) * 2}rem)` }}
-        >
-          <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
-            {formatCycleTime(cycleSecond)}
+        {playheadInWindow ? (
+          <div
+            className="absolute bottom-4 top-11 z-20 w-0.5 bg-[#ffcc33] shadow-[0_0_18px_rgba(255,204,51,0.75)]"
+            style={{ left: `calc(1rem + ${((cycleSecond - windowStart) / windowSeconds) * 100}% - ${((cycleSecond - windowStart) / windowSeconds) * 2}rem)` }}
+          >
+            <span className="absolute -left-8 -top-6 rounded bg-[#ffcc33] px-2 py-0.5 text-[10px] font-black text-black">
+              {formatCycleTime(cycleSecond)}
+            </span>
+          </div>
+        ) : (
+          <span className="absolute right-4 top-12 rounded-full border border-[#ffcc33]/30 bg-[#ffcc33]/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-[#ffcc33]">
+            Playhead fuori finestra
           </span>
-        </div>
+        )}
 
-        {playlistItems.map(({ item, startsAt, duration, isActive, progress }) => (
+        {playlistItems.length ? playlistItems.map(({ item, startsAt, endsAt, isActive, progress }) => {
+          const visibleStart = Math.max(startsAt, windowStart);
+          const visibleEnd = Math.min(endsAt, windowEnd);
+          const visibleDuration = Math.max(1, visibleEnd - visibleStart);
+          return (
           <article
             key={item.id}
             className={`absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl ${
               isActive ? "border-[#ffcc33] bg-red-500/[0.16] ring-2 ring-[#ffcc33]/70" : "border-cyan/25 bg-[#071321]"
             }`}
             style={{
-              left: `calc(1rem + ${(startsAt / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(startsAt / PLAYLIST_CYCLE_SECONDS) * 2}rem)`,
-              width: `max(44px, calc(${(duration / PLAYLIST_CYCLE_SECONDS) * 100}% - ${(duration / PLAYLIST_CYCLE_SECONDS) * 2}rem))`,
+              left: `calc(1rem + ${((visibleStart - windowStart) / windowSeconds) * 100}% - ${((visibleStart - windowStart) / windowSeconds) * 2}rem)`,
+              width: `max(44px, calc(${(visibleDuration / windowSeconds) * 100}% - ${(visibleDuration / windowSeconds) * 2}rem))`,
             }}
           >
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan/90">
@@ -603,7 +645,12 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
               <span className={`block h-full rounded-full ${isActive ? "bg-[#ffcc33]" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isActive ? 3 : 0)}%` }} />
             </span>
           </article>
-        ))}
+        );
+        }) : (
+          <div className="absolute inset-x-4 top-16 rounded-xl border border-dashed border-white/10 px-4 py-12 text-center text-sm text-white/45">
+            Nessuna clip in questa finestra. Sposta il pan per consultare il resto della playlist.
+          </div>
+        )}
       </div>
     </div>
   );

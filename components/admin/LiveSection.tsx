@@ -637,33 +637,41 @@ function EpgEditor({
   }
 
   function snapPlaylistStart(startsAt: Date, durationMs: number, ignoreId?: string) {
+    const snapThresholdMs = 5 * 60 * 1000;
     let bestStart = new Date(startsAt);
     let bestDistance = Number.POSITIVE_INFINITY;
     const base = dayStart(startsAt);
     const cycleEnd = base.getTime() + PLAYLIST_CYCLE_SECONDS * 1000;
+    const proposedStart = startsAt.getTime();
+    const proposedEnd = proposedStart + durationMs;
     for (const item of items) {
       if (item.id === ignoreId) continue;
-      const boundaries = [new Date(item.startsAt).getTime(), new Date(item.endsAt).getTime()];
-      for (const boundary of boundaries) {
-        for (const candidateStart of [boundary, boundary - durationMs]) {
-          if (candidateStart < base.getTime() || candidateStart + durationMs > cycleEnd) continue;
-          const candidateEnd = candidateStart + durationMs;
-          const overlaps = items.some((candidate) => {
-            if (candidate.id === ignoreId) return false;
-            const itemStart = new Date(candidate.startsAt).getTime();
-            const itemEnd = new Date(candidate.endsAt).getTime();
-            return candidateStart < itemEnd && candidateEnd > itemStart;
-          });
-          if (overlaps) continue;
-          const distance = Math.abs(startsAt.getTime() - candidateStart);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestStart = new Date(candidateStart);
-          }
+      const itemStart = new Date(item.startsAt).getTime();
+      const itemEnd = new Date(item.endsAt).getTime();
+      const overlapsItem = proposedStart < itemEnd && proposedEnd > itemStart;
+      const candidateStarts = [
+        { value: itemEnd, distance: proposedStart > itemEnd ? proposedStart - itemEnd : overlapsItem && proposedStart >= itemStart ? 0 : Number.POSITIVE_INFINITY },
+        { value: itemStart - durationMs, distance: proposedEnd < itemStart ? itemStart - proposedEnd : overlapsItem && proposedStart < itemStart ? 0 : Number.POSITIVE_INFINITY },
+      ];
+
+      for (const candidate of candidateStarts) {
+        if (candidate.distance > snapThresholdMs) continue;
+        if (candidate.value < base.getTime() || candidate.value + durationMs > cycleEnd) continue;
+        const candidateEnd = candidate.value + durationMs;
+        const overlaps = items.some((other) => {
+          if (other.id === ignoreId) return false;
+          const otherStart = new Date(other.startsAt).getTime();
+          const otherEnd = new Date(other.endsAt).getTime();
+          return candidate.value < otherEnd && candidateEnd > otherStart;
+        });
+        if (overlaps) continue;
+        if (candidate.distance < bestDistance) {
+          bestDistance = candidate.distance;
+          bestStart = new Date(candidate.value);
         }
       }
     }
-    return bestDistance === Number.POSITIVE_INFINITY ? bestStart : bestStart;
+    return bestStart;
   }
 
   async function placeVideoOnPlaylist(video: Video, startsAt: Date) {
@@ -936,6 +944,7 @@ function PlaylistTimeline({
   const [playheadSecond, setPlayheadSecond] = useState(() => currentPlaylistSecond());
   const [syncTimeline, setSyncTimeline] = useState(true);
   const [timelineZoom, setTimelineZoom] = useState(0.18);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const pixelsPerSecond = 0.14 * timelineZoom;
   const secondsPerCycle = PLAYLIST_CYCLE_SECONDS;
@@ -954,6 +963,7 @@ function PlaylistTimeline({
   const activeItemStartSecond = activeItem ? secondsFromDayStart(new Date(activeItem.startsAt), start) : 0;
   const activeSeekSeconds = activeItem ? Math.max(0, playheadSecond - activeItemStartSecond) : undefined;
   const activeSource = proxyMediaUrl(activeItem?.video?.hlsUrl);
+  const selectedItem = sortedItems.find((item) => item.id === selectedItemId) ?? null;
 
   useEffect(() => {
     if (!syncTimeline) return;
@@ -1053,10 +1063,29 @@ function PlaylistTimeline({
                 La barra evidenziatrice indica l'orario usato come input del player. L'anteprima scorre in tempo reale, 1 secondo alla volta.
               </p>
             </div>
-            <button type="button" onClick={() => setSyncTimeline((value) => !value)} className="admin-primary-button">
-              {syncTimeline ? "Blocca playhead" : "Sincronizza ora"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {!syncTimeline && selectedItem ? (
+                <ConfirmButton
+                  label={`Elimina ${selectedItem.title}`}
+                  onConfirm={async () => {
+                    await onRemove(selectedItem);
+                    setSelectedItemId(null);
+                  }}
+                  className="admin-secondary-button hover:border-red-400/60 hover:text-red-300"
+                >
+                  <Trash2 size={15} /> Elimina clip
+                </ConfirmButton>
+              ) : null}
+              <button type="button" onClick={() => setSyncTimeline((value) => !value)} className="admin-primary-button">
+                {syncTimeline ? "Blocca playhead" : "Sincronizza ora"}
+              </button>
+            </div>
           </div>
+          {!syncTimeline ? (
+            <p className="mt-2 text-[11px] text-slate-500">
+              {selectedItem ? `Clip selezionata: ${selectedItem.title}` : "Playhead bloccato: seleziona una clip sulla timeline per modificarla o cancellarla."}
+            </p>
+          ) : null}
           <input
             type="range"
             min={0}
@@ -1116,7 +1145,10 @@ function PlaylistTimeline({
         }}
         onDragLeave={() => setDropActive(false)}
         onDrop={dropVideo}
-        onClick={(event) => setPlayheadSecond(secondFromPointer(event))}
+        onClick={(event) => {
+          setSelectedItemId(null);
+          setPlayheadSecond(secondFromPointer(event));
+        }}
         className={[
           "relative overflow-x-auto rounded-xl border bg-[#020a13] p-4",
           dropActive ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-[#203248]",
@@ -1156,17 +1188,22 @@ function PlaylistTimeline({
                 draggable
                 onDragStart={(event) => {
                   onDragItem(item.id);
+                  setSelectedItemId(item.id);
+                  setSyncTimeline(false);
                   event.dataTransfer.setData("application/x-tvmix-epg-item", item.id);
                 }}
                 onDragEnd={() => onDragItem(null)}
                 onDragOver={(event) => event.preventDefault()}
                 onClick={(event) => {
                   event.stopPropagation();
+                  setSelectedItemId(item.id);
+                  setSyncTimeline(false);
                   setPlayheadSecond(secondsFromDayStart(new Date(item.startsAt), start));
                 }}
                 className={[
                   "absolute top-14 flex h-36 cursor-grab flex-col overflow-hidden rounded-xl border border-[#22bdf3]/30 bg-[#071321] p-3 shadow-xl transition hover:border-[#22bdf3]",
                   activeItem?.id === item.id ? "ring-2 ring-[#ffcc33]/80" : "",
+                  selectedItemId === item.id ? "border-[#ffcc33] outline outline-2 outline-[#ffcc33]/60" : "",
                   draggingId === item.id ? "opacity-60" : "",
                 ].join(" ")}
                 style={{
