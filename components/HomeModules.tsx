@@ -427,17 +427,21 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <div className="pointer-events-none absolute inset-3 z-20 flex translate-y-2 flex-col justify-end rounded-xl border border-cyan/25 bg-[#020711]/92 p-3 opacity-0 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md transition duration-300 group-hover/thumb:translate-y-0 group-hover/thumb:opacity-100 group-focus-within/thumb:translate-y-0 group-focus-within/thumb:opacity-100">
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan/90">
-            Sinossi
-          </p>
-          <h4 className="mt-1 line-clamp-1 text-sm font-black uppercase leading-tight text-white">
-            {item.title}
-          </h4>
-          <p className="mt-2 line-clamp-5 text-[11px] font-medium leading-4 text-white/76">
-            {synopsis}
-          </p>
-          <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/10 pt-2">
+        <div className="pointer-events-none absolute inset-3 z-20 flex translate-y-2 flex-col overflow-hidden rounded-xl border border-cyan/25 bg-[#020711]/92 opacity-0 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md transition duration-300 group-hover/thumb:pointer-events-auto group-hover/thumb:translate-y-0 group-hover/thumb:opacity-100 group-focus-within/thumb:pointer-events-auto group-focus-within/thumb:translate-y-0 group-focus-within/thumb:opacity-100">
+          <div className="shrink-0 p-3 pb-2">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan/90">
+              Sinossi
+            </p>
+            <h4 className="mt-1 line-clamp-1 text-sm font-black uppercase leading-tight text-white">
+              {item.title}
+            </h4>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pr-2 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
+            <p className="whitespace-pre-wrap text-[11px] font-medium leading-4 text-white/76">
+              {synopsis}
+            </p>
+          </div>
+          <div className="shrink-0 mx-3 mt-2 flex items-end justify-between gap-3 border-t border-white/10 py-2">
             <span className="min-w-0 truncate text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
               {mediaArchiveLabel(item)}
             </span>
@@ -614,7 +618,7 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
         aria-label="Pan timeline playlist"
       />
 
-      <div className="relative h-[390px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
+      <div className="relative h-[270px] overflow-hidden rounded-xl border border-white/10 bg-[#020711] p-4">
         <div className="absolute inset-x-4 top-4 grid text-[9px] font-black uppercase tracking-[0.12em] text-white/42" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
           {hourMarks.slice(0, 4).map((hour) => (
             <span key={hour} className="border-l border-white/10 pl-1">
@@ -645,12 +649,10 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
           const visibleStart = Math.max(startsAt, windowStart);
           const visibleEnd = Math.min(endsAt, windowEnd);
           const visibleDuration = Math.max(1, visibleEnd - visibleStart);
-          const synopsis = item.description || item.video?.description || "Sinossi non disponibile per questa clip.";
           return (
           <article
             key={item.id}
-            tabIndex={0}
-            className={`group/playlistclip absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl outline-none transition hover:-translate-y-1 hover:border-cyan hover:shadow-[0_24px_60px_rgba(3,169,244,0.18)] focus-visible:-translate-y-1 focus-visible:border-cyan focus-visible:ring-2 focus-visible:ring-cyan/60 ${
+            className={`absolute top-16 flex h-36 flex-col overflow-hidden rounded-xl border p-3 shadow-xl ${
               isActive ? "border-[#ffcc33] bg-red-500/[0.16] ring-2 ring-[#ffcc33]/70" : "border-cyan/25 bg-[#071321]"
             }`}
             style={{
@@ -668,34 +670,6 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
             <span className="mt-auto block h-1.5 overflow-hidden rounded-full bg-white/10">
               <span className={`block h-full rounded-full ${isActive ? "bg-[#ffcc33]" : "bg-cyan/70"}`} style={{ width: `${Math.max(progress, isActive ? 3 : 0)}%` }} />
             </span>
-            <div className="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.55rem)] z-30 flex max-h-[210px] min-w-[min(280px,76vw)] translate-y-2 flex-col overflow-hidden rounded-xl border border-cyan/35 bg-[#020711]/97 opacity-0 shadow-[0_24px_70px_rgba(0,0,0,0.75)] backdrop-blur-md transition duration-300 group-hover/playlistclip:pointer-events-auto group-hover/playlistclip:translate-y-0 group-hover/playlistclip:opacity-100 group-focus-within/playlistclip:pointer-events-auto group-focus-within/playlistclip:translate-y-0 group-focus-within/playlistclip:opacity-100">
-              <div className="shrink-0 border-b border-white/10 bg-white/[0.035] p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan/90">
-                    Sinossi
-                  </span>
-                  <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/55">
-                    {formatCycleTime(startsAt)}
-                  </span>
-                </div>
-                <h4 className="mt-1 text-xs font-black uppercase leading-tight text-white">
-                  {item.title}
-                </h4>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pr-2 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
-                <p className="whitespace-pre-wrap text-[11px] font-medium leading-5 text-white/78">
-                  {synopsis}
-                </p>
-              </div>
-              <div className="shrink-0 flex items-end justify-between gap-3 border-t border-white/10 bg-white/[0.025] p-3 pt-2">
-                <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-[0.13em] text-cyan/80">
-                  {item.video?.categoryName ?? "Playlist"}
-                </span>
-                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-white/62">
-                  {formatDuration(visibleDuration)}
-                </span>
-              </div>
-            </div>
           </article>
         );
         }) : (
