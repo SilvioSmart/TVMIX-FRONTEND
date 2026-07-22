@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, CalendarClock, Play } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Copy, Play, Send, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export type PublicNoticeArticle = {
@@ -39,15 +39,15 @@ export function NoticePublicPage({ notices }: { notices: PublicNoticeArticle[] }
   }
 
   return (
-    <section className="mx-auto max-w-[1500px] px-4 py-8 text-white sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-[1500px] px-4 pb-10 pt-28 text-white sm:px-6 sm:pt-32 lg:px-8">
       <div className="mb-7">
         <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#22bdf3]">TVMIX News</p>
         <h1 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">9notice</h1>
       </div>
 
-      <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)]">
-        <div className="grid min-h-[360px] lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="flex flex-col justify-center p-6 sm:p-9 lg:p-12">
+      <article className="h-[760px] overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)] sm:h-[680px] lg:h-[500px]">
+        <div className="grid h-full lg:grid-cols-[0.92fr_1.08fr]">
+          <div className="flex min-h-0 flex-col justify-center p-6 sm:p-9 lg:p-12">
             <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em]">
               <span className="rounded-full border border-[#22bdf3]/35 bg-[#22bdf3]/10 px-3 py-1 text-[#22bdf3]">{selected.category}</span>
               <span className="inline-flex items-center gap-1.5 text-slate-400">
@@ -56,38 +56,46 @@ export function NoticePublicPage({ notices }: { notices: PublicNoticeArticle[] }
               </span>
             </div>
             <h2 className="text-3xl font-black leading-tight tracking-[-0.055em] sm:text-5xl">{selected.title}</h2>
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">{selected.body}</p>
+            <div className="mt-5 min-h-0 max-w-2xl overflow-y-auto pr-2 text-sm leading-7 text-slate-300 [scrollbar-color:#22bdf3_rgba(255,255,255,0.08)] sm:text-base">
+              <p>{selected.body}</p>
+            </div>
+            <div className="mt-5">
+              <SocialShareButtons title={selected.title} slug={selected.slug} variant="large" />
+            </div>
           </div>
-          <div className="relative min-h-[260px] overflow-hidden bg-black">
-            <img src={selected.imageUrl} alt={selected.title} className="h-full min-h-[260px] w-full object-cover" />
+          <div className="relative min-h-0 overflow-hidden bg-black">
+            <img src={selected.imageUrl} alt={selected.title} className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#06111d]/30 via-transparent to-transparent" />
           </div>
         </div>
       </article>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {notices.map((notice) => {
           const active = notice.id === selected.id;
           return (
-            <button
+            <article
               key={notice.id}
-              type="button"
-              onClick={() => setSelectedId(notice.id)}
               className={`group overflow-hidden rounded-2xl border bg-[#071321] text-left transition ${
                 active ? "border-[#22bdf3] shadow-[0_0_0_1px_rgba(34,189,243,0.35)]" : "border-white/10 hover:border-[#22bdf3]/45"
               }`}
             >
-              <div className="aspect-[16/9] overflow-hidden bg-black">
-                <img src={notice.imageUrl} alt={notice.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              <button type="button" onClick={() => setSelectedId(notice.id)} className="block w-full text-left">
+                <div className="aspect-[16/9] overflow-hidden bg-black">
+                  <img src={notice.imageUrl} alt={notice.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                </div>
+                <div className="p-4 pb-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#22bdf3]">
+                    {notice.category} · {formatPublicDate(notice.publishedAt ?? notice.createdAt)}
+                  </p>
+                  <h3 className="mt-2 line-clamp-2 text-base font-bold text-white">{notice.title}</h3>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{notice.excerpt || notice.body}</p>
+                </div>
+              </button>
+              <div className="border-t border-white/10 px-4 py-3">
+                <SocialShareButtons title={notice.title} slug={notice.slug} />
               </div>
-              <div className="p-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#22bdf3]">
-                  {notice.category} · {formatPublicDate(notice.publishedAt ?? notice.createdAt)}
-                </p>
-                <h3 className="mt-2 line-clamp-2 text-base font-bold text-white">{notice.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{notice.excerpt || notice.body}</p>
-              </div>
-            </button>
+            </article>
           );
         })}
       </div>
@@ -164,6 +172,59 @@ function EmptyNewsPage({ title, message }: { title: string; message: string }) {
       </div>
     </section>
   );
+}
+
+function SocialShareButtons({ title, slug, variant = "compact" }: { title: string; slug: string; variant?: "compact" | "large" }) {
+  const url = getNoticeShareUrl(slug);
+  const encodedUrl = encodeURIComponent(url);
+  const encodedTitle = encodeURIComponent(title);
+  const sizeClass = variant === "large" ? "size-10" : "size-8";
+  const iconClass = variant === "large" ? "text-sm" : "text-xs";
+  const links = [
+    { label: "Facebook", icon: <span className={`${iconClass} font-black`}>f</span>, href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}` },
+    { label: "X", icon: <span className={`${iconClass} font-black`}>𝕏</span>, href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}` },
+    { label: "WhatsApp", icon: <span className={`${iconClass} font-black`}>W</span>, href: `https://wa.me/?text=${encodedTitle}%20${encodedUrl}` },
+    { label: "Telegram", icon: <Send size={variant === "large" ? 17 : 14} />, href: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}` },
+  ];
+
+  async function copyLink() {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(url);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2" aria-label="Condividi notizia">
+      <span className={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-white/10 bg-white/5 text-[#22bdf3]`}>
+        <Share2 size={variant === "large" ? 17 : 14} />
+      </span>
+      {links.map((link) => (
+        <a
+          key={link.label}
+          href={link.href}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Condividi su ${link.label}`}
+          className={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/85 transition hover:border-[#22bdf3]/60 hover:bg-[#22bdf3]/10 hover:text-[#22bdf3]`}
+        >
+          {link.icon}
+        </a>
+      ))}
+      <button
+        type="button"
+        onClick={copyLink}
+        aria-label="Copia link"
+        className={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/85 transition hover:border-[#22bdf3]/60 hover:bg-[#22bdf3]/10 hover:text-[#22bdf3]`}
+      >
+        <Copy size={variant === "large" ? 17 : 14} />
+      </button>
+    </div>
+  );
+}
+
+function getNoticeShareUrl(slug: string) {
+  const safeSlug = slug ? `#${encodeURIComponent(slug)}` : "";
+  if (typeof window === "undefined") return `https://www.tvmix.it/9notice${safeSlug}`;
+  return `${window.location.origin}/9notice${safeSlug}`;
 }
 
 function formatPublicDate(value: string) {
