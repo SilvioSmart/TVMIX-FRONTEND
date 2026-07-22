@@ -2,9 +2,12 @@
 
 import Hls from "hls.js";
 import {
+  Check,
+  Link,
   Maximize,
   Pause,
   Play,
+  Share2,
   Volume1,
   Volume2,
   VolumeX,
@@ -55,6 +58,33 @@ function requestTracking(urls: string[]) {
     } catch {
       // I tracking pixel non devono mai bloccare il player.
     }
+  }
+}
+
+function sharePayload(title: string) {
+  const url = typeof window !== "undefined" ? window.location.href : "https://www.tvmix.it";
+  const text = `Guarda ${title} su TVMIX`;
+  return {
+    url,
+    text,
+    encodedUrl: encodeURIComponent(url),
+    encodedText: encodeURIComponent(text),
+  };
+}
+
+function socialShareUrl(network: "facebook" | "x" | "whatsapp" | "telegram" | "linkedin", title: string) {
+  const payload = sharePayload(title);
+  switch (network) {
+    case "facebook":
+      return `https://www.facebook.com/sharer/sharer.php?u=${payload.encodedUrl}`;
+    case "x":
+      return `https://twitter.com/intent/tweet?url=${payload.encodedUrl}&text=${payload.encodedText}`;
+    case "whatsapp":
+      return `https://wa.me/?text=${payload.encodedText}%20${payload.encodedUrl}`;
+    case "telegram":
+      return `https://t.me/share/url?url=${payload.encodedUrl}&text=${payload.encodedText}`;
+    case "linkedin":
+      return `https://www.linkedin.com/sharing/share-offsite/?url=${payload.encodedUrl}`;
   }
 }
 
@@ -139,6 +169,8 @@ export default function VideoPlayer({
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     onEndedRef.current = onEnded;
@@ -224,6 +256,8 @@ export default function VideoPlayer({
     setQualities([]);
     setSelectedQuality(-1);
     setControlsVisible(true);
+    setShareOpen(false);
+    setCopied(false);
 
     if (Hls.isSupported() && src.includes(".m3u8")) {
       const hls = new Hls({
@@ -393,6 +427,21 @@ export default function VideoPlayer({
     await container.requestFullscreen();
   };
 
+  const openShare = (network: "facebook" | "x" | "whatsapp" | "telegram" | "linkedin") => {
+    window.open(socialShareUrl(network, title), "_blank", "noopener,noreferrer,width=720,height=540");
+  };
+
+  const copyShareLink = async () => {
+    const payload = sharePayload(title);
+    try {
+      await navigator.clipboard?.writeText(`${payload.text} ${payload.url}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -501,6 +550,45 @@ export default function VideoPlayer({
           </span>
 
           <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShareOpen((value) => !value)}
+                aria-label="Condividi media"
+                aria-expanded={shareOpen}
+                className="grid size-9 place-items-center"
+              >
+                <Share2 size={19} />
+              </button>
+              {shareOpen ? (
+                <div className="absolute bottom-11 right-0 z-40 w-[min(260px,82vw)] rounded-xl border border-white/15 bg-[#020711]/96 p-3 text-white shadow-[0_20px_70px_rgba(0,0,0,0.65)] backdrop-blur-md">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan/85">
+                    Condividi
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-black uppercase tracking-[0.08em]">
+                    <button type="button" onClick={() => openShare("facebook")} className="rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      Facebook
+                    </button>
+                    <button type="button" onClick={() => openShare("x")} className="rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      X
+                    </button>
+                    <button type="button" onClick={() => openShare("whatsapp")} className="rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      WhatsApp
+                    </button>
+                    <button type="button" onClick={() => openShare("telegram")} className="rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      Telegram
+                    </button>
+                    <button type="button" onClick={() => openShare("linkedin")} className="rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      LinkedIn
+                    </button>
+                    <button type="button" onClick={() => void copyShareLink()} className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/[0.04] px-2 py-2 text-left transition hover:border-cyan/60 hover:text-cyan">
+                      {copied ? <Check size={13} /> : <Link size={13} />}
+                      {copied ? "Copiato" : "Copia"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <select
               value={selectedQuality}
               onChange={(event) => changeQuality(Number(event.target.value))}
