@@ -26,12 +26,13 @@ export type PublicTg9Video = {
   createdAt: string;
 };
 
-export function NoticePublicPage({ notices }: { notices: PublicNoticeArticle[] }) {
+export function NoticePublicPage({ notices, initialSlug }: { notices: PublicNoticeArticle[]; initialSlug?: string }) {
   const latest = notices[0] ?? null;
-  const [selectedId, setSelectedId] = useState(latest?.id ?? "");
+  const initialNotice = notices.find((notice) => notice.slug === initialSlug) ?? latest;
+  const [selectedId, setSelectedId] = useState(initialNotice?.id ?? "");
   const selected = useMemo(
-    () => notices.find((notice) => notice.id === selectedId) ?? latest,
-    [latest, notices, selectedId],
+    () => notices.find((notice) => notice.id === selectedId) ?? initialNotice,
+    [initialNotice, notices, selectedId],
   );
 
   if (!selected) {
@@ -60,7 +61,7 @@ export function NoticePublicPage({ notices }: { notices: PublicNoticeArticle[] }
               <p>{selected.body}</p>
             </div>
             <div className="mt-5">
-              <SocialShareButtons title={selected.title} slug={selected.slug} variant="large" />
+              <SocialShareButtons title={selected.title} text={selected.excerpt || selected.body} slug={selected.slug} variant="large" />
             </div>
           </div>
           <div className="relative min-h-0 overflow-hidden bg-black">
@@ -93,7 +94,7 @@ export function NoticePublicPage({ notices }: { notices: PublicNoticeArticle[] }
                 </div>
               </button>
               <div className="border-t border-white/10 px-4 py-3">
-                <SocialShareButtons title={notice.title} slug={notice.slug} />
+                <SocialShareButtons title={notice.title} text={notice.excerpt || notice.body} slug={notice.slug} />
               </div>
             </article>
           );
@@ -174,15 +175,16 @@ function EmptyNewsPage({ title, message }: { title: string; message: string }) {
   );
 }
 
-function SocialShareButtons({ title, slug, variant = "compact" }: { title: string; slug: string; variant?: "compact" | "large" }) {
+function SocialShareButtons({ title, text, slug, variant = "compact" }: { title: string; text?: string | null; slug: string; variant?: "compact" | "large" }) {
   const url = getNoticeShareUrl(slug);
   const encodedUrl = encodeURIComponent(url);
-  const encodedTitle = encodeURIComponent(title);
+  const shareText = text ? `${title} — ${text.slice(0, 180)}` : title;
+  const encodedTitle = encodeURIComponent(shareText);
   const sizeClass = variant === "large" ? "size-10" : "size-8";
   const iconClass = variant === "large" ? "text-sm" : "text-xs";
   const links = [
     { label: "Facebook", icon: <span className={`${iconClass} font-black`}>f</span>, href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}` },
-    { label: "X", icon: <span className={`${iconClass} font-black`}>𝕏</span>, href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}` },
+    { label: "X", icon: <span className={`${iconClass} font-black`}>X</span>, href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}` },
     { label: "WhatsApp", icon: <span className={`${iconClass} font-black`}>W</span>, href: `https://wa.me/?text=${encodedTitle}%20${encodedUrl}` },
     { label: "Telegram", icon: <Send size={variant === "large" ? 17 : 14} />, href: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}` },
   ];
@@ -222,7 +224,7 @@ function SocialShareButtons({ title, slug, variant = "compact" }: { title: strin
 }
 
 function getNoticeShareUrl(slug: string) {
-  const safeSlug = slug ? `#${encodeURIComponent(slug)}` : "";
+  const safeSlug = slug ? `/${encodeURIComponent(slug)}` : "";
   if (typeof window === "undefined") return `https://www.tvmix.it/9notice${safeSlug}`;
   return `${window.location.origin}/9notice${safeSlug}`;
 }
