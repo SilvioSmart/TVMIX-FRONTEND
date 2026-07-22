@@ -117,6 +117,7 @@ export type NavigationItem = {
   label: string;
   url: string;
   external: boolean;
+  children?: NavigationItem[];
 };
 
 export type HeroSlide = {
@@ -214,6 +215,23 @@ function mapMenuItem(item: ApiMenuItem): NavigationItem {
   };
 }
 
+function mapMenuTree(items: ApiMenuItem[], placement: "HEADER" | "FOOTER" | "MOBILE"): NavigationItem[] {
+  const visible = items
+    .filter((item) => hasPlacement(item, placement))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
+  const childrenByParent = new Map<string, ApiMenuItem[]>();
+  for (const item of visible) {
+    if (!item.parentId) continue;
+    childrenByParent.set(item.parentId, [...(childrenByParent.get(item.parentId) ?? []), item]);
+  }
+  return visible
+    .filter((item) => !item.parentId)
+    .map((item) => ({
+      ...mapMenuItem(item),
+      children: (childrenByParent.get(item.id) ?? []).map(mapMenuItem),
+    }));
+}
+
 function hasPlacement(item: ApiMenuItem, placement: "HEADER" | "FOOTER" | "MOBILE"): boolean {
   return item.placements?.includes(placement) || item.placement === placement;
 }
@@ -268,8 +286,8 @@ export async function getHomeContent(): Promise<HomeContent> {
   return {
     featured,
     heroSlides: apiHeroSlides,
-    headerMenu: apiMenu.filter((item) => hasPlacement(item, "HEADER")).map(mapMenuItem),
-    footerMenu: apiMenu.filter((item) => hasPlacement(item, "FOOTER")).map(mapMenuItem),
+    headerMenu: mapMenuTree(apiMenu, "HEADER"),
+    footerMenu: mapMenuTree(apiMenu, "FOOTER"),
     modules: apiModules,
     mostWatched: apiVideos.length > 0 ? apiVideos : mostWatched,
     liveChannels: apiLiveChannels.length > 0 ? apiLiveChannels : liveChannels,

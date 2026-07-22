@@ -62,7 +62,7 @@ function ModuleShell({
   onNext?: () => void;
 }) {
   return (
-    <section id={`module-${module.id}`} className="content-auto group/rail py-6 sm:py-9">
+    <section id={`module-${module.id}`} className="content-auto group/rail scroll-mt-24 py-6 sm:py-9">
       <div className="mb-4 flex flex-col items-start gap-3 px-[3%]">
         <div>
           <p className="carousel-static-reveal text-[11px] font-bold uppercase tracking-[0.18em] text-cyan/75">
@@ -480,7 +480,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative overflow-hidden py-8 sm:py-10 lg:py-12">
+    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative scroll-mt-24 overflow-hidden py-8 sm:py-10 lg:py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
@@ -748,7 +748,7 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/epg relative overflow-hidden py-8 sm:py-10 lg:py-12">
+    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/epg relative scroll-mt-24 overflow-hidden py-8 sm:py-10 lg:py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(239,68,68,0.16),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">

@@ -1,34 +1,32 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   Eye,
   EyeOff,
-  GripVertical,
   Link2,
   MonitorSmartphone,
   Pencil,
   Plus,
   Save,
-  Search,
   Trash2,
 } from "lucide-react";
 import {
-  type DragEvent,
   type FormEvent,
-  type PointerEvent,
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
   adminRequest,
   type FrontendMenuItem,
   type FrontendMenuPlacement,
+  type HomeModule,
   type ListResponse,
 } from "./admin-api";
 import { AdminModal, ConfirmButton, ResourceState } from "./AdminResourceUI";
@@ -68,18 +66,15 @@ const blank: MenuForm = {
 
 export function AppearanceMenuConfigSection({ onNotify }: Props) {
   const [items, setItems] = useState<FrontendMenuItem[]>([]);
+  const [modules, setModules] = useState<HomeModule[]>([]);
   const [search, setSearch] = useState("");
   const [placement, setPlacement] = useState<FrontendMenuPlacement | "ALL">("ALL");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [draggedId, setDraggedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FrontendMenuItem | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const draggedIdRef = useRef<string | null>(null);
-  const originalPreviewOrderRef = useRef<string[]>([]);
-  const currentPreviewOrderRef = useRef<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,19 +98,26 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    adminRequest<ListResponse<HomeModule>>("appearance/modules?limit=100")
+      .then((result) => setModules(result.data ?? []))
+      .catch(() => setModules([]));
+  }, []);
+
   const stats = useMemo(() => {
     const active = items.filter((item) => item.enabled).length;
     const external = items.filter((item) => item.external).length;
     return { total: items.length, active, external };
   }, [items]);
 
-  const rootItems = useMemo(() => items.filter((item) => !item.parentId), [items]);
+  const rootItems = useMemo(() => sortedMenuItems(items.filter((item) => !item.parentId)), [items]);
   const childrenByParent = useMemo(() => {
     const map: Record<string, FrontendMenuItem[]> = {};
     for (const item of items) {
       if (!item.parentId) continue;
       map[item.parentId] = [...(map[item.parentId] ?? []), item];
     }
+    for (const key of Object.keys(map)) map[key] = sortedMenuItems(map[key]);
     return map;
   }, [items]);
 
@@ -126,34 +128,6 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
       ),
     [rootItems],
   );
-
-  useEffect(() => {
-    currentPreviewOrderRef.current = headerPreviewItems.map((item) => item.id);
-  }, [headerPreviewItems]);
-
-  useEffect(() => {
-    function handleMouseMove(event: MouseEvent) {
-      const sourceId = draggedIdRef.current;
-      if (!sourceId) return;
-      const target = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<HTMLElement>("[data-preview-menu-id]");
-      const targetId = target?.dataset.previewMenuId;
-      if (targetId && targetId !== sourceId) movePreviewItem(sourceId, targetId);
-    }
-
-    function handleMouseUp() {
-      if (!draggedIdRef.current) return;
-      handlePreviewPointerEnd();
-    }
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  });
 
   async function remove(id: string) {
     try {
@@ -178,58 +152,30 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
     }
   }
 
-  function handleDrop(targetId: string) {
-    if (!draggedId || draggedId === targetId) return;
-    const ids = movePreviewItem(draggedId, targetId);
-    void savePreviewOrder(ids);
-  }
-
-  function handlePreviewPointerStart(itemId: string) {
-    draggedIdRef.current = itemId;
-    originalPreviewOrderRef.current = currentPreviewOrderRef.current;
-    setDraggedId(itemId);
-  }
-
-  function handlePreviewPointerEnter(targetId: string) {
-    const sourceId = draggedIdRef.current;
-    if (!sourceId || sourceId === targetId) return;
-    movePreviewItem(sourceId, targetId);
-  }
-
-  function handlePreviewPointerEnd() {
-    const ids = currentPreviewOrderRef.current;
-    const original = originalPreviewOrderRef.current;
-    const changed = ids.join("|") !== original.join("|");
-    draggedIdRef.current = null;
-    setDraggedId(null);
-    if (changed) void savePreviewOrder(ids);
-  }
-
-  function movePreviewItem(sourceId: string, targetId: string) {
-    const current = currentPreviewOrderRef.current
-      .map((id) => headerPreviewItems.find((item) => item.id === id))
-      .filter((item): item is FrontendMenuItem => Boolean(item));
-    const sourceIndex = current.findIndex((item) => item.id === sourceId);
-    const to = current.findIndex((item) => item.id === targetId);
-    if (sourceIndex < 0 || to < 0) return currentPreviewOrderRef.current;
-    const reordered = [...current];
-    const [moved] = reordered.splice(sourceIndex, 1);
-    reordered.splice(to, 0, moved);
-    const ids = reordered.map((item) => item.id);
-    currentPreviewOrderRef.current = ids;
+  function reorderItem(item: FrontendMenuItem, direction: -1 | 1) {
+    const activePlacement = placement === "ALL" ? item.placements[0] ?? item.placement : placement;
+    const siblings = sortedMenuItems(item.parentId ? childrenByParent[item.parentId] ?? [] : rootItems)
+      .filter((candidate) => menuHasPlacement(candidate, activePlacement));
+    const index = siblings.findIndex((candidate) => candidate.id === item.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= siblings.length) return;
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(target, 0, moved);
+    const ids = reordered.map((entry) => entry.id);
     setItems((value) =>
       value.map((item) => {
         const index = ids.indexOf(item.id);
         return index >= 0 ? { ...item, sortOrder: (index + 1) * 10 } : item;
       }),
     );
-    return ids;
+    void saveOrder(activePlacement, ids);
   }
 
-  async function savePreviewOrder(ids: string[]) {
+  async function saveOrder(targetPlacement: FrontendMenuPlacement, ids: string[]) {
     setReordering(true);
     try {
-      await adminRequest("frontend-menu/reorder/HEADER", {
+      await adminRequest(`frontend-menu/reorder/${targetPlacement}`, {
         method: "PATCH",
         body: JSON.stringify({ ids }),
       });
@@ -238,16 +184,26 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Riordino non riuscito");
     } finally {
-      setDraggedId(null);
       setReordering(false);
     }
   }
+
+  const moduleAnchors = useMemo(
+    () =>
+      [...modules]
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
+        .map((module) => ({
+          label: `${module.title} · ${moduleTypeLabel(module.type)}`,
+          value: `#module-${module.id}`,
+        })),
+    [modules],
+  );
 
   return (
     <div className="space-y-5">
       <Header
         title="Aspetto · MENU'"
-        description="Configura le voci di navigazione del frontend. Puoi riordinare l'header trascinando le voci nell'anteprima."
+        description="Configura menu e sottomenù del frontend. Le voci possono puntare ai moduli della stessa pagina tramite ancore."
       >
         <button type="button" onClick={() => setEditing(null)} className="admin-primary-button">
           <Plus size={17} /> Nuova voce
@@ -312,6 +268,7 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
                 onEdit={setEditing}
                 onRemove={remove}
                 onToggle={toggle}
+                onReorder={reorderItem}
               />
             ))}
           </div>
@@ -323,9 +280,9 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
           <div className="flex items-center gap-3">
             <MonitorSmartphone className="text-[#22bdf3]" size={21} />
             <div>
-              <h3 className="admin-section-title">Anteprima navigazione drag&drop</h3>
+              <h3 className="admin-section-title">Anteprima navigazione</h3>
               <p className="mt-1 text-xs text-slate-500">
-                Trascina le voci Header per aggiornare direttamente l'ordine pubblico.
+                L'ordine si modifica dalle frecce nell'elenco. Le sottovoci sono mostrate come tendine.
               </p>
             </div>
           </div>
@@ -337,37 +294,25 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
               TV<span className="text-[#22bdf3]">MIX</span>
             </span>
             {headerPreviewItems.map((item) => (
-              <button
+              <div
                 key={item.id}
-                data-preview-menu-id={item.id}
-                type="button"
-                draggable
-                onDragStart={() => setDraggedId(item.id)}
-                onDragOver={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
-                onDrop={() => handleDrop(item.id)}
-                onDragEnd={() => setDraggedId(null)}
-                onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
-                  handlePreviewPointerStart(item.id);
-                }}
-                onMouseDown={() => handlePreviewPointerStart(item.id)}
-                onPointerEnter={() => handlePreviewPointerEnter(item.id)}
-                onPointerUp={handlePreviewPointerEnd}
-                onPointerCancel={() => {
-                  draggedIdRef.current = null;
-                  setDraggedId(null);
-                }}
-                className={[
-                  "inline-flex cursor-grab items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold text-slate-200 transition active:cursor-grabbing",
-                  draggedId === item.id
-                    ? "border-[#22bdf3] bg-[#10243a]"
-                    : "border-white/10 bg-white/[0.06] hover:border-[#22bdf3]/60",
-                ].join(" ")}
-                title="Trascina per modificare l'ordine"
+                className="group/preview relative inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-slate-200"
               >
-                <GripVertical size={13} />
                 {item.label}
                 {item.external ? <ExternalLink size={11} /> : null}
-              </button>
+                {childrenByParent[item.id]?.length ? <ChevronDown size={12} /> : null}
+                {childrenByParent[item.id]?.length ? (
+                  <div className="pointer-events-none absolute left-0 top-full z-20 min-w-44 translate-y-2 rounded-xl border border-white/10 bg-[#020711]/95 p-2 opacity-0 shadow-xl transition group-hover/preview:pointer-events-auto group-hover/preview:opacity-100">
+                    {childrenByParent[item.id]
+                      .filter((child) => child.enabled && child.placements.includes("HEADER"))
+                      .map((child) => (
+                        <span key={child.id} className="block rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/5">
+                          {child.label}
+                        </span>
+                      ))}
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         </div>
@@ -377,6 +322,7 @@ export function AppearanceMenuConfigSection({ onNotify }: Props) {
         <MenuEditor
           item={editing}
           items={items}
+          moduleAnchors={moduleAnchors}
           saving={saving}
           onClose={() => setEditing(undefined)}
           onSave={async (form) => {
@@ -418,6 +364,20 @@ function normalizeItems(items: FrontendMenuItem[]) {
   }));
 }
 
+function sortedMenuItems(items: FrontendMenuItem[]) {
+  return [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
+}
+
+function menuHasPlacement(item: FrontendMenuItem, placement: FrontendMenuPlacement) {
+  return item.placements?.includes(placement) || item.placement === placement;
+}
+
+function moduleTypeLabel(type: HomeModule["type"]) {
+  if (type === "LIVE_EPG") return "TV Live";
+  if (type === "POSTER_RAIL") return "Locandine";
+  return "Carusel slider";
+}
+
 function TreeRow({
   item,
   childrenItems,
@@ -426,6 +386,7 @@ function TreeRow({
   onEdit,
   onRemove,
   onToggle,
+  onReorder,
 }: {
   item: FrontendMenuItem;
   childrenItems: FrontendMenuItem[];
@@ -434,6 +395,7 @@ function TreeRow({
   onEdit: (item: FrontendMenuItem) => void;
   onRemove: (id: string) => void;
   onToggle: (item: FrontendMenuItem) => void;
+  onReorder: (item: FrontendMenuItem, direction: -1 | 1) => void;
 }) {
   return (
     <div>
@@ -446,6 +408,7 @@ function TreeRow({
         onEdit={onEdit}
         onRemove={onRemove}
         onToggle={onToggle}
+        onReorder={onReorder}
       />
       {expanded && childrenItems.length ? (
         <div className="border-t border-[#112236] bg-[#04101d]/70">
@@ -460,6 +423,7 @@ function TreeRow({
               onEdit={onEdit}
               onRemove={onRemove}
               onToggle={onToggle}
+              onReorder={onReorder}
             />
           ))}
         </div>
@@ -477,6 +441,7 @@ function MenuRow({
   onEdit,
   onRemove,
   onToggle,
+  onReorder,
 }: {
   item: FrontendMenuItem;
   depth: number;
@@ -486,11 +451,19 @@ function MenuRow({
   onEdit: (item: FrontendMenuItem) => void;
   onRemove: (id: string) => void;
   onToggle: (item: FrontendMenuItem) => void;
+  onReorder: (item: FrontendMenuItem, direction: -1 | 1) => void;
 }) {
   return (
     <article className="grid gap-4 px-4 py-4 lg:grid-cols-[80px_1fr_180px_110px_100px_120px] lg:items-center lg:px-5">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-300">
-        <GripVertical size={15} className="text-slate-500" />
+        <div className="flex flex-col rounded-md border border-[#203248] bg-[#071321]">
+          <button type="button" onClick={() => onReorder(item, -1)} className="grid size-5 place-items-center text-slate-400 hover:bg-white/5 hover:text-white" aria-label={`Sposta su ${item.label}`}>
+            <ArrowUp size={12} />
+          </button>
+          <button type="button" onClick={() => onReorder(item, 1)} className="grid size-5 place-items-center border-t border-[#203248] text-slate-400 hover:bg-white/5 hover:text-white" aria-label={`Sposta giù ${item.label}`}>
+            <ArrowDown size={12} />
+          </button>
+        </div>
         {item.sortOrder}
       </div>
       <div className="min-w-0" style={{ paddingLeft: depth ? 22 : 0 }}>
@@ -566,12 +539,14 @@ function Badge({ children }: { children: React.ReactNode }) {
 function MenuEditor({
   item,
   items,
+  moduleAnchors,
   saving,
   onClose,
   onSave,
 }: {
   item: FrontendMenuItem | null;
   items: FrontendMenuItem[];
+  moduleAnchors: Array<{ label: string; value: string }>;
   saving: boolean;
   onClose: () => void;
   onSave: (form: MenuForm) => Promise<void>;
@@ -616,7 +591,23 @@ function MenuEditor({
         className="grid gap-4 sm:grid-cols-2"
       >
         <Input label="Etichetta" value={form.label} onChange={(value) => field("label", value)} required />
-        <Input label="URL" value={form.url} onChange={(value) => field("url", value)} placeholder="/programmi o #live" required />
+        <label>
+          <span className="admin-label">Destinazione rapida</span>
+          <select
+            value={moduleAnchors.some((option) => option.value === form.url) ? form.url : ""}
+            onChange={(event) => {
+              if (event.target.value) field("url", event.target.value);
+            }}
+            className="admin-input mt-2"
+          >
+            <option value="">URL manuale o voce non legata a modulo</option>
+            {moduleAnchors.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-500">Esempio: TV Live porta direttamente al modulo Live nella stessa pagina.</p>
+        </label>
+        <Input label="URL" value={form.url} onChange={(value) => field("url", value)} placeholder="/programmi o #module-id" required />
         <Input label="Ordine" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} required />
         <fieldset>
           <legend className="admin-label">Area</legend>
