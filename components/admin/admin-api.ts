@@ -702,6 +702,22 @@ export async function uploadNoticeImageToR2(
   return uploadMediaAssetToR2(file, onProgress, "notice_slide");
 }
 
+export async function importNoticeImageFromUrl(
+  url: string,
+): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
+  const response = await fetch(adminUploadUrl("remote-image"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, scope: "notice_slide" }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload as ApiError).error ?? `Import immagine remota non riuscito (${response.status})`);
+  }
+  return payload as { uploadId: string; objectKey: string; publicUrl: string; originalFileName: string };
+}
+
 export async function uploadTg9VideoToR2(
   file: File,
   onProgress: (percentage: number) => void,

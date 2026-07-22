@@ -1,11 +1,12 @@
 "use client";
 
-import { Edit3, ImagePlus, Plus, RefreshCw, Trash2, Upload, Video } from "lucide-react";
+import { DownloadCloud, Edit3, ImagePlus, Plus, RefreshCw, Trash2, Upload, Video } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { NewsSubnavKey } from "./admin-data";
 import {
   adminRequest,
   formatDate,
+  importNoticeImageFromUrl,
   type ListResponse,
   type NoticeArticle,
   type Tg9Video,
@@ -177,6 +178,8 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(0);
+  const [remoteImageUrl, setRemoteImageUrl] = useState("");
+  const [remoteImporting, setRemoteImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canSave = form.category.trim() && form.title.trim() && form.body.trim() && form.imageUrl.trim();
 
@@ -195,6 +198,23 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
       setError(cause instanceof Error ? cause.message : "Upload immagine non riuscito");
     } finally {
       setUploading(0);
+    }
+  }
+
+  async function importRemoteImage() {
+    const url = remoteImageUrl.trim();
+    if (!url) return;
+    setRemoteImporting(true);
+    setError(null);
+    try {
+      const uploaded = await importNoticeImageFromUrl(url);
+      field("imageUrl", uploaded.publicUrl);
+      field("imageObjectKey", uploaded.objectKey);
+      setRemoteImageUrl("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import immagine remota non riuscito");
+    } finally {
+      setRemoteImporting(false);
     }
   }
 
@@ -246,7 +266,25 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
               <input type="file" accept="image/*" className="hidden" onChange={(event) => void uploadImage(event.target.files?.[0])} />
             </label>
           </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <input
+              type="url"
+              value={remoteImageUrl}
+              onChange={(event) => setRemoteImageUrl(event.target.value)}
+              className="admin-input"
+              placeholder="https://server-esterno.it/immagine.jpg"
+            />
+            <button
+              type="button"
+              onClick={() => void importRemoteImage()}
+              disabled={!remoteImageUrl.trim() || remoteImporting}
+              className="admin-secondary-button justify-center disabled:opacity-45"
+            >
+              <DownloadCloud size={16} /> {remoteImporting ? "Import..." : "Importa da URL"}
+            </button>
+          </div>
           {uploading ? <p className="mt-2 text-xs text-[#22bdf3]">Upload {uploading}%</p> : null}
+          {remoteImporting ? <p className="mt-2 text-xs text-[#22bdf3]">Acquisizione immagine dal server esterno...</p> : null}
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={form.published} onChange={(event) => field("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
