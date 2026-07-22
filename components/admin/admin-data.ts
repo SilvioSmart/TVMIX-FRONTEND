@@ -41,7 +41,7 @@ export type LiveSubnavItem = {
   description?: string | null;
 };
 
-export type NewsSubnavKey = "9notice" | "tg9";
+export type NewsSubnavKey = "9notice" | "tg9" | "nwscfg";
 export type NewsSubnavItem = {
   key: NewsSubnavKey;
   label: string;
@@ -77,6 +77,7 @@ export const contentMenu: ContentSubnavItem[] = [
 export const newsMenu: NewsSubnavItem[] = [
   { key: "9notice", label: "9notice", description: "Notizie editoriali con griglia e scheda principale" },
   { key: "tg9", label: "tg9", description: "Redazione, scalette e contenuti TG9" },
+  { key: "nwscfg", label: "NwsCFG", description: "Categorie, tassonomia e configurazione news" },
 ];
 
 export const navigation: NavItem[] = [

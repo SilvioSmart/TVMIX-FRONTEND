@@ -1,6 +1,6 @@
 "use client";
 
-import { DownloadCloud, Edit3, ImagePlus, Plus, RefreshCw, Trash2, Upload, Video } from "lucide-react";
+import { DownloadCloud, Edit3, ImagePlus, Plus, RefreshCw, Tag, Trash2, Upload, Video } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { NewsSubnavKey } from "./admin-data";
 import {
@@ -8,6 +8,7 @@ import {
   formatDate,
   importNoticeImageFromUrl,
   type ListResponse,
+  type NewsCategory,
   type NoticeArticle,
   type Tg9Video,
   uploadNoticeImageToR2,
@@ -23,12 +24,14 @@ type Props = {
 
 type NoticeForm = {
   category: string;
+  categoryId: string;
   title: string;
   slug: string;
   excerpt: string;
   body: string;
   imageUrl: string;
   imageObjectKey: string;
+  vastUrl: string;
   sortOrder: string;
   published: boolean;
 };
@@ -45,16 +48,19 @@ type Tg9Form = {
 };
 
 export function NewsSection({ activeSection, onNotify }: Props) {
+  if (activeSection === "nwscfg") return <NewsConfigSection onNotify={onNotify} />;
   if (activeSection === "tg9") return <Tg9AdminSection onNotify={onNotify} />;
   return <NoticeAdminSection onNotify={onNotify} />;
 }
 
 function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void }) {
   const [items, setItems] = useState<NoticeArticle[]>([]);
+  const [categories, setCategories] = useState<NewsCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<NoticeArticle | null | "new">(null);
+  const [vastEditing, setVastEditing] = useState<NoticeArticle | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,8 +68,12 @@ function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void 
     try {
       const params = new URLSearchParams({ limit: "100" });
       if (search.trim()) params.set("search", search.trim());
-      const response = await adminRequest<ListResponse<NoticeArticle>>(`news/notice?${params.toString()}`);
+      const [response, categoryResponse] = await Promise.all([
+        adminRequest<ListResponse<NoticeArticle>>(`news/notice?${params.toString()}`),
+        adminRequest<ListResponse<NewsCategory>>("news/categories?limit=100"),
+      ]);
       setItems(response.data);
+      setCategories(categoryResponse.data.filter((category) => category.enabled));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Notizie 9notice non disponibili");
     } finally {
@@ -110,6 +120,7 @@ function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void 
                 <th className="px-4 py-3">Categoria</th>
                 <th className="px-4 py-3">Ordine</th>
                 <th className="px-4 py-3">Stato</th>
+                <th className="px-4 py-3">VAST</th>
                 <th className="px-4 py-3">Inserimento</th>
                 <th className="px-4 py-3 text-right">Azioni</th>
               </tr>
@@ -132,6 +143,19 @@ function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void 
                       {item.published ? "pubblicata" : "bozza"}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setVastEditing(item)}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                        item.vastUrl
+                          ? "border-amber-300/80 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+                          : "border-slate-600 text-slate-500 hover:border-amber-300/60 hover:text-amber-200"
+                      }`}
+                    >
+                      VAST
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {formatDate(item.createdAt)}
                     <span className="block">{item.createdBy ?? "***"}</span>
@@ -152,6 +176,7 @@ function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void 
       {editing ? (
         <NoticeEditor
           item={editing === "new" ? null : editing}
+          categories={categories}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
@@ -160,19 +185,32 @@ function NoticeAdminSection({ onNotify }: { onNotify: (message: string) => void 
           }}
         />
       ) : null}
+      {vastEditing ? (
+        <NoticeVastEditor
+          item={vastEditing}
+          onClose={() => setVastEditing(null)}
+          onSaved={async () => {
+            setVastEditing(null);
+            onNotify("Configurazione VAST news salvata");
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; onClose: () => void; onSaved: () => Promise<void> }) {
+function NoticeEditor({ item, categories, onClose, onSaved }: { item: NoticeArticle | null; categories: NewsCategory[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [form, setForm] = useState<NoticeForm>({
     category: item?.category ?? "",
+    categoryId: item?.categoryId ?? "",
     title: item?.title ?? "",
     slug: item?.slug ?? "",
     excerpt: item?.excerpt ?? "",
     body: item?.body ?? "",
     imageUrl: item?.imageUrl ?? "",
     imageObjectKey: item?.imageObjectKey ?? "",
+    vastUrl: item?.vastUrl ?? "",
     sortOrder: String(item?.sortOrder ?? 0),
     published: item?.published ?? false,
   });
@@ -227,12 +265,14 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
         method: item ? "PATCH" : "POST",
         body: JSON.stringify({
           category: form.category,
+          categoryId: form.categoryId || null,
           title: form.title,
           slug: form.slug || undefined,
           excerpt: form.excerpt || null,
           body: form.body,
           imageUrl: form.imageUrl,
           imageObjectKey: form.imageObjectKey || null,
+          vastUrl: form.vastUrl || null,
           sortOrder: Number(form.sortOrder || 0),
           published: form.published,
         }),
@@ -250,13 +290,31 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
       <form className="space-y-4" onSubmit={submit}>
         {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Categoria" value={form.category} onChange={(value) => field("category", value)} required />
+          <label>
+            <span className="admin-label">Categoria</span>
+            <select
+              value={form.categoryId}
+              onChange={(event) => {
+                const category = categories.find((item) => item.id === event.target.value);
+                field("categoryId", event.target.value);
+                if (category) field("category", category.name);
+              }}
+              className="admin-input mt-2"
+            >
+              <option value="">Categoria manuale</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </label>
           <Input label="Ordine" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
         </div>
+        <Input label="Categoria manuale / fallback" value={form.category} onChange={(value) => field("category", value)} required />
         <Input label="Titolo" value={form.title} onChange={(value) => field("title", value)} required />
         <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} placeholder="automatico se vuoto" />
         <Textarea label="Prime righe / excerpt" value={form.excerpt} onChange={(value) => field("excerpt", value)} rows={3} />
         <Textarea label="Testo notizia" value={form.body} onChange={(value) => field("body", value)} rows={7} required />
+        <Input label="VAST URL notizia" type="url" value={form.vastUrl} onChange={(value) => field("vastUrl", value)} placeholder="https://..." />
         <div>
           <span className="admin-label">Immagine notizia</span>
           <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -291,6 +349,210 @@ function NoticeEditor({ item, onClose, onSaved }: { item: NoticeArticle | null; 
           Pubblica su /9notice
         </label>
         <ModalButtons onClose={onClose} saving={saving} disabled={!canSave} />
+      </form>
+    </AdminModal>
+  );
+}
+
+function NoticeVastEditor({ item, onClose, onSaved }: { item: NoticeArticle; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [enabled, setEnabled] = useState(Boolean(item.vastUrl));
+  const [vastUrl, setVastUrl] = useState(item.vastUrl ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(`news/notice/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ vastUrl: enabled && vastUrl.trim() ? vastUrl.trim() : null }),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio VAST non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AdminModal title={`VAST config · ${item.title}`} onClose={onClose}>
+      <div className="space-y-4">
+        {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <p className="text-sm leading-6 text-slate-400">
+          Configura il link VAST associato alla notizia. Il pulsante VAST resta evidenziato quando il link è attivo.
+        </p>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="size-4 accent-[#22bdf3]" />
+          Abilita annuncio VAST
+        </label>
+        <Input label="VAST URL" type="url" value={vastUrl} onChange={setVastUrl} placeholder="https://..." />
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="admin-secondary-button">Annulla</button>
+          <button type="button" onClick={() => void save()} disabled={saving || (enabled && !vastUrl.trim())} className="admin-primary-button">
+            {saving ? "Salvataggio..." : "Salva VAST"}
+          </button>
+        </div>
+      </div>
+    </AdminModal>
+  );
+}
+
+function NewsConfigSection({ onNotify }: { onNotify: (message: string) => void }) {
+  const [items, setItems] = useState<NewsCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<NewsCategory | null | "new">(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (search.trim()) params.set("search", search.trim());
+      const response = await adminRequest<ListResponse<NewsCategory>>(`news/categories?${params.toString()}`);
+      setItems(response.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Categorie news non disponibili");
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function remove(item: NewsCategory) {
+    await adminRequest(`news/categories/${item.id}`, { method: "DELETE" });
+    onNotify("Categoria news eliminata");
+    await load();
+  }
+
+  return (
+    <div className="space-y-6">
+      <Header title="News · NwsCFG" description="Crea e gestisci le categorie utilizzate dalle notizie 9notice.">
+        <button type="button" onClick={() => setEditing("new")} className="admin-primary-button">
+          <Plus size={16} /> Nuova categoria
+        </button>
+      </Header>
+
+      <section className="admin-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <SearchBox value={search} onChange={setSearch} placeholder="Cerca categoria news..." />
+          <button type="button" onClick={() => void load()} className="admin-secondary-button lg:ml-auto">
+            <RefreshCw size={16} /> Aggiorna
+          </button>
+        </div>
+      </section>
+
+      <ResourceState loading={loading} error={error} empty={!items.length ? "Nessuna categoria news creata." : undefined} />
+
+      {!loading && !error && items.length ? (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <article key={item.id} className="admin-panel p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-10 place-items-center rounded-xl border border-white/10" style={{ color: item.color ?? "#22bdf3" }}>
+                    <Tag size={18} />
+                  </span>
+                  <div>
+                    <p className="font-semibold text-slate-100">{item.name}</p>
+                    <p className="font-mono text-[11px] text-[#22bdf3]">/{item.slug}</p>
+                  </div>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.enabled ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>
+                  {item.enabled ? "attiva" : "off"}
+                </span>
+              </div>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-500">{item.description ?? "Nessuna descrizione"}</p>
+              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                <span>Ordine {item.sortOrder}</span>
+                <span>{item._count?.notices ?? 0} notizie</span>
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" className="admin-icon-button" onClick={() => setEditing(item)}><Edit3 size={16} /></button>
+                <ConfirmButton label={`Elimina ${item.name}`} onConfirm={() => void remove(item)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
+      {editing ? (
+        <NewsCategoryEditor
+          item={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            onNotify(editing === "new" ? "Categoria news creata" : "Categoria news aggiornata");
+            await load();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function NewsCategoryEditor({ item, onClose, onSaved }: { item: NewsCategory | null; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    slug: item?.slug ?? "",
+    description: item?.description ?? "",
+    color: item?.color ?? "#22bdf3",
+    sortOrder: String(item?.sortOrder ?? 0),
+    enabled: item?.enabled ?? true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function field<K extends keyof typeof form>(key: K, value: typeof form[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(item ? `news/categories/${item.id}` : "news/categories", {
+        method: item ? "PATCH" : "POST",
+        body: JSON.stringify({
+          name: form.name,
+          slug: form.slug || undefined,
+          description: form.description || null,
+          color: form.color || null,
+          sortOrder: Number(form.sortOrder || 0),
+          enabled: form.enabled,
+        }),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio categoria news non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AdminModal title={item ? "Modifica categoria news" : "Nuova categoria news"} onClose={onClose}>
+      <form className="space-y-4" onSubmit={submit}>
+        {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <Input label="Nome categoria" value={form.name} onChange={(value) => field("name", value)} required />
+        <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} placeholder="automatico se vuoto" />
+        <Textarea label="Descrizione" value={form.description} onChange={(value) => field("description", value)} rows={4} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="Colore" type="color" value={form.color} onChange={(value) => field("color", value)} />
+          <Input label="Ordine" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={form.enabled} onChange={(event) => field("enabled", event.target.checked)} className="size-4 accent-[#22bdf3]" />
+          Categoria attiva
+        </label>
+        <ModalButtons onClose={onClose} saving={saving} disabled={!form.name.trim()} />
       </form>
     </AdminModal>
   );

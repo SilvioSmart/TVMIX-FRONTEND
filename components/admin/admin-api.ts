@@ -96,18 +96,34 @@ export type CatalogAvailableEpisode = {
 export type NoticeArticle = {
   id: string;
   category: string;
+  categoryId: string | null;
   title: string;
   slug: string;
   excerpt: string | null;
   body: string;
   imageUrl: string;
   imageObjectKey: string | null;
+  vastUrl: string | null;
   sortOrder: number;
   published: boolean;
   publishedAt: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  newsCategory?: NewsCategory | null;
+};
+
+export type NewsCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string | null;
+  sortOrder: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { notices: number };
 };
 
 export type Tg9Video = {
