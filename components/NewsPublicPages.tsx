@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, ChevronLeft, ChevronRight, Copy, Play, Send, Share2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 export type PublicNoticeArticle = {
   id: string;
@@ -106,6 +106,7 @@ export function NoticePublicPage({ notices, initialSlug }: { notices: PublicNoti
 
 export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
   const [index, setIndex] = useState(0);
+  const archiveRef = useRef<HTMLDivElement | null>(null);
   const current = videos[index] ?? null;
 
   if (!current) {
@@ -116,49 +117,68 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
     setIndex((value) => (value + direction + videos.length) % videos.length);
   }
 
+  function scrollArchive(direction: -1 | 1) {
+    archiveRef.current?.scrollBy({
+      left: direction * 620,
+      behavior: "smooth",
+    });
+  }
+
   return (
-    <section className="mx-auto max-w-[1500px] px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto max-w-[1500px] px-4 pb-10 pt-28 text-white sm:px-6 sm:pt-32 lg:px-8">
+      <div className="mb-7">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#22bdf3]">TVMIX News</p>
           <h1 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">TG9</h1>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => move(-1)} className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 hover:border-[#22bdf3]/50"><ChevronLeft size={20} /></button>
-          <button type="button" onClick={() => move(1)} className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 hover:border-[#22bdf3]/50"><ChevronRight size={20} /></button>
-        </div>
       </div>
 
-      <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)]">
-        <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
-          <video src={current.videoUrl} poster={current.posterUrl ?? undefined} controls className="aspect-video h-full w-full bg-black object-contain" />
-          <div className="flex flex-col justify-center p-6 sm:p-9">
+      <article className="h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)] sm:h-[620px] lg:h-[520px]">
+        <div className="grid h-full lg:grid-cols-[1.12fr_0.88fr]">
+          <div className="flex min-h-0 items-center bg-black">
+            <video src={current.videoUrl} poster={current.posterUrl ?? undefined} controls className="aspect-video h-auto max-h-full w-full bg-black object-contain" />
+          </div>
+          <div className="flex min-h-0 flex-col justify-center p-6 sm:p-9">
             <span className="mb-4 inline-flex w-max items-center gap-2 rounded-full border border-[#22bdf3]/35 bg-[#22bdf3]/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#22bdf3]">
               <Play size={13} /> Video {index + 1}/{videos.length}
             </span>
             <h2 className="text-3xl font-black leading-tight tracking-[-0.055em]">{current.title}</h2>
-            <p className="mt-4 text-sm leading-7 text-slate-400">{current.description ?? "Servizio video TG9"}</p>
+            <div className="mt-4 max-h-[220px] overflow-y-auto pr-2 text-sm leading-7 text-slate-400 [scrollbar-color:#22bdf3_rgba(255,255,255,0.08)]">
+              <p>{current.description ?? "Servizio video TG9"}</p>
+            </div>
           </div>
         </div>
       </article>
 
-      <div className="mt-7 flex gap-4 overflow-x-auto pb-3">
-        {videos.map((video, videoIndex) => (
-          <button
-            key={video.id}
-            type="button"
-            onClick={() => setIndex(videoIndex)}
-            className={`w-[260px] shrink-0 overflow-hidden rounded-2xl border bg-[#071321] text-left ${videoIndex === index ? "border-[#22bdf3]" : "border-white/10"}`}
-          >
-            <div className="aspect-video bg-black">
-              <video src={video.videoUrl} poster={video.posterUrl ?? undefined} muted preload="metadata" className="h-full w-full object-cover" />
-            </div>
-            <div className="p-3">
-              <p className="line-clamp-2 text-sm font-bold text-white">{video.title}</p>
-            </div>
-          </button>
-        ))}
-      </div>
+      <section className="mt-7 rounded-[24px] border border-white/10 bg-[#06111d]/55 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#22bdf3]">Archivio TG9</p>
+            <p className="mt-1 text-sm text-slate-500">Sfoglia i video disponibili senza spostare il player principale.</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={() => scrollArchive(-1)} className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 hover:border-[#22bdf3]/50" aria-label="Scorri archivio indietro"><ChevronLeft size={20} /></button>
+            <button type="button" onClick={() => scrollArchive(1)} className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 hover:border-[#22bdf3]/50" aria-label="Scorri archivio avanti"><ChevronRight size={20} /></button>
+          </div>
+        </div>
+        <div ref={archiveRef} className="flex gap-4 overflow-x-auto scroll-smooth pb-3 [scrollbar-color:#22bdf3_rgba(255,255,255,0.08)]">
+          {videos.map((video, videoIndex) => (
+            <button
+              key={video.id}
+              type="button"
+              onClick={() => setIndex(videoIndex)}
+              className={`w-[260px] shrink-0 overflow-hidden rounded-2xl border bg-[#071321] text-left transition hover:border-[#22bdf3]/50 ${videoIndex === index ? "border-[#22bdf3]" : "border-white/10"}`}
+            >
+              <div className="aspect-video bg-black">
+                <video src={video.videoUrl} poster={video.posterUrl ?? undefined} muted preload="metadata" className="h-full w-full object-cover" />
+              </div>
+              <div className="p-3">
+                <p className="line-clamp-2 text-sm font-bold text-white">{video.title}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }
