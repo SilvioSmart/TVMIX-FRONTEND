@@ -37,6 +37,8 @@ type VastAd = {
   impressionUrls: string[];
   startTrackingUrls: string[];
   completeTrackingUrls: string[];
+  clickThroughUrl: string | null;
+  clickTrackingUrls: string[];
 };
 
 const formatTime = (value: number) => {
@@ -122,18 +124,36 @@ async function fetchVastDocument(vastUrl: string) {
 async function resolveVastAd(vastUrl: string, depth = 0): Promise<VastAd | null> {
   if (depth > 3) return null;
   const document = await fetchVastDocument(vastUrl);
+  const impressionUrls = Array.from(document.querySelectorAll("Impression")).map((node) => xmlText(node));
+  const trackingEvents = Array.from(document.querySelectorAll("Tracking"));
+  const startTrackingUrls = trackingEvents.filter((node) => node.getAttribute("event") === "start").map((node) => xmlText(node));
+  const completeTrackingUrls = trackingEvents.filter((node) => node.getAttribute("event") === "complete").map((node) => xmlText(node));
+  const clickThroughUrl = xmlText(document.querySelector("VideoClicks ClickThrough")) || null;
+  const clickTrackingUrls = Array.from(document.querySelectorAll("VideoClicks ClickTracking")).map((node) => xmlText(node));
   const wrapperUrl = xmlText(document.querySelector("Wrapper VASTAdTagURI"));
-  if (wrapperUrl) return resolveVastAd(wrapperUrl, depth + 1);
+  if (wrapperUrl) {
+    const wrappedAd = await resolveVastAd(wrapperUrl, depth + 1);
+    if (!wrappedAd) return null;
+    return {
+      ...wrappedAd,
+      impressionUrls: [...impressionUrls, ...wrappedAd.impressionUrls],
+      startTrackingUrls: [...startTrackingUrls, ...wrappedAd.startTrackingUrls],
+      completeTrackingUrls: [...completeTrackingUrls, ...wrappedAd.completeTrackingUrls],
+      clickThroughUrl: wrappedAd.clickThroughUrl ?? clickThroughUrl,
+      clickTrackingUrls: [...clickTrackingUrls, ...wrappedAd.clickTrackingUrls],
+    };
+  }
 
   const mediaUrl = bestVastMediaFile(document);
   if (!mediaUrl) return null;
 
-  const trackingEvents = Array.from(document.querySelectorAll("Tracking"));
   return {
     mediaUrl,
-    impressionUrls: Array.from(document.querySelectorAll("Impression")).map((node) => xmlText(node)),
-    startTrackingUrls: trackingEvents.filter((node) => node.getAttribute("event") === "start").map((node) => xmlText(node)),
-    completeTrackingUrls: trackingEvents.filter((node) => node.getAttribute("event") === "complete").map((node) => xmlText(node)),
+    impressionUrls,
+    startTrackingUrls,
+    completeTrackingUrls,
+    clickThroughUrl,
+    clickTrackingUrls,
   };
 }
 
@@ -159,7 +179,9 @@ export default function VideoPlayer({
   const playerIdRef = useRef(`tvmix-player-${Math.random().toString(36).slice(2)}`);
   const vastPlayedRef = useRef<string | null>(null);
   const activeAdRef = useRef<VastAd | null>(null);
+  const adClickTrackedRef = useRef(false);
   const [adActive, setAdActive] = useState(false);
+  const [adClickThroughUrl, setAdClickThroughUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [previousVolume, setPreviousVolume] = useState(1);
@@ -196,7 +218,9 @@ export default function VideoPlayer({
     adHlsRef.current?.destroy();
     adHlsRef.current = null;
     activeAdRef.current = null;
+    adClickTrackedRef.current = false;
     setAdActive(false);
+    setAdClickThroughUrl(null);
   }, []);
 
   const playAd = useCallback(async (ad: VastAd) => {
@@ -208,7 +232,9 @@ export default function VideoPlayer({
     adHlsRef.current?.destroy();
     adHlsRef.current = null;
     activeAdRef.current = ad;
+    adClickTrackedRef.current = false;
     setAdActive(true);
+    setAdClickThroughUrl(ad.clickThroughUrl);
 
     if (Hls.isSupported() && ad.mediaUrl.includes(".m3u8")) {
       const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
@@ -226,6 +252,7 @@ export default function VideoPlayer({
 
     requestTracking([...ad.impressionUrls, ...ad.startTrackingUrls]);
     await adVideo.play();
+    setPlaying(true);
     window.dispatchEvent(new CustomEvent("tvmix:video-play", { detail: { id: playerIdRef.current } }));
     return true;
   }, []);
@@ -388,6 +415,16 @@ export default function VideoPlayer({
     else video.pause();
   }, [adActive, playVideo]);
 
+  const openAdLanding = useCallback(() => {
+    const ad = activeAdRef.current;
+    if (!ad?.clickThroughUrl) return;
+    if (!adClickTrackedRef.current) {
+      adClickTrackedRef.current = true;
+      requestTracking(ad.clickTrackingUrls);
+    }
+    window.open(ad.clickThroughUrl, "_blank", "noopener,noreferrer");
+  }, []);
+
   const setVideoVolume = (nextVolume: number) => {
     const video = videoRef.current;
     const adVideo = adVideoRef.current;
@@ -466,6 +503,17 @@ export default function VideoPlayer({
           Pubblicità
         </span>
       ) : null}
+      {adActive && adClickThroughUrl ? (
+        <button
+          type="button"
+          onClick={openAdLanding}
+          aria-label="Apri landing page annuncio"
+          title="Apri landing page annuncio"
+          className="absolute inset-0 z-[21] cursor-pointer bg-transparent"
+        >
+          <span className="sr-only">Apri landing page annuncio</span>
+        </button>
+      ) : null}
       <video
         ref={videoRef}
         poster={poster}
@@ -489,7 +537,7 @@ export default function VideoPlayer({
       ) : null}
 
       <div
-        className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/75 to-transparent px-3 pb-3 pt-16 transition duration-300 sm:px-5 sm:pb-5 ${
+        className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black via-black/75 to-transparent px-3 pb-3 pt-16 transition duration-300 sm:px-5 sm:pb-5 ${
           playing && controlsVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         }`}
       >
