@@ -217,6 +217,10 @@ export type AppearanceBrandSettings = {
   logoObjectKey: string | null;
   faviconUrl: string | null;
   faviconObjectKey: string | null;
+  defaultThumbnailUrl: string | null;
+  defaultThumbnailObjectKey: string | null;
+  defaultSignalUrl: string | null;
+  defaultSignalObjectKey: string | null;
   accentColor: string;
   createdAt: string;
   updatedAt: string;
@@ -225,7 +229,16 @@ export type AppearanceBrandSettings = {
 export type AppearanceBrandInput = Partial<
   Pick<
     AppearanceBrandSettings,
-    "platformName" | "logoUrl" | "logoObjectKey" | "faviconUrl" | "faviconObjectKey" | "accentColor"
+    | "platformName"
+    | "logoUrl"
+    | "logoObjectKey"
+    | "faviconUrl"
+    | "faviconObjectKey"
+    | "defaultThumbnailUrl"
+    | "defaultThumbnailObjectKey"
+    | "defaultSignalUrl"
+    | "defaultSignalObjectKey"
+    | "accentColor"
   >
 >;
 
@@ -688,7 +701,16 @@ export async function uploadFileToR2(
 export async function uploadMediaAssetToR2(
   file: File,
   onProgress: (percentage: number) => void,
-  scope: "slide" | "thumbnail" | "locandina" | "notice_slide" | "tg9_video" | "brand_logo" | "brand_favicon",
+  scope:
+    | "slide"
+    | "thumbnail"
+    | "locandina"
+    | "notice_slide"
+    | "tg9_video"
+    | "brand_logo"
+    | "brand_favicon"
+    | "brand_default_thumbnail"
+    | "brand_default_signal",
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -753,9 +775,17 @@ export async function uploadNoticeImageToR2(
 export async function uploadBrandAssetToR2(
   file: File,
   onProgress: (percentage: number) => void,
-  kind: "logo" | "favicon",
+  kind: "logo" | "favicon" | "default-thumbnail" | "default-signal",
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
-  return uploadMediaAssetToR2(file, onProgress, kind === "logo" ? "brand_logo" : "brand_favicon");
+  const scope =
+    kind === "logo"
+      ? "brand_logo"
+      : kind === "favicon"
+        ? "brand_favicon"
+        : kind === "default-thumbnail"
+          ? "brand_default_thumbnail"
+          : "brand_default_signal";
+  return uploadMediaAssetToR2(file, onProgress, scope);
 }
 
 export async function importNoticeImageFromUrl(

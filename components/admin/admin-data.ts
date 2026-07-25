@@ -56,7 +56,7 @@ export type NavItem = {
 };
 
 export const fallbackAppearanceMenu: AppearanceSubnavItem[] = [
-  { key: "logo-name", label: "LOGO/NAME", description: "Identità visiva, logo e nome piattaforma" },
+  { key: "logo-name", label: "LOGO/NAME/COLOR", description: "Identità visiva, logo, nome piattaforma e colore sito" },
   { key: "menu", label: "MENU'", description: "Navigazione e voci menu del frontend" },
   { key: "carousel", label: "CAROUSELL", description: "Carousel, hero e contenuti in evidenza" },
   { key: "modules", label: "MODULI", description: "Blocchi homepage e sezioni editoriali" },

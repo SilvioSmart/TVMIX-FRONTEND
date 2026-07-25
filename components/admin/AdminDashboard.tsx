@@ -59,7 +59,7 @@ export function AdminDashboard({ user }: { user: AdminUser }) {
 
   const activeLabel = availableNavigation.find((item) => item.id === active)?.label ?? "Panoramica";
   const activeAppearanceLabel =
-    appearanceMenu.find((item) => item.key === activeAppearance)?.label ?? "LOGO/NAME";
+    appearanceMenu.find((item) => item.key === activeAppearance)?.label ?? "LOGO/NAME/COLOR";
   const initials = (user.name ?? user.email)
     .split(/[ .@_-]+/)
     .slice(0, 2)

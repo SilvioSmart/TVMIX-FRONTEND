@@ -78,8 +78,8 @@ const appearanceCopy: Record<
   }
 > = {
   "logo-name": {
-    title: "LOGO/NAME",
-    description: "Configura nome piattaforma, logo principale, favicon e varianti brand.",
+    title: "LOGO/NAME/COLOR",
+    description: "Configura nome piattaforma, logo principale, favicon, grafiche default e colore brand.",
     icon: Palette,
     fields: ["Nome piattaforma", "Logo desktop", "Logo mobile", "Favicon"],
     action: "Identità visiva salvata",
@@ -236,6 +236,10 @@ const defaultBrand: AppearanceBrandSettings = {
   logoObjectKey: null,
   faviconUrl: null,
   faviconObjectKey: null,
+  defaultThumbnailUrl: null,
+  defaultThumbnailObjectKey: null,
+  defaultSignalUrl: null,
+  defaultSignalObjectKey: null,
   accentColor: "#16b9f4",
   createdAt: "",
   updatedAt: "",
@@ -247,6 +251,8 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
   const [saving, setSaving] = useState(false);
   const [logoProgress, setLogoProgress] = useState(0);
   const [faviconProgress, setFaviconProgress] = useState(0);
+  const [thumbnailProgress, setThumbnailProgress] = useState(0);
+  const [signalProgress, setSignalProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -271,10 +277,17 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
     setBrand((current) => ({ ...current, [key]: value }));
   };
 
-  async function uploadBrandFile(kind: "logo" | "favicon", file?: File | null) {
+  async function uploadBrandFile(kind: "logo" | "favicon" | "default-thumbnail" | "default-signal", file?: File | null) {
     if (!file) return;
     setError(null);
-    const setProgress = kind === "logo" ? setLogoProgress : setFaviconProgress;
+    const setProgress =
+      kind === "logo"
+        ? setLogoProgress
+        : kind === "favicon"
+          ? setFaviconProgress
+          : kind === "default-thumbnail"
+            ? setThumbnailProgress
+            : setSignalProgress;
     setProgress(1);
     try {
       const uploaded = await uploadBrandAssetToR2(file, setProgress, kind);
@@ -282,14 +295,32 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
         ...current,
         ...(kind === "logo"
           ? { logoUrl: uploaded.publicUrl, logoObjectKey: uploaded.objectKey }
-          : { faviconUrl: uploaded.publicUrl, faviconObjectKey: uploaded.objectKey }),
+          : kind === "favicon"
+            ? { faviconUrl: uploaded.publicUrl, faviconObjectKey: uploaded.objectKey }
+            : kind === "default-thumbnail"
+              ? { defaultThumbnailUrl: uploaded.publicUrl, defaultThumbnailObjectKey: uploaded.objectKey }
+              : { defaultSignalUrl: uploaded.publicUrl, defaultSignalObjectKey: uploaded.objectKey }),
       }));
-      onNotify(`${kind === "logo" ? "Logo" : "Favicon"} caricato su R2`);
+      onNotify(`${brandAssetLabel(kind)} caricato su R2`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload non riuscito");
     } finally {
       window.setTimeout(() => setProgress(0), 900);
     }
+  }
+
+  function clearBrandAsset(kind: "logo" | "favicon" | "default-thumbnail" | "default-signal") {
+    setBrand((current) => ({
+      ...current,
+      ...(kind === "logo"
+        ? { logoUrl: null, logoObjectKey: null }
+        : kind === "favicon"
+          ? { faviconUrl: null, faviconObjectKey: null }
+          : kind === "default-thumbnail"
+            ? { defaultThumbnailUrl: null, defaultThumbnailObjectKey: null }
+            : { defaultSignalUrl: null, defaultSignalObjectKey: null }),
+    }));
+    onNotify(`${brandAssetLabel(kind)} eliminato dalla configurazione`);
   }
 
   async function saveBrand() {
@@ -302,6 +333,10 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
         logoObjectKey: brand.logoObjectKey,
         faviconUrl: brand.faviconUrl,
         faviconObjectKey: brand.faviconObjectKey,
+        defaultThumbnailUrl: brand.defaultThumbnailUrl,
+        defaultThumbnailObjectKey: brand.defaultThumbnailObjectKey,
+        defaultSignalUrl: brand.defaultSignalUrl,
+        defaultSignalObjectKey: brand.defaultSignalObjectKey,
         accentColor: brand.accentColor,
       });
       setBrand(saved);
@@ -323,7 +358,7 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
       <section className="admin-panel overflow-hidden">
         <div className="border-b border-[#203248] px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-lg bg-[#16b9f4]/10 text-[#22bdf3]">
+            <span className="grid size-10 place-items-center rounded-lg" style={{ backgroundColor: `${brand.accentColor}1f`, color: brand.accentColor }}>
               <Palette size={19} />
             </span>
             <div>
@@ -353,6 +388,8 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
                 hint="PNG, JPG, WebP o GIF"
                 value={brand.logoUrl}
                 progress={logoProgress}
+                accentColor={brand.accentColor}
+                onClear={brand.logoUrl ? () => clearBrandAsset("logo") : undefined}
                 onFile={(file) => void uploadBrandFile("logo", file)}
               />
               <AssetUploadBox
@@ -360,9 +397,42 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
                 hint="Consigliato formato quadrato"
                 value={brand.faviconUrl}
                 progress={faviconProgress}
+                accentColor={brand.accentColor}
                 compact
+                onClear={brand.faviconUrl ? () => clearBrandAsset("favicon") : undefined}
                 onFile={(file) => void uploadBrandFile("favicon", file)}
               />
+            </div>
+
+            <div>
+              <div className="mb-3">
+                <h4 className="text-sm font-black uppercase tracking-[0.14em]" style={{ color: brand.accentColor }}>
+                  Grafiche di default
+                </h4>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Carica le immagini fallback usate quando non esiste una miniatura o quando il segnale non è disponibile.
+                </p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <AssetUploadBox
+                  label="Assenza miniatura"
+                  hint="Fallback per contenuti senza thumbnail"
+                  value={brand.defaultThumbnailUrl}
+                  progress={thumbnailProgress}
+                  accentColor={brand.accentColor}
+                  onClear={brand.defaultThumbnailUrl ? () => clearBrandAsset("default-thumbnail") : undefined}
+                  onFile={(file) => void uploadBrandFile("default-thumbnail", file)}
+                />
+                <AssetUploadBox
+                  label="Assenza segnale"
+                  hint="Fallback per streaming offline/non disponibile"
+                  value={brand.defaultSignalUrl}
+                  progress={signalProgress}
+                  accentColor={brand.accentColor}
+                  onClear={brand.defaultSignalUrl ? () => clearBrandAsset("default-signal") : undefined}
+                  onFile={(file) => void uploadBrandFile("default-signal", file)}
+                />
+              </div>
             </div>
 
             <div>
@@ -390,8 +460,14 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
               </div>
             </div>
 
-            <button type="button" onClick={() => void saveBrand()} disabled={saving || loading} className="admin-primary-button w-full">
-              <Save size={17} /> {saving ? "Salvataggio..." : "Salva logo/name"}
+            <button
+              type="button"
+              onClick={() => void saveBrand()}
+              disabled={saving || loading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-black transition disabled:cursor-not-allowed disabled:opacity-55"
+              style={{ backgroundColor: brand.accentColor }}
+            >
+              <Save size={17} /> {saving ? "Salvataggio..." : "Salva logo/name/color"}
             </button>
           </div>
 
@@ -402,7 +478,7 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
             <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#030b14]">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <BrandPreviewImage url={brand.logoUrl} name={brand.platformName} />
+                  <BrandPreviewImage url={brand.logoUrl} name={brand.platformName} accentColor={brand.accentColor} />
                   <div className="min-w-0">
                     <p className="truncate text-lg font-black tracking-[-0.04em] text-white">{brand.platformName || "TVMIX"}</p>
                     <p className="text-xs text-slate-500">Navbar / login / admin</p>
@@ -413,8 +489,8 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
               <div className="p-4">
                 <div className="relative aspect-video overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_20%_20%,rgba(34,189,243,0.2),transparent_35%),#06111d]">
                   <div className="absolute left-4 top-4 flex items-center gap-2">
-                    <BrandPreviewImage url={brand.faviconUrl} name="Favicon" small />
-                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/65">Favicon</span>
+                    <BrandPreviewImage url={brand.faviconUrl} name="Favicon" accentColor={brand.accentColor} small />
+                    <span className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: brand.accentColor }}>Favicon</span>
                   </div>
                   <div className="absolute bottom-4 left-4 right-4">
                     <p className="text-2xl font-black uppercase tracking-[-0.06em] text-white">{brand.platformName || "TVMIX"}</p>
@@ -426,6 +502,10 @@ function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (m
                       Guarda ora
                     </button>
                   </div>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <DefaultGraphicPreview label="Assenza miniatura" url={brand.defaultThumbnailUrl} accentColor={brand.accentColor} />
+                  <DefaultGraphicPreview label="Assenza segnale" url={brand.defaultSignalUrl} accentColor={brand.accentColor} />
                 </div>
               </div>
             </div>
@@ -444,51 +524,99 @@ function AssetUploadBox({
   hint,
   value,
   progress,
+  accentColor,
   compact,
+  onClear,
   onFile,
 }: {
   label: string;
   hint: string;
   value: string | null;
   progress: number;
+  accentColor: string;
   compact?: boolean;
+  onClear?: () => void;
   onFile: (file?: File | null) => void;
 }) {
   return (
     <div>
-      <span className="admin-label">{label}</span>
-      <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#26394d] bg-[#071321] p-4 text-center transition hover:border-[#22bdf3]/60">
+      <div className="flex items-center justify-between gap-2">
+        <span className="admin-label">{label}</span>
+        {onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition hover:bg-white/5"
+            style={{ borderColor: `${accentColor}88`, color: accentColor }}
+          >
+            Elimina
+          </button>
+        ) : null}
+      </div>
+      <label
+        className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-[#071321] p-4 text-center transition hover:bg-white/[0.025]"
+        style={{ borderColor: `${accentColor}55` }}
+      >
         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => onFile(event.target.files?.[0])} />
         <div className={compact ? "size-16" : "h-20 w-40"}>
           {value ? (
             <img src={value} alt={label} className="h-full w-full rounded-lg object-contain" />
           ) : (
-            <div className="grid h-full w-full place-items-center rounded-lg bg-white/[0.04] text-slate-500">
+            <div className="grid h-full w-full place-items-center rounded-lg bg-white/[0.04]" style={{ color: accentColor }}>
               <Upload size={22} />
             </div>
           )}
         </div>
-        <span className="mt-3 text-sm font-bold text-white">Carica {label.toLowerCase()}</span>
+        <span className="mt-3 text-sm font-bold" style={{ color: value ? "white" : accentColor }}>Carica {label.toLowerCase()}</span>
         <span className="mt-1 text-xs text-slate-500">{hint}</span>
       </label>
       {progress > 0 ? (
         <div className="mt-2 overflow-hidden rounded-full bg-white/10">
-          <div className="h-1.5 bg-[#22bdf3] transition-[width]" style={{ width: `${progress}%` }} />
+          <div className="h-1.5 transition-[width]" style={{ width: `${progress}%`, backgroundColor: accentColor }} />
         </div>
       ) : null}
     </div>
   );
 }
 
-function BrandPreviewImage({ url, name, small }: { url: string | null; name: string; small?: boolean }) {
+function BrandPreviewImage({ url, name, accentColor, small }: { url: string | null; name: string; accentColor: string; small?: boolean }) {
   if (url) {
     return <img src={url} alt={name} className={`${small ? "size-8" : "size-11"} shrink-0 rounded-lg object-contain`} />;
   }
   return (
-    <span className={`${small ? "size-8 text-xs" : "size-11 text-sm"} grid shrink-0 place-items-center rounded-lg bg-[#16b9f4]/15 font-black text-[#22bdf3]`}>
+    <span
+      className={`${small ? "size-8 text-xs" : "size-11 text-sm"} grid shrink-0 place-items-center rounded-lg font-black`}
+      style={{ backgroundColor: `${accentColor}22`, color: accentColor }}
+    >
       {(name || "T").slice(0, 1).toUpperCase()}
     </span>
   );
+}
+
+function DefaultGraphicPreview({ label, url, accentColor }: { label: string; url: string | null; accentColor: string }) {
+  return (
+    <div className="overflow-hidden rounded-lg border bg-black/20" style={{ borderColor: `${accentColor}44` }}>
+      <div className="relative aspect-video bg-white/[0.035]">
+        {url ? (
+          <img src={url} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center">
+            <Upload size={24} style={{ color: accentColor }} />
+          </div>
+        )}
+      </div>
+      <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: accentColor }}>
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function brandAssetLabel(kind: "logo" | "favicon" | "default-thumbnail" | "default-signal") {
+  if (kind === "logo") return "Logo";
+  if (kind === "favicon") return "Favicon";
+  if (kind === "default-thumbnail") return "Grafica assenza miniatura";
+  return "Grafica assenza segnale";
 }
 
 function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) {
