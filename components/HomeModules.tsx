@@ -714,6 +714,7 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
   const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
   const [previewMuted, setPreviewMuted] = useState(true);
+  const [bodyAnchorTop, setBodyAnchorTop] = useState(80);
   const quality = activeVideoQuality(item);
   const subtitlesActive = hasSubtitles(item);
   const audioDescriptionActive = hasAudioDescription(item);
@@ -725,12 +726,19 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
     setPreviewActive(Boolean(item.hlsUrl));
   }, [item.hlsUrl, item.id]);
 
+  useEffect(() => {
+    setBodyAnchorTop(Math.max(80, window.scrollY + 80));
+  }, [item.id]);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[999]" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
-      <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default bg-transparent" onClick={onClose} />
-      <article className="relative left-1/2 top-20 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
+    <div className="absolute left-0 top-0 z-[999] w-full" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
+      <button type="button" aria-label="Chiudi informazioni clip" className="fixed inset-0 cursor-default bg-transparent" onClick={onClose} />
+      <article
+        className="absolute left-1/2 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl"
+        style={{ top: bodyAnchorTop }}
+      >
         <button
           type="button"
           onClick={onClose}
