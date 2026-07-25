@@ -108,6 +108,24 @@ a:focus-visible {
   color: #020711 !important;
 }
 
+.bg-cyan:is(button, a, [role="button"]),
+.bg-cyan\/70:is(button, a, [role="button"]),
+.bg-\[\#22bdf3\]:is(button, a, [role="button"]),
+.bg-\[\#16b9f4\]:is(button, a, [role="button"]),
+.hover\:bg-cyan:is(button, a, [role="button"]):hover,
+.hover\:bg-\[\#18c1ff\]:is(button, a, [role="button"]):hover {
+  color: #020711 !important;
+}
+
+.bg-cyan:is(button, a, [role="button"]) :is(span, svg, strong, em, small),
+.bg-cyan\/70:is(button, a, [role="button"]) :is(span, svg, strong, em, small),
+.bg-\[\#22bdf3\]:is(button, a, [role="button"]) :is(span, svg, strong, em, small),
+.bg-\[\#16b9f4\]:is(button, a, [role="button"]) :is(span, svg, strong, em, small),
+.hover\:bg-cyan:is(button, a, [role="button"]):hover :is(span, svg, strong, em, small),
+.hover\:bg-\[\#18c1ff\]:is(button, a, [role="button"]):hover :is(span, svg, strong, em, small) {
+  color: inherit !important;
+}
+
 .brand-selected-button :is(span, svg, strong, em, small) {
   color: inherit !important;
 }
