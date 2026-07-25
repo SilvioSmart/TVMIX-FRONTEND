@@ -63,7 +63,7 @@ export function HomePage({ content }: HomePageProps) {
   ];
 
   return (
-    <>
+    <div className="public-shell">
       <Navbar links={content.headerMenu} brand={content.brand} />
       <main>
         <HeroSlider
@@ -86,6 +86,6 @@ export function HomePage({ content }: HomePageProps) {
         src={selectedMedia.hlsUrl}
         vastUrl={selectedMedia.vastUrl}
       />
-    </>
+    </div>
   );
 }

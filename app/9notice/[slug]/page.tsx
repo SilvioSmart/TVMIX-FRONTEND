@@ -58,7 +58,7 @@ export default async function NineNoticeDetailPage({ params }: PageProps) {
   const mergedNotices = notices.some((notice) => notice.id === selected.id) ? notices : [selected, ...notices];
 
   return (
-    <main className="min-h-screen bg-[#020a13]">
+    <main className="public-shell min-h-screen bg-[#020a13]">
       <Navbar links={content.headerMenu} />
       <NoticePublicPage notices={mergedNotices} initialSlug={selected.slug} />
       <Footer links={content.footerMenu} />

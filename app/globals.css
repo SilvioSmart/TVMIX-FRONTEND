@@ -130,6 +130,61 @@ a:focus-visible {
   color: inherit !important;
 }
 
+.public-shell :is(button, a, [role="button"]).rounded-full:not(.h-1),
+.public-shell :is(button, a, [role="button"]).rounded-\[3px\],
+.public-shell button.rounded-r-2xl,
+.public-shell button.rounded-l-2xl,
+.public-shell button.rounded-lg,
+.public-shell button.rounded-xl,
+.public-shell button[type="submit"],
+.public-shell .public-pill-action {
+  border-color: color-mix(in srgb, var(--brand-accent) 48%, transparent) !important;
+  background-color: color-mix(in srgb, var(--brand-accent) 9%, transparent) !important;
+  color: var(--brand-accent) !important;
+  border-width: 1px !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--brand-accent) 12%, transparent);
+}
+
+.public-shell :is(button, a, [role="button"]).rounded-full:not(.h-1):hover,
+.public-shell :is(button, a, [role="button"]).rounded-\[3px\]:hover,
+.public-shell button.rounded-r-2xl:hover,
+.public-shell button.rounded-l-2xl:hover,
+.public-shell button.rounded-lg:hover,
+.public-shell button.rounded-xl:hover,
+.public-shell button[type="submit"]:hover,
+.public-shell .public-pill-action:hover {
+  border-color: color-mix(in srgb, var(--brand-accent) 78%, transparent) !important;
+  background-color: color-mix(in srgb, var(--brand-accent) 16%, transparent) !important;
+  color: var(--brand-accent) !important;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--brand-accent) 20%, transparent);
+}
+
+.public-shell :is(button, a, [role="button"]):is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-full:not(.h-1),
+.public-shell :is(button, a, [role="button"]):is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-\[3px\],
+.public-shell button:is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-r-2xl,
+.public-shell button:is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-l-2xl,
+.public-shell button:is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-lg,
+.public-shell button:is([aria-current="true"], [aria-selected="true"], [aria-pressed="true"]).rounded-xl {
+  border-color: color-mix(in srgb, var(--brand-accent) 85%, transparent) !important;
+  background-color: color-mix(in srgb, var(--brand-accent) 14%, transparent) !important;
+  color: var(--brand-accent) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-accent) 28%, transparent),
+    0 0 24px color-mix(in srgb, var(--brand-accent) 20%, transparent);
+}
+
+.public-shell :is(button, a, [role="button"], .public-pill-action) :is(span, svg, strong, em, small) {
+  color: inherit !important;
+}
+
+.public-shell :is(button, a, [role="button"], .public-pill-action):disabled {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background-color: rgba(255, 255, 255, 0.025) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+  box-shadow: none;
+}
+
 .\[scrollbar-color\:\#22bdf3_rgba\(255\,255\,255\,0\.08\)\] {
   scrollbar-color: var(--brand-accent) rgba(255, 255, 255, 0.08) !important;
 }

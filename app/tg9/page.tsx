@@ -17,7 +17,7 @@ export default async function Tg9Page() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#020a13]">
+    <main className="public-shell min-h-screen bg-[#020a13]">
       <Navbar links={content.headerMenu} />
       <Tg9PublicPage videos={videos} />
       <Footer links={content.footerMenu} />

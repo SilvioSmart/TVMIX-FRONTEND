@@ -17,7 +17,7 @@ export default async function NineNoticePage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#020a13]">
+    <main className="public-shell min-h-screen bg-[#020a13]">
       <Navbar links={content.headerMenu} />
       <NoticePublicPage notices={notices} />
       <Footer links={content.footerMenu} />
