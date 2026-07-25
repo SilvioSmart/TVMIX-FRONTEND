@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, VolumeX, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HomeModule } from "@/lib/api";
@@ -483,7 +483,41 @@ function SonicPlaylistFeatured({
           {item.description || module.subtitle || "Guarda il contenuto selezionato dalla libreria TVMIX."}
         </p>
 
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+        <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+          <div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5">
+            {mediaSocialLinks(item).map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Condividi ${item.title} su ${link.label}`}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-[11px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+              >
+                {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={() => void copyMediaShareLink(item)}
+              aria-label={`Copia link ${item.title}`}
+              className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+            >
+              <Copy size={15} />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelect(item)}
+            disabled={!item.hlsUrl}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-cyan/60 bg-transparent px-3 text-[10px] font-black uppercase tracking-[0.13em] text-cyan transition hover:bg-cyan/10 disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/35"
+          >
+            <Play size={14} fill="currentColor" />
+            Guarda ora
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-end justify-between gap-3">
           <span className="min-w-0 truncate text-left text-[10px] font-black uppercase tracking-[0.13em] text-cyan/90">
             {mediaArchiveLabel(item, module.title)}
           </span>
@@ -536,8 +570,8 @@ function SonicPlaylistThumbnail({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
         <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
-          <span className="inline-flex size-12 items-center justify-center rounded-full border border-white/25 bg-black/20 text-white/90 backdrop-blur-sm">
-            <Play size={22} fill="currentColor" />
+          <span className="inline-flex size-16 items-center justify-center text-white/92 drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]">
+            <Play size={58} fill="currentColor" strokeWidth={1.15} className="translate-x-1 opacity-90" />
           </span>
         </div>
       </div>
@@ -548,31 +582,33 @@ function SonicPlaylistThumbnail({
         <p className="mt-2 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
           {item.description || item.subtitle || "Contenuto disponibile nel catalogo TVMIX."}
         </p>
-        <div className="mt-auto flex min-h-9 items-center justify-start gap-1.5 pt-2 opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
-          {mediaSocialLinks(item).map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={stopActionPropagation}
-              aria-label={`Condividi ${item.title} su ${link.label}`}
-              className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-[10px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+        <div className="mt-auto flex min-h-9 items-center justify-between gap-2 pt-2 opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
+          <div className="flex min-w-0 items-center justify-start gap-1.5">
+            {mediaSocialLinks(item).map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={stopActionPropagation}
+                aria-label={`Condividi ${item.title} su ${link.label}`}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-[11px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+              >
+                {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                void copyMediaShareLink(item);
+              }}
+              aria-label={`Copia link ${item.title}`}
+              className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
             >
-              {link.label === "Telegram" ? <Send size={13} /> : link.icon}
-            </a>
-          ))}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void copyMediaShareLink(item);
-            }}
-            aria-label={`Copia link ${item.title}`}
-            className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-          >
-            <Copy size={13} />
-          </button>
+              <Copy size={15} />
+            </button>
+          </div>
           <button
             type="button"
             onClick={(event) => {
@@ -580,9 +616,9 @@ function SonicPlaylistThumbnail({
               onInfo();
             }}
             aria-label={`Informazioni ${item.title}`}
-            className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
           >
-            <ChevronDown size={15} />
+            <ChevronDown size={17} />
           </button>
         </div>
         <div className="mt-2 flex items-end justify-between gap-3">
