@@ -499,54 +499,33 @@ function SonicPlaylistFeatured({
 function SonicPlaylistThumbnail({
   item,
   active,
-  onChoose,
   onInfo,
   onPlay,
 }: {
   item: MediaItem;
   active: boolean;
-  onChoose: () => void;
   onInfo: () => void;
   onPlay: () => void;
 }) {
-  const cardRef = useRef<HTMLElement>(null);
-  const closeTimerRef = useRef<number | null>(null);
-  const openTimerRef = useRef<number | null>(null);
-  const [hoverMounted, setHoverMounted] = useState(false);
-  const [hoverVisible, setHoverVisible] = useState(false);
-  const [hoverAnchorRect, setHoverAnchorRect] = useState<DOMRect | null>(null);
-
-  const openHover = () => {
-    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-    const rect = cardRef.current?.getBoundingClientRect();
-    if (rect) setHoverAnchorRect(rect);
-    setHoverMounted(true);
-    if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
-    openTimerRef.current = window.setTimeout(() => setHoverVisible(true), 30);
-  };
-  const closeHover = () => {
-    setHoverVisible(false);
-    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = window.setTimeout(() => setHoverMounted(false), 1000);
-  };
-
-  useEffect(() => () => {
-    if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
-    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-  }, []);
+  const stopActionPropagation = (event: React.MouseEvent) => event.stopPropagation();
 
   return (
     <article
-      ref={cardRef}
-      onMouseEnter={openHover}
-      onMouseLeave={closeHover}
-      onFocus={openHover}
-      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-visible rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
+      role="button"
+      tabIndex={0}
+      onClick={onPlay}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onPlay();
+        }
+      }}
+      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
+      aria-label={`Riproduci ${item.title} nel player del modulo`}
     >
       <div className="relative aspect-video w-full overflow-hidden rounded-t-[14px] bg-black">
-        <button type="button" onClick={onChoose} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
         <Image
           src={item.image}
           alt=""
@@ -556,6 +535,11 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-95"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
+          <span className="inline-flex size-12 items-center justify-center rounded-full border border-white/25 bg-black/20 text-white/90 backdrop-blur-sm">
+            <Play size={22} fill="currentColor" />
+          </span>
+        </div>
       </div>
       <div className="relative flex min-h-[142px] flex-col border-t border-white/10 p-3">
         <p className="line-clamp-2 min-w-0 text-[13px] font-black uppercase leading-[1.03] tracking-[-0.035em] text-white">
@@ -564,7 +548,44 @@ function SonicPlaylistThumbnail({
         <p className="mt-2 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
           {item.description || item.subtitle || "Contenuto disponibile nel catalogo TVMIX."}
         </p>
-        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+        <div className="mt-auto flex min-h-9 items-center justify-start gap-1.5 pt-2 opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
+          {mediaSocialLinks(item).map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={stopActionPropagation}
+              aria-label={`Condividi ${item.title} su ${link.label}`}
+              className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-[10px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+            >
+              {link.label === "Telegram" ? <Send size={13} /> : link.icon}
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void copyMediaShareLink(item);
+            }}
+            aria-label={`Copia link ${item.title}`}
+            className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            <Copy size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onInfo();
+            }}
+            aria-label={`Informazioni ${item.title}`}
+            className="inline-flex size-8 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            <ChevronDown size={15} />
+          </button>
+        </div>
+        <div className="mt-2 flex items-end justify-between gap-3">
           <span className="min-w-0 truncate text-left text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
             {mediaSeasonEpisodeLabel(item)}
           </span>
@@ -573,17 +594,6 @@ function SonicPlaylistThumbnail({
           </span>
         </div>
       </div>
-      {hoverMounted && hoverAnchorRect ? (
-        <CarouselThumbnailHoverPopup
-          item={item}
-          anchorRect={hoverAnchorRect}
-          visible={hoverVisible}
-          onEnter={openHover}
-          onLeave={closeHover}
-          onInfo={onInfo}
-          onPlay={onPlay}
-        />
-      ) : null}
     </article>
   );
 }
@@ -702,115 +712,6 @@ function CarouselClipPreviewMedia({
       className="h-full w-full object-cover"
       aria-label={`Anteprima ${item.title}`}
     />
-  );
-}
-
-function CarouselThumbnailHoverPopup({
-  item,
-  anchorRect,
-  visible,
-  onEnter,
-  onLeave,
-  onInfo,
-  onPlay,
-}: {
-  item: MediaItem;
-  anchorRect: DOMRect;
-  visible: boolean;
-  onEnter: () => void;
-  onLeave: () => void;
-  onInfo: () => void;
-  onPlay: () => void;
-}) {
-  const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
-  const [previewMuted, setPreviewMuted] = useState(true);
-
-  useEffect(() => {
-    setPreviewActive(Boolean(item.hlsUrl));
-    setPreviewMuted(true);
-  }, [item.hlsUrl, item.id]);
-
-  if (typeof document === "undefined") return null;
-
-  const width = Math.max(360, anchorRect.width * 1.5);
-  const left = anchorRect.left + window.scrollX + anchorRect.width / 2;
-  const top = anchorRect.top + window.scrollY + anchorRect.height / 2;
-
-  return createPortal(
-    <div
-      className={`absolute z-[998] rounded-[18px] border border-cyan/30 bg-[#050b14]/98 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-xl transition duration-1000 ease-out ${
-        visible ? "-translate-x-1/2 -translate-y-1/2 scale-100 opacity-100" : "-translate-x-1/2 -translate-y-1/2 scale-75 opacity-0"
-      }`}
-      style={{ left, top, width }}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
-    >
-      <div className="relative aspect-video overflow-hidden rounded-[14px] bg-black">
-        <CarouselClipPreviewMedia item={item} active={previewActive} muted={previewMuted} onPreviewEnd={() => setPreviewActive(false)} durationMs={20_000} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-        <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onPlay}
-            aria-label={`Riproduci ${item.title}`}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-          >
-            <Play size={16} fill="currentColor" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPreviewMuted((value) => !value)}
-            aria-label={previewMuted ? "Attiva audio anteprima" : "Disattiva audio anteprima"}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-          >
-            {previewMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-start justify-between gap-3">
-        <p className="line-clamp-2 min-w-0 text-left text-sm font-black uppercase leading-[1.05] tracking-[-0.035em] text-white">
-          {item.title}
-        </p>
-        <span className="shrink-0 text-right text-[10px] font-black uppercase tracking-[0.13em] text-white/70">
-          {mediaDurationLabel(item)}
-        </span>
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {mediaSocialLinks(item).map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Condividi ${item.title} su ${link.label}`}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-            >
-              {link.label === "Telegram" ? <Send size={15} /> : link.icon}
-            </a>
-          ))}
-          <button
-            type="button"
-            onClick={() => void copyMediaShareLink(item)}
-            aria-label={`Copia link ${item.title}`}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-          >
-            <Copy size={15} />
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={onInfo}
-          aria-label={`Informazioni ${item.title}`}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-        >
-          <ChevronDown size={18} />
-        </button>
-      </div>
-    </div>,
-    document.body,
   );
 }
 
@@ -1014,11 +915,6 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     window.setTimeout(() => setInfoVisible(true), 30);
   };
 
-  const chooseFeatured = (item: MediaItem) => {
-    setActiveId(item.id);
-    setFeaturedAutoplayId(null);
-  };
-
   const playInFeatured = (item: MediaItem) => {
     setActiveId(item.id);
     setFeaturedAutoplayId(item.id);
@@ -1077,7 +973,6 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
                     key={item.id}
                     item={item}
                     active={item.id === featured?.id}
-                    onChoose={() => chooseFeatured(item)}
                     onInfo={() => openInfo(item)}
                     onPlay={() => playInFeatured(item)}
                   />
