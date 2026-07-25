@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
 
@@ -618,17 +618,108 @@ function StatusIcon({
   );
 }
 
+function CarouselClipPreviewMedia({
+  item,
+  active,
+  onPreviewEnd,
+}: {
+  item: MediaItem;
+  active: boolean;
+  onPreviewEnd: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (!active || !item.hlsUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+    let hls: { destroy: () => void } | null = null;
+    let cancelled = false;
+    const previewUrl = proxyPlaybackUrl(item.hlsUrl);
+
+    const startPreview = async () => {
+      if (cancelled) return;
+      try {
+        const target = video.duration && Number.isFinite(video.duration) ? Math.min(120, Math.max(0, video.duration - 1)) : 120;
+        video.currentTime = target;
+        video.muted = true;
+        video.playsInline = true;
+        await video.play();
+      } catch {
+        // Se il browser blocca la preview, resta comunque visibile la miniatura finale.
+      }
+    };
+
+    const loadPreview = async () => {
+      if (!previewUrl) return;
+      if (previewUrl.includes(".m3u8")) {
+        const Hls = (await import("hls.js")).default;
+        if (cancelled) return;
+        if (Hls.isSupported()) {
+          const hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hls = hlsInstance;
+          hlsInstance.loadSource(previewUrl);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => void startPreview());
+          return;
+        }
+      }
+      video.src = previewUrl;
+      video.load();
+      video.addEventListener("loadedmetadata", startPreview, { once: true });
+    };
+
+    void loadPreview();
+
+    const timer = window.setTimeout(() => {
+      video.pause();
+      onPreviewEnd();
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      hls?.destroy();
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [active, item.hlsUrl, onPreviewEnd]);
+
+  if (!active || !item.hlsUrl) {
+    return <Image src={item.image} alt="" fill sizes="33vw" className="object-cover" />;
+  }
+
+  return (
+    <video
+      ref={videoRef}
+      muted
+      playsInline
+      preload="auto"
+      poster={item.image}
+      className="h-full w-full object-cover"
+      aria-label={`Anteprima ${item.title}`}
+    />
+  );
+}
+
 function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
+  const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
   const quality = activeVideoQuality(item);
   const subtitlesActive = hasSubtitles(item);
   const audioDescriptionActive = hasAudioDescription(item);
   const audioLabel = audioDescriptionActive ? "AD" : hasDolbyAudio(item) ? "DB" : hasStereoAudio(item) ? "ST" : hasMonoAudio(item) ? "MN" : "Audio";
   const hasAudio = audioTrackList(item).length > 0 || audioDescriptionActive;
+  const finishPreview = useCallback(() => setPreviewActive(false), []);
+
+  useEffect(() => {
+    setPreviewActive(Boolean(item.hlsUrl));
+  }, [item.hlsUrl, item.id]);
 
   return (
-    <div className="absolute inset-x-[3%] top-6 z-[70]" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
-      <article className="relative z-10 grid w-full overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl lg:grid-cols-[minmax(320px,42%)_minmax(0,1fr)]">
+    <div className="fixed left-1/2 top-20 z-[95] w-[33.333vw] min-w-[340px] max-w-[560px] -translate-x-1/2" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
+      <article className="relative z-10 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
         <button
           type="button"
           onClick={onClose}
@@ -638,8 +729,8 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
           <X size={18} />
         </button>
 
-        <div className="relative min-h-[260px] overflow-hidden bg-black lg:min-h-full">
-          <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 42vw, 94vw" className="object-cover" />
+        <div className="relative aspect-video overflow-hidden bg-black">
+          <CarouselClipPreviewMedia item={item} active={previewActive} onPreviewEnd={finishPreview} />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
           <div className="absolute bottom-4 left-4 right-12">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan/90">
@@ -651,7 +742,7 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 lg:p-6">
+        <div className="p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-white/10 pb-3">
             <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.13em] text-white/82">
               <Clock size={15} className="text-cyan" />
