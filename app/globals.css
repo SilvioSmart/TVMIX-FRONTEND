@@ -48,23 +48,61 @@ a:focus-visible {
 }
 
 .text-cyan,
-.hover\:text-cyan:hover {
+.text-cyan\/75,
+.text-cyan\/80,
+.text-cyan\/85,
+.text-cyan\/90,
+.hover\:text-cyan:hover,
+.hover\:text-cyan\/70:hover,
+.text-\[\#22bdf3\],
+.text-\[\#1dbcf3\],
+.text-\[\#16b9f4\],
+.hover\:text-\[\#22bdf3\]:hover {
   color: var(--brand-accent) !important;
 }
 
 .bg-cyan,
-.hover\:bg-cyan:hover {
+.bg-cyan\/10,
+.bg-cyan\/15,
+.bg-cyan\/70,
+.hover\:bg-cyan:hover,
+.hover\:bg-cyan\/10:hover,
+.bg-\[\#22bdf3\],
+.bg-\[\#22bdf3\]\/10,
+.hover\:bg-\[\#22bdf3\]\/10:hover,
+.hover\:bg-\[\#18c1ff\]:hover,
+.bg-\[\#16b9f4\] {
   background-color: var(--brand-accent) !important;
 }
 
 .border-cyan,
+.border-cyan\/25,
+.border-cyan\/30,
+.border-cyan\/60,
+.border-cyan\/75,
 .hover\:border-cyan:hover,
 .hover\:border-cyan\/70:hover {
   border-color: var(--brand-accent) !important;
 }
 
+.border-\[\#22bdf3\],
+.border-\[\#22bdf3\]\/25,
+.border-\[\#22bdf3\]\/30,
+.border-\[\#22bdf3\]\/35,
+.border-\[\#22bdf3\]\/40,
+.border-\[\#22bdf3\]\/45,
+.hover\:border-\[\#22bdf3\]\/45:hover,
+.hover\:border-\[\#22bdf3\]\/50:hover,
+.hover\:border-\[\#22bdf3\]\/60:hover {
+  border-color: var(--brand-accent) !important;
+}
+
 .ring-cyan\/35 {
   --tw-ring-color: color-mix(in srgb, var(--brand-accent) 35%, transparent) !important;
+}
+
+.\[scrollbar-color\:\#22bdf3_rgba\(255\,255\,255\,0\.08\)\] {
+  scrollbar-color: var(--brand-accent) rgba(255, 255, 255, 0.08) !important;
 }
 
 .no-scrollbar {

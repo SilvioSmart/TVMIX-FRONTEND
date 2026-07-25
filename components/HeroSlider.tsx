@@ -208,7 +208,10 @@ export function HeroSlider({
 
       <div className="absolute inset-0 bg-[linear-gradient(90deg,#020711_0%,rgba(2,7,17,.97)_22%,rgba(2,7,17,.72)_48%,rgba(2,7,17,.18)_74%,rgba(2,7,17,.05)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(0deg,#020711_0%,rgba(2,7,17,.58)_18%,transparent_48%,rgba(2,7,17,.45)_100%)]" />
-      <div className="absolute inset-y-0 left-0 w-[56vw] bg-[radial-gradient(circle_at_0%_48%,rgba(3,169,244,.14),transparent_34%)]" />
+      <div
+        className="absolute inset-y-0 left-0 w-[56vw]"
+        style={{ background: "radial-gradient(circle at 0% 48%, color-mix(in srgb, var(--brand-accent) 14%, transparent), transparent 34%)" }}
+      />
 
       <div className="relative z-10 flex min-h-[clamp(560px,86svh,760px)] w-full items-end px-4 pb-24 pt-24 sm:items-center sm:px-5 sm:pb-16 lg:px-6 xl:px-8">
         <div

@@ -976,7 +976,24 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
 
   return (
     <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative scroll-mt-24 overflow-visible py-8 sm:py-10 lg:py-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
+      {featured?.image ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-cover bg-left bg-no-repeat opacity-[0.13]"
+          style={{
+            backgroundImage: `url("${featured.image}")`,
+            maskImage: "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.32) 28%, rgba(0,0,0,0.08) 56%, transparent 82%)",
+            WebkitMaskImage: "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.32) 28%, rgba(0,0,0,0.08) 56%, transparent 82%)",
+          }}
+        />
+      ) : null}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--brand-accent) 18%, transparent), transparent 32%), linear-gradient(180deg, rgba(2,7,17,0.2), #020711 92%)",
+        }}
+      />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
           <SonicPlaylistFeatured
