@@ -594,20 +594,6 @@ function SonicPlaylistThumbnail({
   );
 }
 
-function StatusTextChip({ label, active }: { label: string; active: boolean }) {
-  return (
-    <span
-      className={`inline-flex min-w-10 items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition ${
-        active
-          ? "border-cyan/70 bg-cyan/15 text-cyan shadow-[0_0_20px_rgba(3,169,244,0.16)]"
-          : "border-white/10 bg-white/[0.025] text-white/24"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
 function StatusIcon({
   label,
   active,
@@ -621,8 +607,10 @@ function StatusIcon({
     <span
       title={label}
       aria-label={`${label}: ${active ? "attivo" : "non attivo"}`}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-        active ? "border-cyan/70 bg-cyan/15 text-cyan" : "border-white/10 bg-white/[0.025] text-white/24"
+      className={`inline-flex min-w-[72px] items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition ${
+        active
+          ? "border-cyan/75 bg-cyan/15 text-cyan shadow-[0_0_24px_rgba(3,169,244,0.2)]"
+          : "border-white/10 bg-white/[0.025] text-white/26"
       }`}
     >
       {children}
@@ -635,78 +623,99 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
   const quality = activeVideoQuality(item);
   const subtitlesActive = hasSubtitles(item);
   const audioDescriptionActive = hasAudioDescription(item);
+  const audioLabel = audioDescriptionActive ? "AD" : hasDolbyAudio(item) ? "DB" : hasStereoAudio(item) ? "ST" : hasMonoAudio(item) ? "MN" : "Audio";
+  const hasAudio = audioTrackList(item).length > 0 || audioDescriptionActive;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/78 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`Informazioni ${item.title}`}>
-      <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default" onClick={onClose} />
-      <article className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[22px] border border-white/12 bg-[#050b14] text-white shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
+    <div className="absolute inset-x-[3%] top-6 z-[70]" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
+      <article className="relative z-10 grid w-full overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl lg:grid-cols-[minmax(320px,42%)_minmax(0,1fr)]">
         <button
           type="button"
           onClick={onClose}
           aria-label="Chiudi"
-          className="absolute right-4 top-4 z-30 grid size-10 place-items-center rounded-full border border-white/12 bg-black/55 text-white/80 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
+          className="absolute right-3 top-3 z-30 grid size-9 place-items-center rounded-xl border border-white/12 bg-black/55 text-white/80 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
 
-        <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-black">
-          <Image src={item.image} alt="" fill sizes="min(896px, 94vw)" className="object-cover" />
+        <div className="relative min-h-[260px] overflow-hidden bg-black lg:min-h-full">
+          <Image src={item.image} alt="" fill sizes="(min-width: 1024px) 42vw, 94vw" className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
-          <div className="absolute bottom-4 left-4 right-16">
+          <div className="absolute bottom-4 left-4 right-12">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan/90">
               Scheda clip
             </p>
-            <h3 className="mt-1 max-w-3xl text-[clamp(1.55rem,4vw,3.4rem)] font-black uppercase leading-[0.88] tracking-[-0.06em] text-white">
+            <h3 className="mt-1 line-clamp-3 text-[clamp(1.35rem,2.9vw,2.7rem)] font-black uppercase leading-[0.9] tracking-[-0.06em] text-white">
               {item.title}
             </h3>
           </div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:px-6">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-white/10 pb-4">
-            <span className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.13em] text-white/82">
-              <Clock size={17} className="text-cyan" />
+        <div className="p-4 sm:p-5 lg:p-6">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-white/10 pb-3">
+            <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.13em] text-white/82">
+              <Clock size={15} className="text-cyan" />
               {mediaDurationSummary(item)}
             </span>
-            <span className="text-sm font-black uppercase tracking-[0.13em] text-white/82">
+            <span className="text-xs font-black uppercase tracking-[0.13em] text-white/82">
               {mediaEpisodeSummary(item)}
             </span>
-            <span className="text-sm font-black uppercase tracking-[0.13em] text-cyan/90">
+            <span className="text-xs font-black uppercase tracking-[0.13em] text-cyan/90">
               {mediaSeasonEpisodeLabel(item)}
             </span>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <StatusIcon label={`Qualità video ${quality || "non indicata"}`} active={Boolean(quality)}>
+              <Monitor size={16} />
+              {quality || "Q"}
+            </StatusIcon>
+            <StatusIcon label={`Tipo audio ${audioLabel}`} active={hasAudio}>
+              <Volume2 size={16} />
+              {audioLabel}
+            </StatusIcon>
+            <StatusIcon label="Sottotitoli" active={subtitlesActive}>
+              <MessageSquare size={16} />
+              ST
+            </StatusIcon>
+            <StatusIcon label="Audiodescrizioni" active={audioDescriptionActive}>
+              <Megaphone size={16} />
+              AD
+            </StatusIcon>
+          </div>
+
+          <div className="hidden">
             <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
               <Monitor size={15} /> Qualità video
             </span>
-            <StatusTextChip label="SD" active={quality === "SD"} />
-            <StatusTextChip label="HD" active={quality === "HD"} />
-            <StatusTextChip label="4K" active={quality === "4K"} />
+            <StatusIcon label={`Qualità video ${quality || "non indicata"}`} active={Boolean(quality)}>
+              <Monitor size={16} />
+              {quality || "Q"}
+            </StatusIcon>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="hidden">
             <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
               <Volume2 size={15} /> Audio
             </span>
-            <StatusTextChip label="AD)))" active={audioDescriptionActive} />
-            <StatusTextChip label="ST)))" active={hasStereoAudio(item)} />
-            <StatusTextChip label="MN)))" active={hasMonoAudio(item)} />
-            <StatusTextChip label="DB)))" active={hasDolbyAudio(item)} />
+            <StatusIcon label={`Tipo audio ${audioLabel}`} active={hasAudio}>
+              <Volume2 size={16} />
+              {audioLabel}
+            </StatusIcon>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="hidden">
             <StatusIcon label="Sottotitoli" active={subtitlesActive}>
-              <MessageSquare size={15} />
-              Sottotitoli
+              <MessageSquare size={16} />
+              ST
             </StatusIcon>
             <StatusIcon label="Audiodescrizioni" active={audioDescriptionActive}>
-              <Megaphone size={15} />
-              Audiodescrizioni
+              <Megaphone size={16} />
+              AD
             </StatusIcon>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white/58">
               <Share2 size={14} /> Condividi
             </span>
@@ -732,9 +741,9 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
             </button>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-4">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan/85">Sinossi puntata</p>
-            <p className="mt-3 whitespace-pre-wrap text-sm font-medium leading-7 text-white/76">
+            <p className="mt-2 line-clamp-7 whitespace-pre-wrap text-sm font-medium leading-6 text-white/76">
               {synopsis}
             </p>
           </div>
@@ -754,7 +763,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative scroll-mt-24 overflow-hidden py-8 sm:py-10 lg:py-12">
+    <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative scroll-mt-24 overflow-visible py-8 sm:py-10 lg:py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
