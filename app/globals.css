@@ -101,6 +101,17 @@ a:focus-visible {
   --tw-ring-color: color-mix(in srgb, var(--brand-accent) 35%, transparent) !important;
 }
 
+.brand-selected-button,
+:is(button, a, [role="button"]):is([aria-selected="true"], [aria-pressed="true"], [data-selected="true"]).brand-selected-button {
+  background-color: var(--brand-accent) !important;
+  border-color: var(--brand-accent) !important;
+  color: #020711 !important;
+}
+
+.brand-selected-button :is(span, svg, strong, em, small) {
+  color: inherit !important;
+}
+
 .\[scrollbar-color\:\#22bdf3_rgba\(255\,255\,255\,0\.08\)\] {
   scrollbar-color: var(--brand-accent) rgba(255, 255, 255, 0.08) !important;
 }

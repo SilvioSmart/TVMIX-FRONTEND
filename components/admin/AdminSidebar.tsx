@@ -95,6 +95,7 @@ export function AdminSidebar({
                   type="button"
                   title={collapsed ? item.label : undefined}
                   aria-expanded={children?.length ? selected : undefined}
+                  aria-selected={selected}
                   onClick={() => {
                     onSelect(item.id);
                     if (!isAppearance && !isLive && !isContent && !isNews) onMobileClose();
@@ -103,12 +104,12 @@ export function AdminSidebar({
                     "relative flex h-12 w-full items-center rounded-lg text-sm font-semibold transition",
                     collapsed ? "justify-center px-0" : "gap-3 px-3.5",
                     selected
-                      ? "bg-[#10243a] text-[#22bdf3]"
+                      ? "brand-selected-button"
                       : "text-slate-300 hover:bg-white/[0.045] hover:text-white",
                   ].join(" ")}
                 >
                   {selected ? (
-                    <span className="absolute inset-y-2 left-[-12px] w-1 rounded-r-full bg-[#22bdf3]" />
+                    <span className="absolute inset-y-2 left-[-12px] w-1 rounded-r-full bg-[#020711]" />
                   ) : null}
                   <Icon size={20} strokeWidth={1.8} />
                   {!collapsed ? (
@@ -138,6 +139,7 @@ export function AdminSidebar({
                         <button
                           key={child.key}
                           type="button"
+                          aria-selected={childSelected}
                           onClick={() => {
                             if (isAppearance) onSelectAppearance(child.key as AppearanceMenuKey);
                             if (isContent) onSelectContent(child.key as ContentSubnavKey);
@@ -148,7 +150,7 @@ export function AdminSidebar({
                           className={[
                             "flex w-full items-center rounded-md px-3 py-2 text-left text-[12px] font-semibold transition",
                             childSelected
-                              ? "bg-[#092033] text-[#22bdf3]"
+                              ? "brand-selected-button"
                               : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
                           ].join(" ")}
                         >
