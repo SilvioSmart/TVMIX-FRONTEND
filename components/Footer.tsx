@@ -1,5 +1,5 @@
 import { Facebook, Instagram, Youtube } from "lucide-react";
-import type { NavigationItem } from "@/lib/api";
+import type { BrandSettings, NavigationItem } from "@/lib/api";
 import { Logo } from "./Logo";
 
 const fallbackLinks: NavigationItem[] = [
@@ -10,16 +10,19 @@ const fallbackLinks: NavigationItem[] = [
 
 type FooterProps = {
   links?: NavigationItem[];
+  brand?: BrandSettings;
 };
 
-export function Footer({ links = fallbackLinks }: FooterProps) {
+export function Footer({ links = fallbackLinks, brand }: FooterProps) {
   const footerLinks = links.length > 0 ? links : fallbackLinks;
+  const accent = brand?.accentColor || "#03A9F4";
+  const platformName = brand?.platformName || "TVMIX";
 
   return (
-    <footer className="mt-16 border-t border-white/10 bg-[#030a14]">
+    <footer className="mt-16 border-t bg-[#030a14]" style={{ borderColor: `${accent}24` }}>
       <div className="mx-auto grid max-w-[1440px] gap-10 px-5 py-12 sm:grid-cols-2 sm:px-8 lg:grid-cols-4 lg:px-12 lg:py-16">
         <div>
-          <Logo />
+          <Logo brand={brand} />
           <p className="mt-3 max-w-xs text-sm leading-6 text-white/55">
             Dirette, programmi e storie italiane. Tutto in un solo posto.
           </p>
@@ -28,8 +31,9 @@ export function Footer({ links = fallbackLinks }: FooterProps) {
               <a
                 key={index}
                 href="#"
-                aria-label="Social TVMIX"
-                className="grid size-9 place-items-center rounded-full border border-white/15 text-white/70 transition hover:border-cyan hover:text-cyan"
+                aria-label={`Social ${platformName}`}
+                className="grid size-9 place-items-center rounded-full border text-white/70 transition hover:bg-white/5"
+                style={{ borderColor: `${accent}44` }}
               >
                 <Icon size={17} />
               </a>
@@ -74,11 +78,13 @@ export function Footer({ links = fallbackLinks }: FooterProps) {
               id="email"
               type="email"
               placeholder="La tua email"
-              className="min-w-0 flex-1 rounded-l-md border border-white/15 bg-white/5 px-3 text-sm outline-none focus:border-cyan"
+              className="min-w-0 flex-1 rounded-l-md border bg-white/5 px-3 text-sm outline-none"
+              style={{ borderColor: `${accent}44` }}
             />
             <button
               type="submit"
-              className="rounded-r-md bg-cyan px-4 text-sm font-black"
+              className="rounded-r-md px-4 text-sm font-black text-black"
+              style={{ backgroundColor: accent }}
             >
               Vai
             </button>
@@ -86,7 +92,7 @@ export function Footer({ links = fallbackLinks }: FooterProps) {
         </div>
       </div>
 
-      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/40 sm:px-8">
+      <div className="border-t px-5 py-5 text-center text-xs text-white/40 sm:px-8" style={{ borderColor: `${accent}24` }}>
         © 2026 TVMIX S.r.l. · Privacy · Cookie Policy · Termini di utilizzo
       </div>
     </footer>

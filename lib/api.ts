@@ -51,6 +51,23 @@ type ApiLiveChannel = {
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
 };
 
+export type BrandSettings = {
+  platformName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  defaultThumbnailUrl: string | null;
+  defaultSignalUrl: string | null;
+  accentColor: string;
+};
+
+type ApiBrandSettings = BrandSettings & {
+  id: string;
+  logoObjectKey?: string | null;
+  faviconObjectKey?: string | null;
+  defaultThumbnailObjectKey?: string | null;
+  defaultSignalObjectKey?: string | null;
+};
+
 export type EpgItem = {
   id: string;
   title: string;
@@ -139,6 +156,7 @@ export type HeroSlide = {
 };
 
 export type HomeContent = {
+  brand: BrandSettings;
   featured: MediaItem;
   heroSlides: HeroSlide[];
   headerMenu: NavigationItem[];
@@ -152,6 +170,15 @@ export type HomeContent = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.tvmix.it";
 const FALLBACK_POSTER = "/images/senza-filtri-hero.png";
 const MEDIA_HOST = "media.tvmix.it";
+
+export const fallbackBrand: BrandSettings = {
+  platformName: "TVMIX",
+  logoUrl: null,
+  faviconUrl: null,
+  defaultThumbnailUrl: null,
+  defaultSignalUrl: null,
+  accentColor: "#03A9F4",
+};
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   try {
@@ -167,7 +194,20 @@ async function fetchJson<T>(path: string): Promise<T | null> {
   }
 }
 
-function mapVideo(video: ApiVideo): MediaItem {
+export async function getBrandSettings(): Promise<BrandSettings> {
+  const response = await fetchJson<{ data?: ApiBrandSettings }>("/api/v1/appearance/brand");
+  return { ...fallbackBrand, ...(response?.data ?? {}) };
+}
+
+function brandThumbnailFallback(brand: BrandSettings) {
+  return brand.defaultThumbnailUrl || FALLBACK_POSTER;
+}
+
+function brandSignalFallback(brand: BrandSettings) {
+  return brand.defaultSignalUrl || brand.defaultThumbnailUrl || FALLBACK_POSTER;
+}
+
+function mapVideo(video: ApiVideo, brand: BrandSettings = fallbackBrand): MediaItem {
   const seasonLabel = video.season
     ? [
         video.season.title || `Stagione ${video.season.number}`,
@@ -180,7 +220,7 @@ function mapVideo(video: ApiVideo): MediaItem {
     title: video.title,
     subtitle: video.category?.name ?? "On demand",
     description: video.description ?? undefined,
-    image: video.thumbnailUrl || FALLBACK_POSTER,
+    image: video.thumbnailUrl || brandThumbnailFallback(brand),
     hlsUrl: proxyMediaUrl(video.hlsUrl),
     vastUrl: video.vastUrl ?? undefined,
     duration: video.duration ?? undefined,
@@ -209,13 +249,13 @@ function proxyMediaUrl(value?: string | null) {
   }
 }
 
-function mapLiveChannel(channel: ApiLiveChannel): MediaItem {
+function mapLiveChannel(channel: ApiLiveChannel, brand: BrandSettings = fallbackBrand): MediaItem {
   return {
     id: channel.id,
     title: channel.name,
     subtitle: channel.status === "LIVE" ? "In diretta" : channel.status,
     description: channel.description ?? undefined,
-    image: channel.posterUrl || FALLBACK_POSTER,
+    image: channel.posterUrl || (channel.status === "LIVE" ? brandThumbnailFallback(brand) : brandSignalFallback(brand)),
     hlsUrl: proxyMediaUrl(channel.hlsUrl),
     live: channel.status === "LIVE",
   };
@@ -251,8 +291,8 @@ function hasPlacement(item: ApiMenuItem, placement: "HEADER" | "FOOTER" | "MOBIL
   return item.placements?.includes(placement) || item.placement === placement;
 }
 
-function mapCarouselSlide(slide: ApiCarouselSlide): HeroSlide {
-  const media = slide.video ? mapVideo(slide.video) : undefined;
+function mapCarouselSlide(slide: ApiCarouselSlide, brand: BrandSettings = fallbackBrand): HeroSlide {
+  const media = slide.video ? mapVideo(slide.video, brand) : undefined;
 
   return {
     id: slide.id,
@@ -260,26 +300,27 @@ function mapCarouselSlide(slide: ApiCarouselSlide): HeroSlide {
     title: slide.title,
     subtitle: slide.subtitle ?? media?.subtitle,
     description: slide.description ?? media?.description,
-    image: slide.imageUrl || media?.image || FALLBACK_POSTER,
+    image: slide.imageUrl || media?.image || brandThumbnailFallback(brand),
     ctaLabel: slide.ctaLabel ?? "Guarda ora",
     ctaUrl: slide.ctaUrl ?? undefined,
     media,
   };
 }
 
-function mapHomeModule(module: ApiHomeModule): HomeModule {
+function mapHomeModule(module: ApiHomeModule, brand: BrandSettings = fallbackBrand): HomeModule {
   return {
     ...module,
-    items: module.items?.map(mapVideo) ?? [],
+    items: module.items?.map((item) => mapVideo(item, brand)) ?? [],
     epg: module.epg?.map((item) => ({
       ...item,
-      video: item.video ? mapVideo(item.video) : null,
+      video: item.video ? mapVideo(item.video, brand) : null,
     })) ?? [],
   };
 }
 
 export async function getHomeContent(): Promise<HomeContent> {
-  const [videoResponse, liveResponse, menuResponse, carouselResponse, moduleResponse] = await Promise.all([
+  const [brandResponse, videoResponse, liveResponse, menuResponse, carouselResponse, moduleResponse] = await Promise.all([
+    fetchJson<{ data?: ApiBrandSettings }>("/api/v1/appearance/brand"),
     fetchJson<ApiCollection<ApiVideo>>("/api/v1/videos?limit=24"),
     fetchJson<ApiCollection<ApiLiveChannel>>("/api/v1/live-channels"),
     fetchJson<ApiCollection<ApiMenuItem>>("/api/v1/menu"),
@@ -287,11 +328,12 @@ export async function getHomeContent(): Promise<HomeContent> {
     fetchJson<ApiCollection<ApiHomeModule>>("/api/v1/modules"),
   ]);
 
-  const apiVideos = videoResponse?.data?.map(mapVideo) ?? [];
-  const apiLiveChannels = liveResponse?.data?.map(mapLiveChannel) ?? [];
+  const brand = { ...fallbackBrand, ...(brandResponse?.data ?? {}) };
+  const apiVideos = videoResponse?.data?.map((item) => mapVideo(item, brand)) ?? [];
+  const apiLiveChannels = liveResponse?.data?.map((item) => mapLiveChannel(item, brand)) ?? [];
   const apiMenu = menuResponse?.data ?? [];
-  const apiHeroSlides = carouselResponse?.data?.map(mapCarouselSlide) ?? [];
-  const apiModules = moduleResponse?.data?.map(mapHomeModule) ?? [];
+  const apiHeroSlides = carouselResponse?.data?.map((item) => mapCarouselSlide(item, brand)) ?? [];
+  const apiModules = moduleResponse?.data?.map((item) => mapHomeModule(item, brand)) ?? [];
   const featured =
     apiHeroSlides.find((slide) => slide.media)?.media ??
     apiVideos[0] ??
@@ -299,6 +341,7 @@ export async function getHomeContent(): Promise<HomeContent> {
     entertainment[0];
 
   return {
+    brand,
     featured,
     heroSlides: apiHeroSlides,
     headerMenu: mapMenuTree(apiMenu, "HEADER"),

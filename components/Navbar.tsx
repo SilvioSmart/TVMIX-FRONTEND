@@ -2,7 +2,7 @@
 
 import { ChevronDown, Menu, Search, X } from "lucide-react";
 import { useState } from "react";
-import type { NavigationItem } from "@/lib/api";
+import type { BrandSettings, NavigationItem } from "@/lib/api";
 import { Logo } from "./Logo";
 
 const fallbackLinks: NavigationItem[] = [
@@ -13,20 +13,22 @@ const fallbackLinks: NavigationItem[] = [
 
 type NavbarProps = {
   links?: NavigationItem[];
+  brand?: BrandSettings;
 };
 
-export function Navbar({ links = fallbackLinks }: NavbarProps) {
+export function Navbar({ links = fallbackLinks, brand }: NavbarProps) {
   const [open, setOpen] = useState(false);
   const navLinks = links.length > 0 ? links : fallbackLinks;
+  const accent = brand?.accentColor || "#03A9F4";
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-ink/75 backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-50 border-b bg-ink/75 backdrop-blur-xl" style={{ borderColor: `${accent}26` }}>
       <nav
         aria-label="Navigazione principale"
         className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:h-[76px] sm:px-8 lg:px-12"
       >
-        <a href="#" aria-label="TVMIX Home">
-          <Logo />
+        <a href="#" aria-label={`${brand?.platformName || "TVMIX"} Home`}>
+          <Logo brand={brand} />
         </a>
 
         <div className="hidden items-center gap-9 md:flex">
@@ -40,6 +42,7 @@ export function Navbar({ links = fallbackLinks }: NavbarProps) {
             type="button"
             aria-label="Cerca"
             className="grid size-11 place-items-center rounded-full text-white transition hover:bg-white/10"
+            style={{ color: accent }}
           >
             <Search size={21} strokeWidth={2.2} />
           </button>
@@ -49,6 +52,7 @@ export function Navbar({ links = fallbackLinks }: NavbarProps) {
             aria-label={open ? "Chiudi menu" : "Apri menu"}
             onClick={() => setOpen((value) => !value)}
             className="grid size-11 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
+            style={{ color: accent }}
           >
             {open ? <X size={23} /> : <Menu size={23} />}
           </button>

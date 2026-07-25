@@ -64,7 +64,7 @@ export function HomePage({ content }: HomePageProps) {
 
   return (
     <>
-      <Navbar links={content.headerMenu} />
+      <Navbar links={content.headerMenu} brand={content.brand} />
       <main>
         <HeroSlider
           featured={content.featured}
@@ -77,7 +77,7 @@ export function HomePage({ content }: HomePageProps) {
           onSelect={openPlayer}
         />
       </main>
-      <Footer links={content.footerMenu} />
+      <Footer links={content.footerMenu} brand={content.brand} />
       <PlayerModal
         open={playerOpen}
         onClose={() => setPlayerOpen(false)}
