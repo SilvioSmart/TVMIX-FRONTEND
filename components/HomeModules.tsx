@@ -979,11 +979,11 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
       {featured?.image ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-cover bg-left bg-no-repeat opacity-[0.13]"
+          className="pointer-events-none absolute inset-0 bg-cover bg-right bg-no-repeat opacity-[0.2]"
           style={{
             backgroundImage: `url("${featured.image}")`,
-            maskImage: "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.32) 28%, rgba(0,0,0,0.08) 56%, transparent 82%)",
-            WebkitMaskImage: "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.32) 28%, rgba(0,0,0,0.08) 56%, transparent 82%)",
+            maskImage: "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.08) 18%, rgba(0,0,0,0.35) 48%, rgba(0,0,0,0.95) 100%)",
+            WebkitMaskImage: "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.08) 18%, rgba(0,0,0,0.35) 48%, rgba(0,0,0,0.95) 100%)",
           }}
         />
       ) : null}
