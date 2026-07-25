@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
@@ -622,10 +622,12 @@ function CarouselClipPreviewMedia({
   item,
   active,
   onPreviewEnd,
+  muted,
 }: {
   item: MediaItem;
   active: boolean;
   onPreviewEnd: () => void;
+  muted: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -642,7 +644,7 @@ function CarouselClipPreviewMedia({
       try {
         const target = video.duration && Number.isFinite(video.duration) ? Math.min(120, Math.max(0, video.duration - 1)) : 120;
         video.currentTime = target;
-        video.muted = true;
+        video.muted = muted;
         video.playsInline = true;
         await video.play();
       } catch {
@@ -684,7 +686,11 @@ function CarouselClipPreviewMedia({
       video.removeAttribute("src");
       video.load();
     };
-  }, [active, item.hlsUrl, onPreviewEnd]);
+  }, [active, item.hlsUrl, muted, onPreviewEnd]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
 
   if (!active || !item.hlsUrl) {
     return <Image src={item.image} alt="" fill sizes="33vw" className="object-cover" />;
@@ -693,7 +699,7 @@ function CarouselClipPreviewMedia({
   return (
     <video
       ref={videoRef}
-      muted
+      muted={muted}
       playsInline
       preload="auto"
       poster={item.image}
@@ -706,6 +712,7 @@ function CarouselClipPreviewMedia({
 function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
   const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
+  const [previewMuted, setPreviewMuted] = useState(true);
   const quality = activeVideoQuality(item);
   const subtitlesActive = hasSubtitles(item);
   const audioDescriptionActive = hasAudioDescription(item);
@@ -718,8 +725,9 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
   }, [item.hlsUrl, item.id]);
 
   return (
-    <div className="fixed left-1/2 top-20 z-[95] w-[33.333vw] min-w-[340px] max-w-[560px] -translate-x-1/2" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
-      <article className="relative z-10 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
+    <div className="fixed inset-0 z-[999]" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
+      <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default bg-transparent" onClick={onClose} />
+      <article className="relative left-1/2 top-20 z-10 w-[33.333vw] min-w-[340px] max-w-[560px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
         <button
           type="button"
           onClick={onClose}
@@ -730,8 +738,18 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
         </button>
 
         <div className="relative aspect-video overflow-hidden bg-black">
-          <CarouselClipPreviewMedia item={item} active={previewActive} onPreviewEnd={finishPreview} />
+          <CarouselClipPreviewMedia item={item} active={previewActive} muted={previewMuted} onPreviewEnd={finishPreview} />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
+          {previewActive && item.hlsUrl ? (
+            <button
+              type="button"
+              onClick={() => setPreviewMuted((value) => !value)}
+              aria-label={previewMuted ? "Attiva audio anteprima" : "Disattiva audio anteprima"}
+              className="absolute left-3 top-3 z-30 grid size-9 place-items-center rounded-xl border border-white/12 bg-black/55 text-white/82 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
+            >
+              {previewMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          ) : null}
           <div className="absolute bottom-4 left-4 right-12">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan/90">
               Scheda clip
@@ -744,15 +762,12 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
 
         <div className="p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-white/10 pb-3">
+            <span className="text-xs font-black uppercase tracking-[0.13em] text-cyan/90">
+              {mediaSeasonEpisodeLabel(item)}
+            </span>
             <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.13em] text-white/82">
               <Clock size={15} className="text-cyan" />
               {mediaDurationSummary(item)}
-            </span>
-            <span className="text-xs font-black uppercase tracking-[0.13em] text-white/82">
-              {mediaEpisodeSummary(item)}
-            </span>
-            <span className="text-xs font-black uppercase tracking-[0.13em] text-cyan/90">
-              {mediaSeasonEpisodeLabel(item)}
             </span>
           </div>
 
@@ -807,9 +822,6 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white/58">
-              <Share2 size={14} /> Condividi
-            </span>
             {mediaSocialLinks(item).map((link) => (
               <a
                 key={link.label}
