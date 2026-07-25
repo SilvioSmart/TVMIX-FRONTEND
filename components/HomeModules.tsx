@@ -719,9 +719,11 @@ function CarouselThumbnailHoverPopup({
   onPlay: () => void;
 }) {
   const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
+  const [previewMuted, setPreviewMuted] = useState(true);
 
   useEffect(() => {
     setPreviewActive(Boolean(item.hlsUrl));
+    setPreviewMuted(true);
   }, [item.hlsUrl, item.id]);
 
   if (typeof document === "undefined") return null;
@@ -740,8 +742,26 @@ function CarouselThumbnailHoverPopup({
       onMouseLeave={onLeave}
     >
       <div className="relative aspect-video overflow-hidden rounded-[14px] bg-black">
-        <CarouselClipPreviewMedia item={item} active={previewActive} muted onPreviewEnd={() => setPreviewActive(false)} durationMs={20_000} />
+        <CarouselClipPreviewMedia item={item} active={previewActive} muted={previewMuted} onPreviewEnd={() => setPreviewActive(false)} durationMs={20_000} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+        <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onPlay}
+            aria-label={`Riproduci ${item.title}`}
+            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            <Play size={16} fill="currentColor" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewMuted((value) => !value)}
+            aria-label={previewMuted ? "Attiva audio anteprima" : "Disattiva audio anteprima"}
+            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            {previewMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 flex items-start justify-between gap-3">
@@ -754,44 +774,35 @@ function CarouselThumbnailHoverPopup({
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onPlay}
-          aria-label={`Riproduci ${item.title}`}
-          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-        >
-          <Play size={16} fill="currentColor" />
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {mediaSocialLinks(item).map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Condividi ${item.title} su ${link.label}`}
+              className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+            >
+              {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={() => void copyMediaShareLink(item)}
+            aria-label={`Copia link ${item.title}`}
+            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            <Copy size={15} />
+          </button>
+        </div>
         <button
           type="button"
           onClick={onInfo}
           aria-label={`Informazioni ${item.title}`}
-          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
         >
           <ChevronDown size={18} />
-        </button>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {mediaSocialLinks(item).map((link) => (
-          <a
-            key={link.label}
-            href={link.href}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Condividi ${item.title} su ${link.label}`}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-          >
-            {link.label === "Telegram" ? <Send size={15} /> : link.icon}
-          </a>
-        ))}
-        <button
-          type="button"
-          onClick={() => void copyMediaShareLink(item)}
-          aria-label={`Copia link ${item.title}`}
-          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-        >
-          <Copy size={15} />
         </button>
       </div>
     </div>,
@@ -799,7 +810,17 @@ function CarouselThumbnailHoverPopup({
   );
 }
 
-function CarouselClipInfoModal({ item, visible, onClose }: { item: MediaItem; visible: boolean; onClose: () => void }) {
+function CarouselClipInfoModal({
+  item,
+  visible,
+  onClose,
+  onPlay,
+}: {
+  item: MediaItem;
+  visible: boolean;
+  onClose: () => void;
+  onPlay: () => void;
+}) {
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
   const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
   const [previewMuted, setPreviewMuted] = useState(true);
@@ -923,27 +944,38 @@ function CarouselClipInfoModal({ item, visible, onClose }: { item: MediaItem; vi
             </StatusIcon>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-            {mediaSocialLinks(item).map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Condividi ${item.title} su ${link.label}`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-              >
-                {link.label === "Telegram" ? <Send size={15} /> : link.icon}
-              </a>
-            ))}
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
             <button
               type="button"
-              onClick={() => void copyMediaShareLink(item)}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-              aria-label={`Copia link ${item.title}`}
+              onClick={onPlay}
+              disabled={!item.hlsUrl}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-cyan/60 bg-transparent px-4 text-[11px] font-black uppercase tracking-[0.14em] text-cyan transition hover:bg-cyan/10 disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/35"
             >
-              <Copy size={15} />
+              <Play size={15} fill="currentColor" />
+              Guarda ora
             </button>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {mediaSocialLinks(item).map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Condividi ${item.title} su ${link.label}`}
+                  className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+                >
+                  {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+                </a>
+              ))}
+              <button
+                type="button"
+                onClick={() => void copyMediaShareLink(item)}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+                aria-label={`Copia link ${item.title}`}
+              >
+                <Copy size={15} />
+              </button>
+            </div>
           </div>
 
           <div className="mt-4">
@@ -1034,7 +1066,17 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
       </div>
-      {infoItem ? <CarouselClipInfoModal item={infoItem} visible={infoVisible} onClose={closeInfo} /> : null}
+      {infoItem ? (
+        <CarouselClipInfoModal
+          item={infoItem}
+          visible={infoVisible}
+          onClose={closeInfo}
+          onPlay={() => {
+            closeInfo();
+            onSelect(infoItem);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
