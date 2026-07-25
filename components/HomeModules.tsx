@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
 
@@ -724,15 +725,17 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
     setPreviewActive(Boolean(item.hlsUrl));
   }, [item.hlsUrl, item.id]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[999]" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
       <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default bg-transparent" onClick={onClose} />
-      <article className="relative left-1/2 top-20 z-10 w-[33.333vw] min-w-[340px] max-w-[560px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
+      <article className="relative left-1/2 top-20 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl">
         <button
           type="button"
           onClick={onClose}
           aria-label="Chiudi"
-          className="absolute right-3 top-3 z-30 grid size-9 place-items-center rounded-xl border border-white/12 bg-black/55 text-white/80 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
+          className="absolute right-3 top-3 z-30 grid size-9 place-items-center rounded-xl border border-white/20 bg-transparent text-white/85 backdrop-blur transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
         >
           <X size={18} />
         </button>
@@ -745,7 +748,7 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
               type="button"
               onClick={() => setPreviewMuted((value) => !value)}
               aria-label={previewMuted ? "Attiva audio anteprima" : "Disattiva audio anteprima"}
-              className="absolute left-3 top-3 z-30 grid size-9 place-items-center rounded-xl border border-white/12 bg-black/55 text-white/82 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
+              className="absolute bottom-3 right-3 z-30 grid size-9 place-items-center rounded-xl border border-white/20 bg-transparent text-white/85 backdrop-blur transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
             >
               {previewMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
@@ -829,7 +832,7 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
                 target="_blank"
                 rel="noreferrer"
                 aria-label={`Condividi ${item.title} su ${link.label}`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xs font-black text-white/85 transition hover:border-cyan/60 hover:bg-cyan/10 hover:text-cyan"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
               >
                 {link.label === "Telegram" ? <Send size={15} /> : link.icon}
               </a>
@@ -837,7 +840,7 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
             <button
               type="button"
               onClick={() => void copyMediaShareLink(item)}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/85 transition hover:border-cyan/60 hover:bg-cyan/10 hover:text-cyan"
+              className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
               aria-label={`Copia link ${item.title}`}
             >
               <Copy size={15} />
@@ -852,7 +855,8 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
           </div>
         </div>
       </article>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
