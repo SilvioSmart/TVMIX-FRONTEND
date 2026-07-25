@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Clock, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Copy, Info, Play, Send, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
@@ -112,6 +112,67 @@ function mediaArchiveLabel(item: MediaItem, fallback = "Archivio TVMIX") {
 
 function mediaDurationLabel(item: MediaItem) {
   return item.duration ? formatDuration(item.duration) : "";
+}
+
+function mediaDurationSummary(item: MediaItem) {
+  if (!item.duration) return "Durata non indicata";
+  const totalMinutes = Math.max(0, Math.round(item.duration / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} h ${minutes} min`;
+  return `${minutes} min`;
+}
+
+function mediaSharePayload(item: MediaItem) {
+  const path = item.id ? `/?media=${encodeURIComponent(item.id)}` : "/";
+  const url = typeof window !== "undefined" ? `${window.location.origin}${path}` : `https://www.tvmix.it${path}`;
+  const text = `Guarda ${item.title} su TVMIX`;
+  return {
+    url,
+    text,
+    encodedUrl: encodeURIComponent(url),
+    encodedText: encodeURIComponent(text),
+  };
+}
+
+function mediaSocialLinks(item: MediaItem) {
+  const payload = mediaSharePayload(item);
+  return [
+    { label: "Facebook", icon: "f", href: `https://www.facebook.com/sharer/sharer.php?u=${payload.encodedUrl}` },
+    { label: "X", icon: "X", href: `https://twitter.com/intent/tweet?url=${payload.encodedUrl}&text=${payload.encodedText}` },
+    { label: "WhatsApp", icon: "W", href: `https://wa.me/?text=${payload.encodedText}%20${payload.encodedUrl}` },
+    { label: "Telegram", icon: "T", href: `https://t.me/share/url?url=${payload.encodedUrl}&text=${payload.encodedText}` },
+  ];
+}
+
+function mediaBooleanFlag(item: MediaItem, keys: string[]) {
+  const record = item as unknown as Record<string, unknown>;
+  return keys.some((key) => {
+    const value = record[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") return ["true", "yes", "on", "1", "presente", "presenti"].includes(value.toLowerCase());
+    if (Array.isArray(value)) return value.length > 0;
+    return false;
+  });
+}
+
+function mediaInfoRows(item: MediaItem) {
+  return [
+    ["Categoria", item.categoryName || item.subtitle || "Non indicata"],
+    ["Archivio", mediaArchiveLabel(item)],
+    ["Durata", mediaDurationSummary(item)],
+    ["Autodescrizioni", mediaBooleanFlag(item, ["audioDescription", "audioDescriptions", "hasAudioDescription"]) ? "Presenti" : "Non indicate"],
+    ["Sottotitoli", mediaBooleanFlag(item, ["subtitles", "captions", "hasSubtitles"]) ? "Presenti" : "Non indicati"],
+    ["HLS", item.hlsUrl ? "Disponibile" : "Non disponibile"],
+    ["VAST", item.vastUrl ? "Configurato" : "Non configurato"],
+    ["ID media", item.id],
+  ];
+}
+
+async function copyMediaShareLink(item: MediaItem) {
+  if (typeof navigator === "undefined" || !navigator.clipboard) return;
+  const payload = mediaSharePayload(item);
+  await navigator.clipboard.writeText(`${payload.text} ${payload.url}`);
 }
 
 function proxyPlaybackUrl(value?: string | null) {
@@ -403,13 +464,13 @@ function SonicPlaylistThumbnail({
   item,
   active,
   onChoose,
+  onInfo,
 }: {
   item: MediaItem;
   active: boolean;
   onChoose: () => void;
+  onInfo: () => void;
 }) {
-  const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
-
   return (
     <article
       className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
@@ -427,36 +488,50 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <div className="pointer-events-none absolute inset-3 z-20 flex translate-y-2 flex-col overflow-hidden rounded-xl border border-cyan/25 bg-[#020711]/92 opacity-0 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md transition duration-300 group-hover/thumb:pointer-events-auto group-hover/thumb:translate-y-0 group-hover/thumb:opacity-100 group-focus-within/thumb:pointer-events-auto group-focus-within/thumb:translate-y-0 group-focus-within/thumb:opacity-100">
-          <div className="shrink-0 p-3 pb-2">
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan/90">
-              Sinossi
-            </p>
-            <h4 className="mt-1 line-clamp-1 text-sm font-black uppercase leading-tight text-white">
-              {item.title}
-            </h4>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pr-2 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin]">
-            <p className="whitespace-pre-wrap text-[11px] font-medium leading-4 text-white/76">
-              {synopsis}
-            </p>
-          </div>
-          <div className="shrink-0 mx-3 mt-2 flex items-end justify-between gap-3 border-t border-white/10 py-2">
-            <span className="min-w-0 truncate text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
-              {mediaArchiveLabel(item)}
-            </span>
-            <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.13em] text-white/65">
-              {mediaDurationLabel(item)}
-            </span>
-          </div>
+        <div className="absolute left-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 text-white/80 opacity-95 backdrop-blur-md">
+          <Share2 size={12} />
+          {mediaSocialLinks(item).map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Condividi ${item.title} su ${link.label}`}
+              onClick={(event) => event.stopPropagation()}
+              className="grid size-6 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
+            >
+              {link.icon}
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void copyMediaShareLink(item);
+            }}
+            aria-label={`Copia link ${item.title}`}
+            className="grid size-6 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
+          >
+            <Copy size={12} />
+          </button>
         </div>
       </div>
       <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
-        <p className="line-clamp-2 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
-          {item.title}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="line-clamp-2 min-w-0 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
+            {item.title}
+          </p>
+          <button
+            type="button"
+            onClick={onInfo}
+            aria-label={`Informazioni su ${item.title}`}
+            className="grid size-8 shrink-0 place-items-center rounded-full border border-cyan/35 bg-cyan/10 text-cyan transition hover:bg-cyan hover:text-ink"
+          >
+            <Info size={15} />
+          </button>
+        </div>
         <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
-          {item.description || "Contenuto disponibile nel catalogo TVMIX."}
+          {item.subtitle || item.categoryName || "Contenuto disponibile nel catalogo TVMIX."}
         </p>
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           <span className="min-w-0 truncate text-left text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
@@ -471,9 +546,87 @@ function SonicPlaylistThumbnail({
   );
 }
 
+function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
+  const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/78 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`Informazioni ${item.title}`}>
+      <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <article className="relative z-10 flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[22px] border border-white/12 bg-[#050b14] text-white shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Chiudi"
+          className="absolute right-4 top-4 z-30 grid size-10 place-items-center rounded-full border border-white/12 bg-black/55 text-white/80 backdrop-blur transition hover:border-cyan/60 hover:text-cyan"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-black">
+          <Image src={item.image} alt="" fill sizes="min(896px, 94vw)" className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
+          <div className="absolute bottom-4 left-4 right-16">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan/90">
+              Scheda clip
+            </p>
+            <h3 className="mt-1 max-w-3xl text-[clamp(1.55rem,4vw,3.4rem)] font-black uppercase leading-[0.88] tracking-[-0.06em] text-white">
+              {item.title}
+            </h3>
+          </div>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:p-6">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan/85">Sinossi</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-white/76">
+              {synopsis}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {mediaInfoRows(item).map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/38">{label}</p>
+                <p className="mt-1 break-words text-sm font-bold text-white/82">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white/58">
+              <Share2 size={14} /> Condividi
+            </span>
+            {mediaSocialLinks(item).map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Condividi ${item.title} su ${link.label}`}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xs font-black text-white/85 transition hover:border-cyan/60 hover:bg-cyan/10 hover:text-cyan"
+              >
+                {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={() => void copyMediaShareLink(item)}
+              className="inline-flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/85 transition hover:border-cyan/60 hover:bg-cyan/10 hover:text-cyan"
+              aria-label={`Copia link ${item.title}`}
+            >
+              <Copy size={15} />
+            </button>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
 function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(module.items[0]?.id ?? null);
+  const [infoItem, setInfoItem] = useState<MediaItem | null>(null);
   const featured = module.items.find((item) => item.id === activeId) ?? module.items[0];
   const items = module.items;
   const scroll = (direction: number) =>
@@ -516,6 +669,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
                     item={item}
                     active={item.id === featured?.id}
                     onChoose={() => setActiveId(item.id)}
+                    onInfo={() => setInfoItem(item)}
                   />
                 ))
               ) : (
@@ -525,6 +679,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
       </div>
+      {infoItem ? <CarouselClipInfoModal item={infoItem} onClose={() => setInfoItem(null)} /> : null}
     </section>
   );
 }
