@@ -7,8 +7,17 @@ export type MediaItem = {
   hlsUrl?: string;
   vastUrl?: string;
   duration?: number;
+  mediaFormat?: string;
+  videoQuality?: string;
+  audioTracks?: unknown;
   archiveLabel?: string;
   categoryName?: string;
+  programName?: string;
+  seasonNumber?: number;
+  seasonTitle?: string;
+  episodeNumber?: number;
+  episodeCode?: string;
+  seasonEpisodeCount?: number;
   live?: boolean;
   progress?: number;
 };

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Clock, Copy, Info, Play, Send, Share2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Copy, Info, Megaphone, MessageSquare, Monitor, Play, Send, Share2, Volume2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
@@ -156,17 +156,48 @@ function mediaBooleanFlag(item: MediaItem, keys: string[]) {
   });
 }
 
-function mediaInfoRows(item: MediaItem) {
-  return [
-    ["Categoria", item.categoryName || item.subtitle || "Non indicata"],
-    ["Archivio", mediaArchiveLabel(item)],
-    ["Durata", mediaDurationSummary(item)],
-    ["Autodescrizioni", mediaBooleanFlag(item, ["audioDescription", "audioDescriptions", "hasAudioDescription"]) ? "Presenti" : "Non indicate"],
-    ["Sottotitoli", mediaBooleanFlag(item, ["subtitles", "captions", "hasSubtitles"]) ? "Presenti" : "Non indicati"],
-    ["HLS", item.hlsUrl ? "Disponibile" : "Non disponibile"],
-    ["VAST", item.vastUrl ? "Configurato" : "Non configurato"],
-    ["ID media", item.id],
-  ];
+function mediaSeasonEpisodeLabel(item: MediaItem) {
+  const season = item.seasonNumber ? `Stagione ${item.seasonNumber}` : item.seasonTitle || "";
+  const episode = item.episodeNumber ? `Ep. ${item.episodeNumber}` : "";
+  return [season, episode].filter(Boolean).join(" · ") || mediaArchiveLabel(item);
+}
+
+function mediaEpisodeSummary(item: MediaItem) {
+  if (!item.episodeNumber) return "Episodio non indicato";
+  if (item.seasonEpisodeCount) return `Episodio ${item.episodeNumber} di ${item.seasonEpisodeCount} episodi`;
+  return `Episodio ${item.episodeNumber}`;
+}
+
+function activeVideoQuality(item: MediaItem) {
+  const value = `${item.videoQuality ?? ""} ${item.mediaFormat ?? ""}`.toLowerCase();
+  if (value.includes("4k") || value.includes("2160") || value.includes("uhd")) return "4K";
+  if (value.includes("hd") || value.includes("720") || value.includes("1080")) return "HD";
+  if (value.includes("sd") || value.includes("480") || value.includes("576")) return "SD";
+  return "";
+}
+
+function audioTrackList(item: MediaItem) {
+  return Array.isArray(item.audioTracks) ? item.audioTracks as Array<Record<string, unknown>> : [];
+}
+
+function hasStereoAudio(item: MediaItem) {
+  return audioTrackList(item).some((track) => Number(track.channels ?? 0) >= 2 || String(track.layout ?? "").toLowerCase().includes("stereo"));
+}
+
+function hasMonoAudio(item: MediaItem) {
+  return audioTrackList(item).some((track) => Number(track.channels ?? 0) === 1 || String(track.layout ?? "").toLowerCase().includes("mono"));
+}
+
+function hasDolbyAudio(item: MediaItem) {
+  return audioTrackList(item).some((track) => /ac-?3|eac-?3|dolby|5\.1|7\.1/i.test(`${track.codec ?? ""} ${track.layout ?? ""}`));
+}
+
+function hasAudioDescription(item: MediaItem) {
+  return mediaBooleanFlag(item, ["audioDescription", "audioDescriptions", "hasAudioDescription"]);
+}
+
+function hasSubtitles(item: MediaItem) {
+  return mediaBooleanFlag(item, ["subtitles", "captions", "hasSubtitles"]);
 }
 
 async function copyMediaShareLink(item: MediaItem) {
@@ -471,13 +502,15 @@ function SonicPlaylistThumbnail({
   onChoose: () => void;
   onInfo: () => void;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
+
   return (
     <article
-      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
+      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-visible rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
     >
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
+      <div className="relative aspect-video w-full overflow-hidden rounded-t-[14px] bg-black">
         <button type="button" onClick={onChoose} className="absolute inset-0 z-10" aria-label={`Mostra ${item.title} nel player`} />
         <Image
           src={item.image}
@@ -488,57 +521,72 @@ function SonicPlaylistThumbnail({
           className="object-cover transition duration-500 group-hover/thumb:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-        <div className="absolute left-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 text-white/80 opacity-95 backdrop-blur-md">
-          <Share2 size={12} />
-          {mediaSocialLinks(item).map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Condividi ${item.title} su ${link.label}`}
-              onClick={(event) => event.stopPropagation()}
-              className="grid size-6 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
-            >
-              {link.icon}
-            </a>
-          ))}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void copyMediaShareLink(item);
-            }}
-            aria-label={`Copia link ${item.title}`}
-            className="grid size-6 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
-          >
-            <Copy size={12} />
-          </button>
-        </div>
       </div>
-      <div className="flex min-h-[118px] flex-col border-t border-white/10 p-3">
-        <div className="flex items-start justify-between gap-3">
-          <p className="line-clamp-2 min-w-0 text-sm font-black uppercase leading-[0.98] tracking-[-0.035em] text-white">
+      <div className="relative flex min-h-[142px] flex-col border-t border-white/10 p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_36px] items-start gap-3">
+          <p className="line-clamp-2 min-w-0 text-[13px] font-black uppercase leading-[1.03] tracking-[-0.035em] text-white">
             {item.title}
           </p>
           <button
             type="button"
             onClick={onInfo}
             aria-label={`Informazioni su ${item.title}`}
-            className="grid size-8 shrink-0 place-items-center rounded-full border border-cyan/35 bg-cyan/10 text-cyan transition hover:bg-cyan hover:text-ink"
+            className="grid size-9 shrink-0 place-items-center rounded-lg border border-cyan/40 bg-cyan/10 text-cyan transition hover:bg-cyan hover:text-ink"
           >
             <Info size={15} />
           </button>
         </div>
-        <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
-          {item.subtitle || item.categoryName || "Contenuto disponibile nel catalogo TVMIX."}
-        </p>
-        <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+
+        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_36px] items-start gap-3">
+          <p className="line-clamp-2 min-w-0 text-[10px] font-semibold leading-4 text-white/58">
+            {item.subtitle || item.categoryName || item.programName || "Contenuto disponibile nel catalogo TVMIX."}
+          </p>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShareOpen((value) => !value)}
+              aria-label={`Condividi ${item.title}`}
+              aria-expanded={shareOpen}
+              className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/12 bg-white/[0.055] text-white/78 transition hover:border-cyan/60 hover:bg-cyan/10 hover:text-cyan"
+            >
+              <Share2 size={15} />
+            </button>
+            {shareOpen ? (
+              <div className="absolute right-0 top-11 z-40 w-[210px] rounded-2xl border border-white/12 bg-[#020711]/98 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.68)] backdrop-blur-md">
+                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.18em] text-cyan/85">Condividi clip</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {mediaSocialLinks(item).map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Condividi ${item.title} su ${link.label}`}
+                      className="grid size-8 place-items-center rounded-lg border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
+                    >
+                      {link.label === "Telegram" ? <Send size={14} /> : link.icon}
+                    </a>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => void copyMediaShareLink(item)}
+                    aria-label={`Copia link ${item.title}`}
+                    className="grid size-8 place-items-center rounded-lg border border-white/10 bg-white/[0.06] text-white/82 transition hover:border-cyan/60 hover:bg-cyan/15 hover:text-cyan"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <span className="min-w-0 truncate text-left text-[9px] font-black uppercase tracking-[0.13em] text-cyan/85">
-            {mediaArchiveLabel(item)}
+            {mediaSeasonEpisodeLabel(item)}
           </span>
           <span className="shrink-0 text-right text-[9px] font-black uppercase tracking-[0.13em] text-white/68">
-            {mediaDurationLabel(item)}
+            {item.episodeCode || mediaDurationLabel(item)}
           </span>
         </div>
       </div>
@@ -546,13 +594,52 @@ function SonicPlaylistThumbnail({
   );
 }
 
+function StatusTextChip({ label, active }: { label: string; active: boolean }) {
+  return (
+    <span
+      className={`inline-flex min-w-10 items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition ${
+        active
+          ? "border-cyan/70 bg-cyan/15 text-cyan shadow-[0_0_20px_rgba(3,169,244,0.16)]"
+          : "border-white/10 bg-white/[0.025] text-white/24"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatusIcon({
+  label,
+  active,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      title={label}
+      aria-label={`${label}: ${active ? "attivo" : "non attivo"}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+        active ? "border-cyan/70 bg-cyan/15 text-cyan" : "border-white/10 bg-white/[0.025] text-white/24"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
 function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
+  const quality = activeVideoQuality(item);
+  const subtitlesActive = hasSubtitles(item);
+  const audioDescriptionActive = hasAudioDescription(item);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/78 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`Informazioni ${item.title}`}>
       <button type="button" aria-label="Chiudi informazioni clip" className="absolute inset-0 cursor-default" onClick={onClose} />
-      <article className="relative z-10 flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[22px] border border-white/12 bg-[#050b14] text-white shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
+      <article className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[22px] border border-white/12 bg-[#050b14] text-white shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
         <button
           type="button"
           onClick={onClose}
@@ -575,24 +662,51 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
           </div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:p-6">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan/85">Sinossi</p>
-            <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-white/76">
-              {synopsis}
-            </p>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-color:#03a9f4_rgba(255,255,255,0.08)] [scrollbar-width:thin] sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-white/10 pb-4">
+            <span className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.13em] text-white/82">
+              <Clock size={17} className="text-cyan" />
+              {mediaDurationSummary(item)}
+            </span>
+            <span className="text-sm font-black uppercase tracking-[0.13em] text-white/82">
+              {mediaEpisodeSummary(item)}
+            </span>
+            <span className="text-sm font-black uppercase tracking-[0.13em] text-cyan/90">
+              {mediaSeasonEpisodeLabel(item)}
+            </span>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {mediaInfoRows(item).map(([label, value]) => (
-              <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/38">{label}</p>
-                <p className="mt-1 break-words text-sm font-bold text-white/82">{value}</p>
-              </div>
-            ))}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
+              <Monitor size={15} /> Qualità video
+            </span>
+            <StatusTextChip label="SD" active={quality === "SD"} />
+            <StatusTextChip label="HD" active={quality === "HD"} />
+            <StatusTextChip label="4K" active={quality === "4K"} />
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
+              <Volume2 size={15} /> Audio
+            </span>
+            <StatusTextChip label="AD)))" active={audioDescriptionActive} />
+            <StatusTextChip label="ST)))" active={hasStereoAudio(item)} />
+            <StatusTextChip label="MN)))" active={hasMonoAudio(item)} />
+            <StatusTextChip label="DB)))" active={hasDolbyAudio(item)} />
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <StatusIcon label="Sottotitoli" active={subtitlesActive}>
+              <MessageSquare size={15} />
+              Sottotitoli
+            </StatusIcon>
+            <StatusIcon label="Audiodescrizioni" active={audioDescriptionActive}>
+              <Megaphone size={15} />
+              Audiodescrizioni
+            </StatusIcon>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white/58">
               <Share2 size={14} /> Condividi
             </span>
@@ -616,6 +730,13 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
             >
               <Copy size={15} />
             </button>
+          </div>
+
+          <div className="mt-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan/85">Sinossi puntata</p>
+            <p className="mt-3 whitespace-pre-wrap text-sm font-medium leading-7 text-white/76">
+              {synopsis}
+            </p>
           </div>
         </div>
       </article>

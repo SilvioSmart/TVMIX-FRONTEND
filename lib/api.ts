@@ -18,6 +18,9 @@ type ApiVideo = {
   hlsUrl?: string | null;
   vastUrl?: string | null;
   duration?: number | null;
+  mediaFormat?: string | null;
+  videoQuality?: string | null;
+  audioTracks?: unknown;
   episodeNumber?: number | null;
   episodeCode?: string | null;
   category?: {
@@ -28,6 +31,9 @@ type ApiVideo = {
     id: string;
     number: number;
     title?: string | null;
+    _count?: {
+      episodes?: number;
+    };
     program?: {
       id: string;
       name: string;
@@ -178,8 +184,17 @@ function mapVideo(video: ApiVideo): MediaItem {
     hlsUrl: proxyMediaUrl(video.hlsUrl),
     vastUrl: video.vastUrl ?? undefined,
     duration: video.duration ?? undefined,
+    mediaFormat: video.mediaFormat ?? undefined,
+    videoQuality: video.videoQuality ?? undefined,
+    audioTracks: video.audioTracks ?? undefined,
     archiveLabel: seasonLabel ?? video.category?.name ?? "Archivio TVMIX",
     categoryName: video.category?.name ?? undefined,
+    programName: video.season?.program?.name ?? undefined,
+    seasonNumber: video.season?.number ?? undefined,
+    seasonTitle: video.season?.title ?? undefined,
+    episodeNumber: video.episodeNumber ?? undefined,
+    episodeCode: video.episodeCode ?? undefined,
+    seasonEpisodeCount: video.season?._count?.episodes ?? undefined,
   };
 }
 
