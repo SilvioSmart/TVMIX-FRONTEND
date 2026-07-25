@@ -647,10 +647,10 @@ function StatusIcon({
     <span
       title={label}
       aria-label={`${label}: ${active ? "attivo" : "non attivo"}`}
-      className={`inline-flex min-w-[72px] items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition ${
+      className={`inline-flex min-w-[72px] items-center justify-center gap-1.5 rounded-full border px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition ${
         active
-          ? "border-cyan/75 bg-cyan/15 text-cyan shadow-[0_0_24px_rgba(3,169,244,0.2)]"
-          : "border-white/10 bg-white/[0.025] text-white/26"
+          ? "public-pill-action"
+          : "border-white/12 bg-white/[0.025] text-white/36"
       }`}
     >
       {children}
@@ -784,7 +784,7 @@ function CarouselClipInfoModal({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="absolute left-0 top-0 z-[999] w-full" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
+    <div className="public-shell absolute left-0 top-0 z-[999] w-full" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
       <button type="button" aria-label="Chiudi informazioni clip" className="fixed inset-0 cursor-default bg-transparent" onClick={onClose} />
       <article
         className={`absolute left-1/2 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl transition duration-1000 ease-out ${
@@ -826,10 +826,10 @@ function CarouselClipInfoModal({
 
         <div className="p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-white/10 pb-3">
-            <span className="text-xs font-black uppercase tracking-[0.13em] text-cyan/90">
+            <span className="public-pill-action inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.13em]">
               {mediaSeasonEpisodeLabel(item)}
             </span>
-            <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.13em] text-white/82">
+            <span className="public-pill-action inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.13em]">
               <Clock size={15} className="text-cyan" />
               {mediaDurationSummary(item)}
             </span>
