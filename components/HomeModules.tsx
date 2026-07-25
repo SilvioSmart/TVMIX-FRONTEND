@@ -449,10 +449,14 @@ function SonicLivePlayer({
 function SonicPlaylistFeatured({
   item,
   module,
+  autoPlay = false,
+  playbackKey = 0,
   onSelect,
 }: {
   item?: MediaItem;
   module: HomeModule;
+  autoPlay?: boolean;
+  playbackKey?: number;
   onSelect: (item: MediaItem) => void;
 }) {
   if (!item) {
@@ -465,7 +469,7 @@ function SonicPlaylistFeatured({
     <article className="sonicplaylist__player group/player w-full overflow-hidden rounded-[18px] border border-white/10 bg-[#050b14] shadow-[0_28px_80px_rgba(0,0,0,0.42)] lg:max-w-[510px]">
       <div className="relative aspect-video w-full overflow-hidden bg-black">
         {item.hlsUrl ? (
-          <VideoPlayer key={item.id} src={item.hlsUrl} poster={item.image} title={item.title} vastUrl={item.vastUrl} />
+          <VideoPlayer key={`${item.id}-${autoPlay ? playbackKey : "manual"}`} src={item.hlsUrl} poster={item.image} title={item.title} vastUrl={item.vastUrl} autoPlay={autoPlay} />
         ) : (
           <Image src={item.image} alt="" fill priority={false} sizes="(min-width: 1024px) 510px, 94vw" className="object-cover" />
         )}
@@ -995,6 +999,8 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
   const railRef = useRef<HTMLDivElement>(null);
   const infoCloseTimerRef = useRef<number | null>(null);
   const [activeId, setActiveId] = useState<string | null>(module.items[0]?.id ?? null);
+  const [featuredAutoplayId, setFeaturedAutoplayId] = useState<string | null>(null);
+  const [featuredPlaybackKey, setFeaturedPlaybackKey] = useState(0);
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null);
   const [infoVisible, setInfoVisible] = useState(false);
   const featured = module.items.find((item) => item.id === activeId) ?? module.items[0];
@@ -1006,6 +1012,17 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
     if (infoCloseTimerRef.current) window.clearTimeout(infoCloseTimerRef.current);
     setInfoItem(item);
     window.setTimeout(() => setInfoVisible(true), 30);
+  };
+
+  const chooseFeatured = (item: MediaItem) => {
+    setActiveId(item.id);
+    setFeaturedAutoplayId(null);
+  };
+
+  const playInFeatured = (item: MediaItem) => {
+    setActiveId(item.id);
+    setFeaturedAutoplayId(item.id);
+    setFeaturedPlaybackKey((value) => value + 1);
   };
 
   const closeInfo = () => {
@@ -1023,7 +1040,13 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(3,169,244,0.18),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
       <div className="relative z-10 px-[3%]">
         <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(390px,510px)_minmax(0,1fr)] xl:gap-5">
-          <SonicPlaylistFeatured item={featured} module={module} onSelect={onSelect} />
+          <SonicPlaylistFeatured
+            item={featured}
+            module={module}
+            autoPlay={Boolean(featured && featuredAutoplayId === featured.id)}
+            playbackKey={featuredPlaybackKey}
+            onSelect={onSelect}
+          />
           <div className="flex min-w-0 flex-col justify-between gap-4">
             <div className="carousel-static-reveal flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-start">
               <div className="min-w-0">
@@ -1054,9 +1077,9 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
                     key={item.id}
                     item={item}
                     active={item.id === featured?.id}
-                    onChoose={() => setActiveId(item.id)}
+                    onChoose={() => chooseFeatured(item)}
                     onInfo={() => openInfo(item)}
-                    onPlay={() => onSelect(item)}
+                    onPlay={() => playInFeatured(item)}
                   />
                 ))
               ) : (
