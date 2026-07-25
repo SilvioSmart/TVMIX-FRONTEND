@@ -570,8 +570,8 @@ function SonicPlaylistThumbnail({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
         <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
-          <span className="inline-flex size-16 items-center justify-center text-white/92 drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]">
-            <Play size={58} fill="currentColor" strokeWidth={1.15} className="translate-x-1 opacity-90" />
+          <span className="inline-flex size-32 items-center justify-center text-white/60 drop-shadow-[0_12px_28px_rgba(0,0,0,0.68)]">
+            <Play size={116} fill="currentColor" strokeWidth={1.05} className="translate-x-2 opacity-60" />
           </span>
         </div>
       </div>
@@ -942,8 +942,15 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
   const [infoVisible, setInfoVisible] = useState(false);
   const featured = module.items.find((item) => item.id === activeId) ?? module.items[0];
   const items = module.items;
-  const scroll = (direction: number) =>
-    railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
+  const scroll = (direction: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const firstCard = rail.querySelector<HTMLElement>(".sonicplaylist__thumb");
+    const styles = window.getComputedStyle(rail);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap || "0") || 0;
+    const step = firstCard ? firstCard.offsetWidth + gap : rail.clientWidth * 0.8;
+    rail.scrollBy({ left: direction * step, behavior: "smooth" });
+  };
 
   const openInfo = (item: MediaItem) => {
     if (infoCloseTimerRef.current) window.clearTimeout(infoCloseTimerRef.current);
@@ -992,30 +999,47 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
                   <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p>
                 ) : null}
               </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <RailButton label={`Scorri indietro ${module.title}`} direction="prev" onClick={() => scroll(-1)} />
-                <RailButton label={`Scorri avanti ${module.title}`} direction="next" onClick={() => scroll(1)} />
-              </div>
             </div>
 
-            <div
-              ref={railRef}
-              className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-0 lg:items-end xl:gap-4"
-            >
-              {module.items.length > 0 ? (
-                items.map((item) => (
-                  <SonicPlaylistThumbnail
-                    key={item.id}
-                    item={item}
-                    active={item.id === featured?.id}
-                    onInfo={() => openInfo(item)}
-                    onPlay={() => playInFeatured(item)}
-                  />
-                ))
-              ) : (
-                <EmptyModuleNotice />
-              )}
+            <div className="relative min-w-0">
+              {module.items.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => scroll(-1)}
+                    aria-label={`Scorri indietro ${module.title}`}
+                    className="absolute left-0 top-1/2 z-20 grid h-[72%] min-h-24 w-11 -translate-y-1/2 place-items-center rounded-r-2xl border border-white/10 bg-black/20 text-4xl font-black text-white/50 opacity-0 backdrop-blur-sm transition hover:bg-black/35 hover:text-cyan group-hover/rail:opacity-100 focus-visible:opacity-100"
+                  >
+                    &lt;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scroll(1)}
+                    aria-label={`Scorri avanti ${module.title}`}
+                    className="absolute right-0 top-1/2 z-20 grid h-[72%] min-h-24 w-11 -translate-y-1/2 place-items-center rounded-l-2xl border border-white/10 bg-black/20 text-4xl font-black text-white/50 opacity-0 backdrop-blur-sm transition hover:bg-black/35 hover:text-cyan group-hover/rail:opacity-100 focus-visible:opacity-100"
+                  >
+                    &gt;
+                  </button>
+                </>
+              ) : null}
+              <div
+                ref={railRef}
+                className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto pb-0 lg:items-end xl:gap-4"
+              >
+                {module.items.length > 0 ? (
+                  items.map((item) => (
+                    <SonicPlaylistThumbnail
+                      key={item.id}
+                      item={item}
+                      active={item.id === featured?.id}
+                      onInfo={() => openInfo(item)}
+                      onPlay={() => playInFeatured(item)}
+                    />
+                  ))
+                ) : (
+                  <EmptyModuleNotice />
+                )}
+              </div>
             </div>
           </div>
         </div>
