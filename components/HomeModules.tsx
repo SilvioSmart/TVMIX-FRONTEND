@@ -143,6 +143,7 @@ function mediaSocialLinks(item: MediaItem) {
     { label: "X", icon: "X", href: `https://twitter.com/intent/tweet?url=${payload.encodedUrl}&text=${payload.encodedText}` },
     { label: "WhatsApp", icon: "W", href: `https://wa.me/?text=${payload.encodedText}%20${payload.encodedUrl}` },
     { label: "Telegram", icon: "T", href: `https://t.me/share/url?url=${payload.encodedUrl}&text=${payload.encodedText}` },
+    { label: "Instagram", icon: "IG", href: "https://www.instagram.com/" },
   ];
 }
 
@@ -505,20 +506,32 @@ function SonicPlaylistThumbnail({
   onInfo: () => void;
   onPlay: () => void;
 }) {
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const [hoverPreviewActive, setHoverPreviewActive] = useState(false);
+  const cardRef = useRef<HTMLElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [hoverMounted, setHoverMounted] = useState(false);
+  const [hoverVisible, setHoverVisible] = useState(false);
+  const [hoverAnchorRect, setHoverAnchorRect] = useState<DOMRect | null>(null);
 
   const openHover = () => {
-    setHoverOpen(true);
-    setHoverPreviewActive(Boolean(item.hlsUrl));
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (rect) setHoverAnchorRect(rect);
+    setHoverMounted(true);
+    window.requestAnimationFrame(() => setHoverVisible(true));
   };
   const closeHover = () => {
-    setHoverOpen(false);
-    setHoverPreviewActive(false);
+    setHoverVisible(false);
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => setHoverMounted(false), 1000);
   };
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+  }, []);
 
   return (
     <article
+      ref={cardRef}
       onMouseEnter={openHover}
       onMouseLeave={closeHover}
       onFocus={openHover}
@@ -554,45 +567,16 @@ function SonicPlaylistThumbnail({
           </span>
         </div>
       </div>
-      {hoverOpen ? (
-        <div className="absolute left-1/2 top-0 z-50 w-[150%] min-w-[360px] -translate-x-1/2 -translate-y-[34%] rounded-[18px] border border-cyan/30 bg-[#050b14]/98 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-xl">
-          <div className="relative aspect-video overflow-hidden rounded-[14px] bg-black">
-            <CarouselClipPreviewMedia item={item} active={hoverPreviewActive} muted onPreviewEnd={() => setHoverPreviewActive(false)} durationMs={20_000} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={onPlay}
-              aria-label={`Riproduci ${item.title}`}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-            >
-              <Play size={16} fill="currentColor" />
-            </button>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onInfo}
-                aria-label={`Informazioni ${item.title}`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-              >
-                <ChevronDown size={18} />
-              </button>
-              {mediaSocialLinks(item).map((link) => (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Condividi ${item.title} su ${link.label}`}
-                  className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
-                >
-                  {link.label === "Telegram" ? <Send size={15} /> : link.icon}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
+      {hoverMounted && hoverAnchorRect ? (
+        <CarouselThumbnailHoverPopup
+          item={item}
+          anchorRect={hoverAnchorRect}
+          visible={hoverVisible}
+          onEnter={openHover}
+          onLeave={closeHover}
+          onInfo={onInfo}
+          onPlay={onPlay}
+        />
       ) : null}
     </article>
   );
@@ -712,6 +696,96 @@ function CarouselClipPreviewMedia({
       className="h-full w-full object-cover"
       aria-label={`Anteprima ${item.title}`}
     />
+  );
+}
+
+function CarouselThumbnailHoverPopup({
+  item,
+  anchorRect,
+  visible,
+  onEnter,
+  onLeave,
+  onInfo,
+  onPlay,
+}: {
+  item: MediaItem;
+  anchorRect: DOMRect;
+  visible: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+  onInfo: () => void;
+  onPlay: () => void;
+}) {
+  const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
+
+  useEffect(() => {
+    setPreviewActive(Boolean(item.hlsUrl));
+  }, [item.hlsUrl, item.id]);
+
+  if (typeof document === "undefined") return null;
+
+  const width = Math.max(360, anchorRect.width * 1.5);
+  const left = anchorRect.left + window.scrollX + anchorRect.width / 2;
+  const top = anchorRect.top + window.scrollY + anchorRect.height / 2;
+
+  return createPortal(
+    <div
+      className={`absolute z-[998] rounded-[18px] border border-cyan/30 bg-[#050b14]/98 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-xl transition duration-1000 ease-out ${
+        visible ? "-translate-x-1/2 -translate-y-1/2 scale-100 opacity-100" : "-translate-x-1/2 -translate-y-1/2 scale-75 opacity-0"
+      }`}
+      style={{ left, top, width }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      <div className="relative aspect-video overflow-hidden rounded-[14px] bg-black">
+        <CarouselClipPreviewMedia item={item} active={previewActive} muted onPreviewEnd={() => setPreviewActive(false)} durationMs={20_000} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+      </div>
+
+      <div className="mt-2 flex items-start justify-between gap-3">
+        <p className="line-clamp-2 min-w-0 text-left text-sm font-black uppercase leading-[1.05] tracking-[-0.035em] text-white">
+          {item.title}
+        </p>
+        <span className="shrink-0 text-right text-[10px] font-black uppercase tracking-[0.13em] text-white/70">
+          {mediaDurationLabel(item)}
+        </span>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onPlay}
+          aria-label={`Riproduci ${item.title}`}
+          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+        >
+          <Play size={16} fill="currentColor" />
+        </button>
+        <button
+          type="button"
+          onClick={onInfo}
+          aria-label={`Informazioni ${item.title}`}
+          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+        >
+          <ChevronDown size={18} />
+        </button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {mediaSocialLinks(item).map((link) => (
+          <a
+            key={link.label}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Condividi ${item.title} su ${link.label}`}
+            className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-xs font-black text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+          >
+            {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+          </a>
+        ))}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
