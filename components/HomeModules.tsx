@@ -143,7 +143,6 @@ function mediaSocialLinks(item: MediaItem) {
     { label: "X", icon: "X", href: `https://twitter.com/intent/tweet?url=${payload.encodedUrl}&text=${payload.encodedText}` },
     { label: "WhatsApp", icon: "W", href: `https://wa.me/?text=${payload.encodedText}%20${payload.encodedUrl}` },
     { label: "Telegram", icon: "T", href: `https://t.me/share/url?url=${payload.encodedUrl}&text=${payload.encodedText}` },
-    { label: "Instagram", icon: "IG", href: "https://www.instagram.com/" },
   ];
 }
 
@@ -508,6 +507,7 @@ function SonicPlaylistThumbnail({
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const openTimerRef = useRef<number | null>(null);
   const [hoverMounted, setHoverMounted] = useState(false);
   const [hoverVisible, setHoverVisible] = useState(false);
   const [hoverAnchorRect, setHoverAnchorRect] = useState<DOMRect | null>(null);
@@ -517,7 +517,8 @@ function SonicPlaylistThumbnail({
     const rect = cardRef.current?.getBoundingClientRect();
     if (rect) setHoverAnchorRect(rect);
     setHoverMounted(true);
-    window.requestAnimationFrame(() => setHoverVisible(true));
+    if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
+    openTimerRef.current = window.setTimeout(() => setHoverVisible(true), 30);
   };
   const closeHover = () => {
     setHoverVisible(false);
@@ -526,6 +527,7 @@ function SonicPlaylistThumbnail({
   };
 
   useEffect(() => () => {
+    if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
     if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
   }, []);
 
@@ -783,13 +785,21 @@ function CarouselThumbnailHoverPopup({
             {link.label === "Telegram" ? <Send size={15} /> : link.icon}
           </a>
         ))}
+        <button
+          type="button"
+          onClick={() => void copyMediaShareLink(item)}
+          aria-label={`Copia link ${item.title}`}
+          className="inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-transparent text-white/85 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+        >
+          <Copy size={15} />
+        </button>
       </div>
     </div>,
     document.body,
   );
 }
 
-function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
+function CarouselClipInfoModal({ item, visible, onClose }: { item: MediaItem; visible: boolean; onClose: () => void }) {
   const synopsis = item.description || "Sinossi non disponibile per questo contenuto.";
   const [previewActive, setPreviewActive] = useState(Boolean(item.hlsUrl));
   const [previewMuted, setPreviewMuted] = useState(true);
@@ -815,7 +825,9 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
     <div className="absolute left-0 top-0 z-[999] w-full" role="dialog" aria-modal="false" aria-label={`Informazioni ${item.title}`}>
       <button type="button" aria-label="Chiudi informazioni clip" className="fixed inset-0 cursor-default bg-transparent" onClick={onClose} />
       <article
-        className="absolute left-1/2 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl"
+        className={`absolute left-1/2 z-10 w-[50vw] min-w-[420px] max-w-[840px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-cyan/25 bg-[#050b14]/98 text-white shadow-[0_28px_100px_rgba(0,0,0,0.72)] backdrop-blur-xl transition duration-1000 ease-out ${
+          visible ? "scale-100 opacity-100" : "scale-75 opacity-0"
+        }`}
         style={{ top: bodyAnchorTop }}
       >
         <button
@@ -949,12 +961,30 @@ function CarouselClipInfoModal({ item, onClose }: { item: MediaItem; onClose: ()
 
 function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
+  const infoCloseTimerRef = useRef<number | null>(null);
   const [activeId, setActiveId] = useState<string | null>(module.items[0]?.id ?? null);
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null);
+  const [infoVisible, setInfoVisible] = useState(false);
   const featured = module.items.find((item) => item.id === activeId) ?? module.items[0];
   const items = module.items;
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
+
+  const openInfo = (item: MediaItem) => {
+    if (infoCloseTimerRef.current) window.clearTimeout(infoCloseTimerRef.current);
+    setInfoItem(item);
+    window.setTimeout(() => setInfoVisible(true), 30);
+  };
+
+  const closeInfo = () => {
+    setInfoVisible(false);
+    if (infoCloseTimerRef.current) window.clearTimeout(infoCloseTimerRef.current);
+    infoCloseTimerRef.current = window.setTimeout(() => setInfoItem(null), 1000);
+  };
+
+  useEffect(() => () => {
+    if (infoCloseTimerRef.current) window.clearTimeout(infoCloseTimerRef.current);
+  }, []);
 
   return (
     <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/rail relative scroll-mt-24 overflow-visible py-8 sm:py-10 lg:py-12">
@@ -993,7 +1023,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
                     item={item}
                     active={item.id === featured?.id}
                     onChoose={() => setActiveId(item.id)}
-                    onInfo={() => setInfoItem(item)}
+                    onInfo={() => openInfo(item)}
                     onPlay={() => onSelect(item)}
                   />
                 ))
@@ -1004,7 +1034,7 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
           </div>
         </div>
       </div>
-      {infoItem ? <CarouselClipInfoModal item={infoItem} onClose={() => setInfoItem(null)} /> : null}
+      {infoItem ? <CarouselClipInfoModal item={infoItem} visible={infoVisible} onClose={closeInfo} /> : null}
     </section>
   );
 }
