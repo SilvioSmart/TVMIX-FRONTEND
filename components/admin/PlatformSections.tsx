@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import {
   Archive,
   Boxes,
@@ -25,7 +26,13 @@ import { AppearanceModulesConfigSection } from "./AppearanceModulesConfigSection
 import { LiveSection } from "./LiveSection";
 import { NewsSection } from "./NewsSection";
 import { UsersSection } from "./UsersSection";
-import type { AppearanceMenuKey } from "./admin-api";
+import {
+  fetchAppearanceBrand,
+  updateAppearanceBrand,
+  uploadBrandAssetToR2,
+  type AppearanceBrandSettings,
+  type AppearanceMenuKey,
+} from "./admin-api";
 
 type Props = {
   section: Exclude<AdminSection, "overview">;
@@ -120,6 +127,9 @@ function AppearanceSection({
   const Icon = current.icon;
   const dbLabel = menu.find((item) => item.key === activeSection)?.label ?? current.title;
 
+  if (activeSection === "logo-name") {
+    return <BrandIdentitySection title={dbLabel} onNotify={onNotify} />;
+  }
   if (activeSection === "menu") {
     return <AppearanceMenuConfigSection onNotify={onNotify} />;
   }
@@ -180,16 +190,11 @@ function AppearanceSection({
                 <Input
                   key={field}
                   label={field}
-                  value={index === 0 && activeSection === "logo-name" ? "TVMIX" : ""}
+                  value=""
                   placeholder={`Configura ${field.toLowerCase()}`}
                   onChange={() => undefined}
                 />
               ))}
-              {activeSection === "logo-name" ? (
-                <button className="admin-secondary-button w-full">
-                  <Upload size={16} /> Carica logo
-                </button>
-              ) : null}
               <button
                 onClick={() => onNotify(current.action)}
                 className="admin-primary-button w-full"
@@ -221,6 +226,268 @@ function AppearanceSection({
         </section>
       </div>
     </div>
+  );
+}
+
+const defaultBrand: AppearanceBrandSettings = {
+  id: "default",
+  platformName: "TVMIX",
+  logoUrl: null,
+  logoObjectKey: null,
+  faviconUrl: null,
+  faviconObjectKey: null,
+  accentColor: "#16b9f4",
+  createdAt: "",
+  updatedAt: "",
+};
+
+function BrandIdentitySection({ title, onNotify }: { title: string; onNotify: (message: string) => void }) {
+  const [brand, setBrand] = useState<AppearanceBrandSettings>(defaultBrand);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [logoProgress, setLogoProgress] = useState(0);
+  const [faviconProgress, setFaviconProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchAppearanceBrand()
+      .then((data) => {
+        if (active) setBrand(data);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Caricamento identità visiva non riuscito");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const field = <K extends keyof AppearanceBrandSettings>(key: K, value: AppearanceBrandSettings[K]) => {
+    setBrand((current) => ({ ...current, [key]: value }));
+  };
+
+  async function uploadBrandFile(kind: "logo" | "favicon", file?: File | null) {
+    if (!file) return;
+    setError(null);
+    const setProgress = kind === "logo" ? setLogoProgress : setFaviconProgress;
+    setProgress(1);
+    try {
+      const uploaded = await uploadBrandAssetToR2(file, setProgress, kind);
+      setBrand((current) => ({
+        ...current,
+        ...(kind === "logo"
+          ? { logoUrl: uploaded.publicUrl, logoObjectKey: uploaded.objectKey }
+          : { faviconUrl: uploaded.publicUrl, faviconObjectKey: uploaded.objectKey }),
+      }));
+      onNotify(`${kind === "logo" ? "Logo" : "Favicon"} caricato su R2`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Upload non riuscito");
+    } finally {
+      window.setTimeout(() => setProgress(0), 900);
+    }
+  }
+
+  async function saveBrand() {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateAppearanceBrand({
+        platformName: brand.platformName,
+        logoUrl: brand.logoUrl,
+        logoObjectKey: brand.logoObjectKey,
+        faviconUrl: brand.faviconUrl,
+        faviconObjectKey: brand.faviconObjectKey,
+        accentColor: brand.accentColor,
+      });
+      setBrand(saved);
+      onNotify("Identità visiva salvata");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio identità visiva non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <Header
+        title={`Aspetto · ${title}`}
+        description="Configura logo piattaforma, favicon, nome pubblico e colore principale del sito."
+      />
+
+      <section className="admin-panel overflow-hidden">
+        <div className="border-b border-[#203248] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-lg bg-[#16b9f4]/10 text-[#22bdf3]">
+              <Palette size={19} />
+            </span>
+            <div>
+              <h3 className="admin-section-title">Identità piattaforma</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Carica gli asset grafici e definisci il colore di caratterizzazione del frontend.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 p-5 xl:grid-cols-[0.55fr_0.45fr]">
+          <div className="space-y-5">
+            {error ? <p className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+            {loading ? <p className="text-sm text-slate-400">Caricamento configurazione...</p> : null}
+
+            <Input
+              label="Nome piattaforma"
+              value={brand.platformName}
+              placeholder="TVMIX"
+              onChange={(value) => field("platformName", value)}
+            />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AssetUploadBox
+                label="Logo piattaforma"
+                hint="PNG, JPG, WebP o GIF"
+                value={brand.logoUrl}
+                progress={logoProgress}
+                onFile={(file) => void uploadBrandFile("logo", file)}
+              />
+              <AssetUploadBox
+                label="Favicon"
+                hint="Consigliato formato quadrato"
+                value={brand.faviconUrl}
+                progress={faviconProgress}
+                compact
+                onFile={(file) => void uploadBrandFile("favicon", file)}
+              />
+            </div>
+
+            <div>
+              <span className="admin-label">Colore caratterizzazione sito</span>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <input
+                  type="color"
+                  value={brand.accentColor}
+                  onChange={(event) => field("accentColor", event.target.value)}
+                  className="h-11 w-16 cursor-pointer rounded-lg border border-[#26394d] bg-[#071321] p-1"
+                  aria-label="Scegli colore principale"
+                />
+                <input
+                  value={brand.accentColor}
+                  onChange={(event) => field("accentColor", event.target.value)}
+                  className="admin-input max-w-[160px]"
+                  placeholder="#16b9f4"
+                />
+                <span
+                  className="rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.16em]"
+                  style={{ borderColor: brand.accentColor, color: brand.accentColor }}
+                >
+                  Anteprima colore
+                </span>
+              </div>
+            </div>
+
+            <button type="button" onClick={() => void saveBrand()} disabled={saving || loading} className="admin-primary-button w-full">
+              <Save size={17} /> {saving ? "Salvataggio..." : "Salva logo/name"}
+            </button>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Anteprima brand
+            </p>
+            <div className="overflow-hidden rounded-xl border border-[#203248] bg-[#030b14]">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <BrandPreviewImage url={brand.logoUrl} name={brand.platformName} />
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-black tracking-[-0.04em] text-white">{brand.platformName || "TVMIX"}</p>
+                    <p className="text-xs text-slate-500">Navbar / login / admin</p>
+                  </div>
+                </div>
+                <span className="size-4 rounded-full" style={{ backgroundColor: brand.accentColor }} />
+              </div>
+              <div className="p-4">
+                <div className="relative aspect-video overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_20%_20%,rgba(34,189,243,0.2),transparent_35%),#06111d]">
+                  <div className="absolute left-4 top-4 flex items-center gap-2">
+                    <BrandPreviewImage url={brand.faviconUrl} name="Favicon" small />
+                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/65">Favicon</span>
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <p className="text-2xl font-black uppercase tracking-[-0.06em] text-white">{brand.platformName || "TVMIX"}</p>
+                    <button
+                      type="button"
+                      className="mt-3 rounded-full px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-black"
+                      style={{ backgroundColor: brand.accentColor }}
+                    >
+                      Guarda ora
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Gli asset vengono salvati su Cloudflare R2 nella cartella <span className="text-slate-300">brand</span>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AssetUploadBox({
+  label,
+  hint,
+  value,
+  progress,
+  compact,
+  onFile,
+}: {
+  label: string;
+  hint: string;
+  value: string | null;
+  progress: number;
+  compact?: boolean;
+  onFile: (file?: File | null) => void;
+}) {
+  return (
+    <div>
+      <span className="admin-label">{label}</span>
+      <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#26394d] bg-[#071321] p-4 text-center transition hover:border-[#22bdf3]/60">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => onFile(event.target.files?.[0])} />
+        <div className={compact ? "size-16" : "h-20 w-40"}>
+          {value ? (
+            <img src={value} alt={label} className="h-full w-full rounded-lg object-contain" />
+          ) : (
+            <div className="grid h-full w-full place-items-center rounded-lg bg-white/[0.04] text-slate-500">
+              <Upload size={22} />
+            </div>
+          )}
+        </div>
+        <span className="mt-3 text-sm font-bold text-white">Carica {label.toLowerCase()}</span>
+        <span className="mt-1 text-xs text-slate-500">{hint}</span>
+      </label>
+      {progress > 0 ? (
+        <div className="mt-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-1.5 bg-[#22bdf3] transition-[width]" style={{ width: `${progress}%` }} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BrandPreviewImage({ url, name, small }: { url: string | null; name: string; small?: boolean }) {
+  if (url) {
+    return <img src={url} alt={name} className={`${small ? "size-8" : "size-11"} shrink-0 rounded-lg object-contain`} />;
+  }
+  return (
+    <span className={`${small ? "size-8 text-xs" : "size-11 text-sm"} grid shrink-0 place-items-center rounded-lg bg-[#16b9f4]/15 font-black text-[#22bdf3]`}>
+      {(name || "T").slice(0, 1).toUpperCase()}
+    </span>
   );
 }
 

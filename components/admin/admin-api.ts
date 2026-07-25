@@ -210,6 +210,38 @@ export type AppearanceMenuItem = {
   enabled: boolean;
 };
 
+export type AppearanceBrandSettings = {
+  id: string;
+  platformName: string;
+  logoUrl: string | null;
+  logoObjectKey: string | null;
+  faviconUrl: string | null;
+  faviconObjectKey: string | null;
+  accentColor: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppearanceBrandInput = Partial<
+  Pick<
+    AppearanceBrandSettings,
+    "platformName" | "logoUrl" | "logoObjectKey" | "faviconUrl" | "faviconObjectKey" | "accentColor"
+  >
+>;
+
+export async function fetchAppearanceBrand(): Promise<AppearanceBrandSettings> {
+  const response = await adminRequest<{ data: AppearanceBrandSettings }>("appearance/brand");
+  return response.data;
+}
+
+export async function updateAppearanceBrand(input: AppearanceBrandInput): Promise<AppearanceBrandSettings> {
+  const response = await adminRequest<{ data: AppearanceBrandSettings }>("appearance/brand", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return response.data;
+}
+
 export type HomeModuleType = "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL";
 export type HomeModuleQueryType = "LATEST" | "CATEGORY" | "PROGRAM" | "SEASON" | "MANUAL" | "LIVE";
 export type HomeModuleSortMethod = "RECENT" | "OLDEST" | "TITLE_ASC";
@@ -656,7 +688,7 @@ export async function uploadFileToR2(
 export async function uploadMediaAssetToR2(
   file: File,
   onProgress: (percentage: number) => void,
-  scope: "slide" | "thumbnail" | "locandina" | "notice_slide" | "tg9_video",
+  scope: "slide" | "thumbnail" | "locandina" | "notice_slide" | "tg9_video" | "brand_logo" | "brand_favicon",
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
@@ -716,6 +748,14 @@ export async function uploadNoticeImageToR2(
   onProgress: (percentage: number) => void,
 ): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
   return uploadMediaAssetToR2(file, onProgress, "notice_slide");
+}
+
+export async function uploadBrandAssetToR2(
+  file: File,
+  onProgress: (percentage: number) => void,
+  kind: "logo" | "favicon",
+): Promise<{ uploadId: string; objectKey: string; publicUrl: string; originalFileName: string }> {
+  return uploadMediaAssetToR2(file, onProgress, kind === "logo" ? "brand_logo" : "brand_favicon");
 }
 
 export async function importNoticeImageFromUrl(
