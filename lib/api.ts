@@ -93,7 +93,7 @@ export type HomeModule = {
   id: string;
   title: string;
   subtitle?: string | null;
-  type: "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL";
+  type: "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL" | "PROMOTIONS";
   queryType: "LATEST" | "CATEGORY" | "PROGRAM" | "SEASON" | "MANUAL" | "LIVE";
   sortMethod?: "RECENT" | "OLDEST" | "TITLE_ASC";
   sortOrder: number;

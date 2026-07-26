@@ -375,6 +375,7 @@ function menuHasPlacement(item: FrontendMenuItem, placement: FrontendMenuPlaceme
 function moduleTypeLabel(type: HomeModule["type"]) {
   if (type === "LIVE_EPG") return "TV Live";
   if (type === "POSTER_RAIL") return "Locandine";
+  if (type === "PROMOTIONS") return "Promozioni";
   return "Carusel slider";
 }
 

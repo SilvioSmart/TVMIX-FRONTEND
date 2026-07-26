@@ -255,7 +255,7 @@ export async function updateAppearanceBrand(input: AppearanceBrandInput): Promis
   return response.data;
 }
 
-export type HomeModuleType = "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL";
+export type HomeModuleType = "CAROUSEL_SLIDER" | "LIVE_EPG" | "POSTER_RAIL" | "PROMOTIONS";
 export type HomeModuleQueryType = "LATEST" | "CATEGORY" | "PROGRAM" | "SEASON" | "MANUAL" | "LIVE";
 export type HomeModuleSortMethod = "RECENT" | "OLDEST" | "TITLE_ASC";
 

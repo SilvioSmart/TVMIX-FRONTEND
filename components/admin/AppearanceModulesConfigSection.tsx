@@ -47,6 +47,7 @@ const moduleTypeLabels: Record<HomeModuleType, string> = {
   CAROUSEL_SLIDER: "Carusel slider",
   LIVE_EPG: "Live con EPG",
   POSTER_RAIL: "Locandine",
+  PROMOTIONS: "Promozioni",
 };
 
 const sortLabels: Record<HomeModuleSortMethod, string> = {
@@ -258,6 +259,7 @@ export function AppearanceModulesConfigSection({ onNotify }: { onNotify: (messag
                 <option value="CAROUSEL_SLIDER">Carusel slider</option>
                 <option value="LIVE_EPG">Live con EPG</option>
                 <option value="POSTER_RAIL">Locandine</option>
+                <option value="PROMOTIONS">Promozioni</option>
               </select>
             </label>
 

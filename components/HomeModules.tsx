@@ -1076,6 +1076,65 @@ function CarouselSliderModule({ module, onSelect }: { module: HomeModule; onSele
   );
 }
 
+function PromotionsModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
+  const item = module.items[0];
+  const logoText = item?.programName || module.title;
+  const description = item?.description || module.subtitle || "Una selezione speciale TVMIX da guardare ora.";
+
+  return (
+    <section id={`module-${module.id}`} className="content-auto scroll-mt-24 px-[3%] py-8 sm:py-10 lg:py-12">
+      <article className="relative min-h-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-[#050b14] shadow-[0_28px_95px_rgba(0,0,0,0.42)]">
+        {item ? (
+          <>
+            <div className="absolute inset-y-0 right-0 w-[62%] overflow-hidden bg-black sm:w-[58%]">
+              <Image
+                src={item.image}
+                alt=""
+                fill
+                loading="lazy"
+                sizes="(min-width: 1024px) 58vw, 92vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#050b14] via-[#050b14]/18 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050b14]/70 via-transparent to-transparent" />
+            </div>
+
+            <div className="relative z-10 flex min-h-[360px] max-w-[54rem] flex-col justify-between p-6 sm:p-8 lg:p-10">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan/80">Promozioni</p>
+                <div className="mt-4 inline-flex max-w-[min(76vw,520px)] items-center rounded-2xl border border-cyan/35 bg-cyan/10 px-4 py-3 text-left shadow-[0_0_28px_rgba(3,169,244,0.12)]">
+                  <h2 className="line-clamp-2 text-[clamp(1.8rem,5vw,4.4rem)] font-black uppercase leading-[0.82] tracking-[-0.08em] text-white">
+                    {logoText}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="mt-10 max-w-xl">
+                <p className="line-clamp-2 text-base font-semibold leading-6 text-white/78 sm:text-lg sm:leading-7">
+                  {description}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onSelect(item)}
+                  disabled={!item.hlsUrl}
+                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-full border border-cyan/60 bg-transparent px-4 text-[11px] font-black uppercase tracking-[0.14em] text-cyan transition hover:bg-cyan/10 disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/35 sm:h-11"
+                >
+                  <Play size={15} fill="currentColor" />
+                  Guarda ora
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="grid min-h-[360px] place-items-center p-6">
+            <EmptyModuleNotice text="Nessun contenuto disponibile per il modulo promozioni." />
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
 function PosterRailModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const scroll = (direction: number) =>
@@ -1421,6 +1480,9 @@ export function HomeModules({ modules, fallbackModules, onSelect }: HomeModulesP
       {visibleModules.map((module) => {
         if (module.type === "LIVE_EPG") {
           return <LiveEpgModule key={module.id} module={module} onSelect={onSelect} />;
+        }
+        if (module.type === "PROMOTIONS") {
+          return <PromotionsModule key={module.id} module={module} onSelect={onSelect} />;
         }
         if (module.type === "POSTER_RAIL") {
           return <PosterRailModule key={module.id} module={module} onSelect={onSelect} />;
