@@ -44,6 +44,7 @@ type Tg9Form = {
   videoUrl: string;
   videoObjectKey: string;
   posterUrl: string;
+  subtitlesUrl: string;
   sortOrder: string;
   published: boolean;
 };
@@ -669,6 +670,7 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
             <Input label="Slug" value={quickForm.slug} onChange={(value) => quickField("slug", value)} placeholder="automatico dal titolo" />
             <Input label="Poster URL" value={quickForm.posterUrl} onChange={(value) => quickField("posterUrl", value)} placeholder="URL immagine poster" />
             <Input label="Ordine" type="number" value={quickForm.sortOrder} onChange={(value) => quickField("sortOrder", value)} />
+            <Input label="Sottotitoli URL" value={quickForm.subtitlesUrl} onChange={(value) => quickField("subtitlesUrl", value)} placeholder="URL file VTT/SRT" />
             <label className="md:col-span-2 block">
               <span className="admin-label">Descrizione</span>
               <textarea value={quickForm.description} onChange={(event) => quickField("description", event.target.value)} rows={4} className="admin-input mt-2 py-3" />
@@ -701,10 +703,9 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
               <tr>
                 <th className="px-4 py-3">Video</th>
                 <th className="px-4 py-3">Titolo</th>
-                <th className="px-4 py-3">Data</th>
-                <th className="px-4 py-3">Ora</th>
-                <th className="px-4 py-3">Utente</th>
+                <th className="px-4 py-3">Inserimento</th>
                 <th className="px-4 py-3">Pubblicazione</th>
+                <th className="px-4 py-3">Sottotitoli</th>
                 <th className="px-4 py-3">Sottoclip</th>
                 <th className="px-4 py-3 text-right">Azioni</th>
               </tr>
@@ -722,10 +723,12 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
                     <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description ?? "Nessuna descrizione"}</p>
                     <p className="mt-1 font-mono text-[11px] text-[#22bdf3]">/{item.slug}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{created.date}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{created.time}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{item.createdBy ?? "***"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">
+                    <span>{created.date} {created.time}</span>
+                    <span className="block">{item.createdBy ?? "***"}</span>
+                  </td>
                   <td className="px-4 py-3"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.published ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>{item.published ? "pubblicato" : "bozza"}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.subtitlesUrl ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>SUB</span></td>
                   <td className="px-4 py-3 text-slate-200">{item._count?.subclips ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
@@ -774,6 +777,7 @@ function Tg9Editor({ item, onClose, onSaved }: { item: Tg9Video | null; onClose:
     videoUrl: item?.videoUrl ?? "",
     videoObjectKey: item?.videoObjectKey ?? "",
     posterUrl: item?.posterUrl ?? "",
+    subtitlesUrl: item?.subtitlesUrl ?? "",
     sortOrder: String(item?.sortOrder ?? 0),
     published: item?.published ?? false,
   });
@@ -814,6 +818,7 @@ function Tg9Editor({ item, onClose, onSaved }: { item: Tg9Video | null; onClose:
           videoUrl: form.videoUrl,
           videoObjectKey: form.videoObjectKey || null,
           posterUrl: form.posterUrl || null,
+          subtitlesUrl: form.subtitlesUrl || null,
           sortOrder: Number(form.sortOrder || 0),
           published: form.published,
         }),
@@ -836,6 +841,7 @@ function Tg9Editor({ item, onClose, onSaved }: { item: Tg9Video | null; onClose:
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Ordine carousel" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
           <Input label="Poster URL opzionale" value={form.posterUrl} onChange={(value) => field("posterUrl", value)} />
+          <Input label="Sottotitoli URL" value={form.subtitlesUrl} onChange={(value) => field("subtitlesUrl", value)} />
         </div>
         <div>
           <span className="admin-label">Filmato TG9</span>
@@ -866,12 +872,15 @@ function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: ()
     videoUrl: item.videoUrl,
     videoObjectKey: item.videoObjectKey ?? "",
     posterUrl: item.posterUrl ?? "",
+    subtitlesUrl: item.subtitlesUrl ?? "",
     sortOrder: String(item.sortOrder ?? 0),
     published: item.published,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subclips, setSubclips] = useState<Tg9Subclip[]>([]);
+  const [editingSubclip, setEditingSubclip] = useState<Tg9Subclip | null>(null);
+  const [subclipForm, setSubclipForm] = useState({ title: "", slug: "", vastUrl: "", startTime: "0", endTime: "0", sortOrder: "0" });
   const [markIn, setMarkIn] = useState<number | null>(null);
   const [markOut, setMarkOut] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -946,6 +955,81 @@ function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: ()
     }
   }
 
+  function stepFrame(direction: -1 | 1) {
+    const player = videoRef.current;
+    if (!player) return;
+    const step = 1 / 25;
+    player.pause();
+    player.currentTime = Math.max(0, player.currentTime + direction * step);
+    setCurrentTime(player.currentTime);
+  }
+
+  async function generatePoster() {
+    const player = videoRef.current;
+    if (!player || !player.videoWidth || !player.videoHeight) {
+      setError("Avvia o posiziona il video prima di generare il poster.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = player.videoWidth;
+      canvas.height = player.videoHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas non disponibile per generare il poster");
+      context.drawImage(player, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+      const response = await adminRequest<{ data: { posterUrl: string } }>(`news/tg9/${item.id}/poster`, {
+        method: "POST",
+        body: JSON.stringify({ dataUrl, fileName: `${form.slug || item.slug}-poster-${Math.floor(currentTime)}.jpg` }),
+      });
+      field("posterUrl", response.data.posterUrl);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Generazione poster non riuscita");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEditSubclip(subclip: Tg9Subclip) {
+    setEditingSubclip(subclip);
+    setSubclipForm({
+      title: subclip.title ?? "",
+      slug: subclip.slug ?? "",
+      vastUrl: subclip.vastUrl ?? "",
+      startTime: String(subclip.startTime),
+      endTime: String(subclip.endTime),
+      sortOrder: String(subclip.sortOrder),
+    });
+  }
+
+  async function saveSubclip(event: FormEvent) {
+    event.preventDefault();
+    if (!editingSubclip) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(`news/tg9/${item.id}/subclips/${editingSubclip.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: subclipForm.title || null,
+          slug: subclipForm.slug || undefined,
+          vastUrl: subclipForm.vastUrl || null,
+          startTime: Number(subclipForm.startTime || 0),
+          endTime: Number(subclipForm.endTime || 0),
+          sortOrder: Number(subclipForm.sortOrder || 0),
+        }),
+      });
+      setEditingSubclip(null);
+      await loadSubclips();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Aggiornamento sottoclip non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AdminModal title="Modifica TG9 · trimming sottoclip" onClose={onClose}>
       <div className="max-h-[82vh] space-y-5 overflow-y-auto pr-1">
@@ -965,6 +1049,15 @@ function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: ()
               <button type="button" className="admin-secondary-button justify-center" onClick={() => setMarkOut(Math.floor(currentTime))}>Mark-out {markOut !== null ? formatSeconds(markOut) : ""}</button>
               <button type="button" className="admin-primary-button justify-center sm:col-span-2" onClick={() => void createSubclip()} disabled={saving}>Crea sottoclip</button>
             </div>
+            <div className="grid gap-2 sm:grid-cols-4">
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => stepFrame(-1)}>◀ 1 frame</button>
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => stepFrame(1)}>1 frame ▶</button>
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => seekTo(Math.max(0, currentTime - 1))}>-1 sec</button>
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => seekTo(currentTime + 1)}>+1 sec</button>
+            </div>
+            <button type="button" className="admin-secondary-button justify-center" onClick={() => void generatePoster()} disabled={saving}>
+              <ImagePlus size={16} /> Genera poster dal frame corrente
+            </button>
             <p className="text-xs text-slate-500">Posizione player: {formatSeconds(currentTime)} · durata selezione: {markIn !== null && markOut !== null && markOut > markIn ? formatSeconds(markOut - markIn) : "--:--:--"}</p>
           </div>
           <form className="space-y-4" onSubmit={submit}>
@@ -972,6 +1065,7 @@ function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: ()
             <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} />
             <Textarea label="Descrizione" value={form.description} onChange={(value) => field("description", value)} rows={4} />
             <Input label="Poster URL" value={form.posterUrl} onChange={(value) => field("posterUrl", value)} />
+            <Input label="Sottotitoli URL" value={form.subtitlesUrl} onChange={(value) => field("subtitlesUrl", value)} />
             <Input label="Ordine carousel" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
             <label className="flex items-center gap-2 text-sm text-slate-300">
               <input type="checkbox" checked={form.published} onChange={(event) => field("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
@@ -990,15 +1084,30 @@ function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: ()
             <h4 className="text-sm font-black uppercase tracking-[0.14em] text-slate-200">Sottoclip generate</h4>
             <span className="rounded-full border border-[#22bdf3]/40 px-2.5 py-1 text-xs text-[#22bdf3]">{subclips.length} clip</span>
           </div>
+          {editingSubclip ? (
+            <form className="mb-4 grid gap-3 rounded-2xl border border-[#22bdf3]/25 bg-[#22bdf3]/5 p-4 md:grid-cols-3" onSubmit={saveSubclip}>
+              <Input label="Titolo sottoclip" value={subclipForm.title} onChange={(value) => setSubclipForm((current) => ({ ...current, title: value }))} />
+              <Input label="Slug sottoclip" value={subclipForm.slug} onChange={(value) => setSubclipForm((current) => ({ ...current, slug: value }))} />
+              <Input label="VAST URL" value={subclipForm.vastUrl} onChange={(value) => setSubclipForm((current) => ({ ...current, vastUrl: value }))} />
+              <Input label="Mark-in sec" type="number" value={subclipForm.startTime} onChange={(value) => setSubclipForm((current) => ({ ...current, startTime: value }))} />
+              <Input label="Mark-out sec" type="number" value={subclipForm.endTime} onChange={(value) => setSubclipForm((current) => ({ ...current, endTime: value }))} />
+              <Input label="Ordine" type="number" value={subclipForm.sortOrder} onChange={(value) => setSubclipForm((current) => ({ ...current, sortOrder: value }))} />
+              <div className="flex justify-end gap-2 md:col-span-3">
+                <button type="button" className="admin-secondary-button" onClick={() => setEditingSubclip(null)}>Annulla</button>
+                <button type="submit" className="admin-primary-button" disabled={saving}>Salva sottoclip</button>
+              </div>
+            </form>
+          ) : null}
           {subclips.length ? (
             <div className="space-y-2">
               {subclips.map((subclip) => (
-                <div key={subclip.id} className="grid gap-2 rounded-xl border border-[#102033] bg-black/15 p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center">
+                <div key={subclip.id} className="grid gap-2 rounded-xl border border-[#102033] bg-black/15 p-3 text-sm md:grid-cols-[1fr_auto_auto_auto] md:items-center">
                   <div>
                     <p className="font-semibold text-slate-100">{subclip.title ?? "Sottoclip TG9"}</p>
                     <p className="text-xs text-slate-500">{formatSeconds(subclip.startTime)} → {formatSeconds(subclip.endTime)} · {formatSeconds(subclip.endTime - subclip.startTime)}</p>
                   </div>
                   <button type="button" className="admin-secondary-button justify-center" onClick={() => seekTo(subclip.startTime)}>Anteprima</button>
+                  <button type="button" className="admin-icon-button" onClick={() => startEditSubclip(subclip)}><Edit3 size={16} /></button>
                   <ConfirmButton label="Elimina sottoclip" onConfirm={() => void removeSubclip(subclip)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
                 </div>
               ))}
@@ -1020,6 +1129,7 @@ function emptyTg9Form(): Tg9Form {
     videoUrl: "",
     videoObjectKey: "",
     posterUrl: "",
+    subtitlesUrl: "",
     sortOrder: "0",
     published: false,
   };
@@ -1033,6 +1143,7 @@ function tg9Payload(form: Tg9Form) {
     videoUrl: form.videoUrl,
     videoObjectKey: form.videoObjectKey || null,
     posterUrl: form.posterUrl || null,
+    subtitlesUrl: form.subtitlesUrl || null,
     sortOrder: Number(form.sortOrder || 0),
     published: form.published,
   };

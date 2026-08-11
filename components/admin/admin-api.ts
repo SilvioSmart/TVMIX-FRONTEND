@@ -134,6 +134,7 @@ export type Tg9Video = {
   videoUrl: string;
   videoObjectKey: string | null;
   posterUrl: string | null;
+  subtitlesUrl: string | null;
   sortOrder: number;
   published: boolean;
   publishedAt: string | null;
@@ -147,6 +148,8 @@ export type Tg9Subclip = {
   id: string;
   tg9VideoId: string;
   title: string | null;
+  slug: string | null;
+  vastUrl: string | null;
   startTime: number;
   endTime: number;
   sortOrder: number;
