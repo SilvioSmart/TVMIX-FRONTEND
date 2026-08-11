@@ -140,6 +140,19 @@ export type Tg9Video = {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  _count?: { subclips: number };
+};
+
+export type Tg9Subclip = {
+  id: string;
+  tg9VideoId: string;
+  title: string | null;
+  startTime: number;
+  endTime: number;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type LiveStream = {

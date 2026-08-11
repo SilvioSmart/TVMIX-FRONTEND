@@ -1,7 +1,7 @@
 "use client";
 
-import { DownloadCloud, Edit3, ImagePlus, Plus, RefreshCw, Tag, Trash2, Upload, Video } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DownloadCloud, Edit3, ImagePlus, Plus, RefreshCw, Scissors, Tag, Trash2, Upload, Video } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NewsSubnavKey } from "./admin-data";
 import {
   adminRequest,
@@ -10,6 +10,7 @@ import {
   type ListResponse,
   type NewsCategory,
   type NoticeArticle,
+  type Tg9Subclip,
   type Tg9Video,
   uploadNoticeImageToR2,
   uploadTg9VideoToR2,
@@ -564,6 +565,11 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Tg9Video | null | "new">(null);
+  const [trimming, setTrimming] = useState<Tg9Video | null>(null);
+  const [quickForm, setQuickForm] = useState<Tg9Form>(emptyTg9Form());
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickUploading, setQuickUploading] = useState(0);
+  const [quickError, setQuickError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -590,13 +596,95 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
     await load();
   }
 
+  function quickField<K extends keyof Tg9Form>(key: K, value: Tg9Form[K]) {
+    setQuickForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "title" && !current.slug.trim()) next.slug = slugPreview(String(value));
+      return next;
+    });
+  }
+
+  async function quickUploadVideo(file?: File | null) {
+    if (!file) return;
+    setQuickError(null);
+    try {
+      const uploaded = await uploadTg9VideoToR2(file, setQuickUploading);
+      const baseName = uploaded.originalFileName.replace(/\.[^.]+$/, "");
+      setQuickForm((current) => ({
+        ...current,
+        title: current.title || baseName,
+        slug: current.slug || slugPreview(baseName),
+        videoUrl: uploaded.publicUrl,
+        videoObjectKey: uploaded.objectKey,
+      }));
+    } catch (cause) {
+      setQuickError(cause instanceof Error ? cause.message : "Upload video TG9 non riuscito");
+    } finally {
+      setQuickUploading(0);
+    }
+  }
+
+  async function quickSubmit(event: FormEvent) {
+    event.preventDefault();
+    setQuickSaving(true);
+    setQuickError(null);
+    try {
+      await adminRequest("news/tg9", {
+        method: "POST",
+        body: JSON.stringify(tg9Payload(quickForm)),
+      });
+      setQuickForm(emptyTg9Form());
+      onNotify("Video TG9 caricato in archivio");
+      await load();
+    } catch (cause) {
+      setQuickError(cause instanceof Error ? cause.message : "Salvataggio TG9 non riuscito");
+    } finally {
+      setQuickSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <Header title="News · tg9" description="Gestisci il carousel video pubblico /tg9. I filmati vengono archiviati in tvmix/tvmix-media/news/tg9_video/.">
-        <button type="button" onClick={() => setEditing("new")} className="admin-primary-button">
-          <Plus size={16} /> Nuovo video TG9
-        </button>
-      </Header>
+      <Header title="News · tg9" description="Gestisci il carousel video pubblico /tg9. I filmati vengono archiviati in tvmix/tvmix-media/news/tg9_video/." />
+      <section className="admin-panel p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <Video size={18} className="text-[#22bdf3]" />
+          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-slate-200">Caricamento da storage</h3>
+        </div>
+        <form className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(420px,1.4fr)]" onSubmit={quickSubmit}>
+          <div className="rounded-2xl border border-dashed border-[#24435c] bg-[#07111d]/70 p-4">
+            <span className="admin-label">File TG9</span>
+            <label className="mt-3 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-2xl border border-[#1d3044] bg-black/20 p-5 text-center transition hover:border-[#22bdf3]/60 hover:bg-[#22bdf3]/5">
+              <Upload size={28} className="mb-3 text-[#22bdf3]" />
+              <span className="text-sm font-semibold text-slate-100">Carica MP4, MOV o MKV dagli storage</span>
+              <span className="mt-1 text-xs text-slate-500">Il file viene salvato su R2 e collegato al TG9.</span>
+              <input type="file" accept="video/mp4,video/quicktime,video/x-matroska,.mp4,.mov,.mkv" className="hidden" onChange={(event) => void quickUploadVideo(event.target.files?.[0])} />
+            </label>
+            {quickUploading ? <div className="mt-3 h-2 overflow-hidden rounded-full border border-[#22bdf3]/40"><div className="h-full bg-[#22bdf3]" style={{ width: `${quickUploading}%` }} /></div> : null}
+            {quickForm.videoUrl ? <p className="mt-3 break-all text-xs text-slate-500">{quickForm.videoUrl}</p> : null}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {quickError ? <p className="md:col-span-2 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{quickError}</p> : null}
+            <Input label="Titolo" value={quickForm.title} onChange={(value) => quickField("title", value)} required />
+            <Input label="Slug" value={quickForm.slug} onChange={(value) => quickField("slug", value)} placeholder="automatico dal titolo" />
+            <Input label="Poster URL" value={quickForm.posterUrl} onChange={(value) => quickField("posterUrl", value)} placeholder="URL immagine poster" />
+            <Input label="Ordine" type="number" value={quickForm.sortOrder} onChange={(value) => quickField("sortOrder", value)} />
+            <label className="md:col-span-2 block">
+              <span className="admin-label">Descrizione</span>
+              <textarea value={quickForm.description} onChange={(event) => quickField("description", event.target.value)} rows={4} className="admin-input mt-2 py-3" />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={quickForm.published} onChange={(event) => quickField("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
+              Pubblica su /tg9
+            </label>
+            <div className="flex justify-end">
+              <button type="submit" disabled={quickSaving || !quickForm.title.trim() || !quickForm.videoUrl.trim()} className="admin-primary-button disabled:opacity-50">
+                {quickSaving ? "Salvataggio..." : "Salva in TG9"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
       <section className="admin-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <SearchBox value={search} onChange={setSearch} placeholder="Cerca video TG9..." />
@@ -608,19 +696,23 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
       <ResourceState loading={loading} error={error} empty={!items.length ? "Nessun video TG9 creato." : undefined} />
       {!loading && !error && items.length ? (
         <section className="admin-panel overflow-x-auto">
-          <table className="min-w-[980px] w-full text-left text-sm">
+          <table className="min-w-[1120px] w-full text-left text-sm">
             <thead className="border-b border-[#1d3044] text-[11px] uppercase tracking-[0.14em] text-slate-500">
               <tr>
                 <th className="px-4 py-3">Video</th>
                 <th className="px-4 py-3">Titolo</th>
-                <th className="px-4 py-3">Ordine</th>
-                <th className="px-4 py-3">Stato</th>
-                <th className="px-4 py-3">Inserimento</th>
+                <th className="px-4 py-3">Data</th>
+                <th className="px-4 py-3">Ora</th>
+                <th className="px-4 py-3">Utente</th>
+                <th className="px-4 py-3">Pubblicazione</th>
+                <th className="px-4 py-3">Sottoclip</th>
                 <th className="px-4 py-3 text-right">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#102033]">
-              {items.map((item) => (
+              {items.map((item) => {
+                const created = formatDateParts(item.createdAt);
+                return (
                 <tr key={item.id} className="hover:bg-white/[0.025]">
                   <td className="px-4 py-3">
                     <video src={item.videoUrl} poster={item.posterUrl ?? undefined} className="h-16 w-28 rounded-lg bg-black object-cover" muted preload="metadata" />
@@ -630,17 +722,20 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
                     <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description ?? "Nessuna descrizione"}</p>
                     <p className="mt-1 font-mono text-[11px] text-[#22bdf3]">/{item.slug}</p>
                   </td>
-                  <td className="px-4 py-3 text-slate-400">{item.sortOrder}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{created.date}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{created.time}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{item.createdBy ?? "***"}</td>
                   <td className="px-4 py-3"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${item.published ? "border-emerald-400 text-emerald-300" : "border-red-400 text-red-300"}`}>{item.published ? "pubblicato" : "bozza"}</span></td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{formatDate(item.createdAt)}<span className="block">{item.createdBy ?? "***"}</span></td>
+                  <td className="px-4 py-3 text-slate-200">{item._count?.subclips ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
-                      <button type="button" className="admin-icon-button" onClick={() => setEditing(item)}><Edit3 size={16} /></button>
+                      <button type="button" className="admin-icon-button" onClick={() => setTrimming(item)} title="Modifica e trimming"><Scissors size={16} /></button>
                       <ConfirmButton label={`Elimina ${item.title}`} onConfirm={() => void remove(item)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </section>
@@ -652,6 +747,17 @@ function Tg9AdminSection({ onNotify }: { onNotify: (message: string) => void }) 
           onSaved={async () => {
             setEditing(null);
             onNotify(editing === "new" ? "Video TG9 creato" : "Video TG9 aggiornato");
+            await load();
+          }}
+        />
+      ) : null}
+      {trimming ? (
+        <Tg9TrimEditor
+          item={trimming}
+          onClose={() => setTrimming(null)}
+          onSaved={async () => {
+            setTrimming(null);
+            onNotify("Video TG9 aggiornato");
             await load();
           }}
         />
@@ -750,6 +856,213 @@ function Tg9Editor({ item, onClose, onSaved }: { item: Tg9Video | null; onClose:
       </form>
     </AdminModal>
   );
+}
+
+function Tg9TrimEditor({ item, onClose, onSaved }: { item: Tg9Video; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [form, setForm] = useState<Tg9Form>({
+    title: item.title,
+    slug: item.slug,
+    description: item.description ?? "",
+    videoUrl: item.videoUrl,
+    videoObjectKey: item.videoObjectKey ?? "",
+    posterUrl: item.posterUrl ?? "",
+    sortOrder: String(item.sortOrder ?? 0),
+    published: item.published,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [subclips, setSubclips] = useState<Tg9Subclip[]>([]);
+  const [markIn, setMarkIn] = useState<number | null>(null);
+  const [markOut, setMarkOut] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const loadSubclips = useCallback(async () => {
+    const response = await adminRequest<ListResponse<Tg9Subclip>>(`news/tg9/${item.id}/subclips`);
+    setSubclips(response.data);
+  }, [item.id]);
+
+  useEffect(() => {
+    void loadSubclips().catch((cause) => setError(cause instanceof Error ? cause.message : "Sottoclip TG9 non disponibili"));
+  }, [loadSubclips]);
+
+  function field<K extends keyof Tg9Form>(key: K, value: Tg9Form[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(`news/tg9/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(tg9Payload(form)),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Salvataggio non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createSubclip() {
+    if (markIn === null || markOut === null || markOut <= markIn) {
+      setError("Imposta mark-in e mark-out: il punto finale deve essere successivo a quello iniziale.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await adminRequest(`news/tg9/${item.id}/subclips`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${form.title} · clip ${subclips.length + 1}`,
+          startTime: Math.floor(markIn),
+          endTime: Math.floor(markOut),
+          sortOrder: subclips.length,
+        }),
+      });
+      setMarkIn(null);
+      setMarkOut(null);
+      await loadSubclips();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Creazione sottoclip non riuscita");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeSubclip(subclip: Tg9Subclip) {
+    await adminRequest(`news/tg9/${item.id}/subclips/${subclip.id}`, { method: "DELETE" });
+    await loadSubclips();
+  }
+
+  function seekTo(seconds: number) {
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds;
+      void videoRef.current.play().catch(() => undefined);
+    }
+  }
+
+  return (
+    <AdminModal title="Modifica TG9 · trimming sottoclip" onClose={onClose}>
+      <div className="max-h-[82vh] space-y-5 overflow-y-auto pr-1">
+        {error ? <p className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p> : null}
+        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
+          <div className="space-y-3">
+            <video
+              ref={videoRef}
+              src={item.videoUrl}
+              poster={item.posterUrl ?? undefined}
+              controls
+              className="aspect-video w-full rounded-2xl bg-black object-contain"
+              onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+            />
+            <div className="grid gap-2 sm:grid-cols-4">
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => setMarkIn(Math.floor(currentTime))}>Mark-in {markIn !== null ? formatSeconds(markIn) : ""}</button>
+              <button type="button" className="admin-secondary-button justify-center" onClick={() => setMarkOut(Math.floor(currentTime))}>Mark-out {markOut !== null ? formatSeconds(markOut) : ""}</button>
+              <button type="button" className="admin-primary-button justify-center sm:col-span-2" onClick={() => void createSubclip()} disabled={saving}>Crea sottoclip</button>
+            </div>
+            <p className="text-xs text-slate-500">Posizione player: {formatSeconds(currentTime)} · durata selezione: {markIn !== null && markOut !== null && markOut > markIn ? formatSeconds(markOut - markIn) : "--:--:--"}</p>
+          </div>
+          <form className="space-y-4" onSubmit={submit}>
+            <Input label="Titolo" value={form.title} onChange={(value) => field("title", value)} required />
+            <Input label="Slug" value={form.slug} onChange={(value) => field("slug", value)} />
+            <Textarea label="Descrizione" value={form.description} onChange={(value) => field("description", value)} rows={4} />
+            <Input label="Poster URL" value={form.posterUrl} onChange={(value) => field("posterUrl", value)} />
+            <Input label="Ordine carousel" type="number" value={form.sortOrder} onChange={(value) => field("sortOrder", value)} />
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={form.published} onChange={(event) => field("published", event.target.checked)} className="size-4 accent-[#22bdf3]" />
+              Pubblica su /tg9
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="admin-secondary-button">Chiudi</button>
+              <button type="submit" disabled={saving || !form.title.trim() || !form.videoUrl.trim()} className="admin-primary-button disabled:opacity-55">
+                {saving ? "Salvataggio..." : "Salva dati"}
+              </button>
+            </div>
+          </form>
+        </div>
+        <section className="rounded-2xl border border-[#1d3044] bg-[#07111d]/70 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-black uppercase tracking-[0.14em] text-slate-200">Sottoclip generate</h4>
+            <span className="rounded-full border border-[#22bdf3]/40 px-2.5 py-1 text-xs text-[#22bdf3]">{subclips.length} clip</span>
+          </div>
+          {subclips.length ? (
+            <div className="space-y-2">
+              {subclips.map((subclip) => (
+                <div key={subclip.id} className="grid gap-2 rounded-xl border border-[#102033] bg-black/15 p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center">
+                  <div>
+                    <p className="font-semibold text-slate-100">{subclip.title ?? "Sottoclip TG9"}</p>
+                    <p className="text-xs text-slate-500">{formatSeconds(subclip.startTime)} → {formatSeconds(subclip.endTime)} · {formatSeconds(subclip.endTime - subclip.startTime)}</p>
+                  </div>
+                  <button type="button" className="admin-secondary-button justify-center" onClick={() => seekTo(subclip.startTime)}>Anteprima</button>
+                  <ConfirmButton label="Elimina sottoclip" onConfirm={() => void removeSubclip(subclip)} className="admin-icon-button hover:text-red-400"><Trash2 size={16} /></ConfirmButton>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Nessuna sottoclip creata. Posiziona il player, marca ingresso e uscita, poi premi “Crea sottoclip”.</p>
+          )}
+        </section>
+      </div>
+    </AdminModal>
+  );
+}
+
+function emptyTg9Form(): Tg9Form {
+  return {
+    title: "",
+    slug: "",
+    description: "",
+    videoUrl: "",
+    videoObjectKey: "",
+    posterUrl: "",
+    sortOrder: "0",
+    published: false,
+  };
+}
+
+function tg9Payload(form: Tg9Form) {
+  return {
+    title: form.title,
+    slug: form.slug || undefined,
+    description: form.description || null,
+    videoUrl: form.videoUrl,
+    videoObjectKey: form.videoObjectKey || null,
+    posterUrl: form.posterUrl || null,
+    sortOrder: Number(form.sortOrder || 0),
+    published: form.published,
+  };
+}
+
+function slugPreview(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 160);
+}
+
+function formatDateParts(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: "***", time: "***" };
+  return {
+    date: date.toLocaleDateString("it-IT"),
+    time: date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+function formatSeconds(value: number) {
+  const safe = Math.max(0, Math.floor(value));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
 function Textarea({ label, value, onChange, rows, required }: { label: string; value: string; onChange: (value: string) => void; rows: number; required?: boolean }) {
