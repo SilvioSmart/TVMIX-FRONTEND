@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, ChevronLeft, ChevronRight, Copy, Play, Send, Share2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type PublicNoticeArticle = {
   id: string;
@@ -108,6 +108,24 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
   const [index, setIndex] = useState(0);
   const archiveRef = useRef<HTMLDivElement | null>(null);
   const current = videos[index] ?? null;
+  const timelineItems = useMemo(
+    () =>
+      videos.map((video, videoIndex) => ({
+        video,
+        videoIndex,
+        left: `${(videoIndex / Math.max(videos.length, 1)) * 100}%`,
+        width: `${100 / Math.max(videos.length, 1)}%`,
+      })),
+    [videos],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const slug = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    if (!slug) return;
+    const hashIndex = videos.findIndex((video) => video.slug === slug);
+    if (hashIndex >= 0) setIndex(hashIndex);
+  }, [videos]);
 
   if (!current) {
     return <EmptyNewsPage title="TG9" message="Nessun video TG9 pubblicato." />;
@@ -133,28 +151,95 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
         </div>
       </div>
 
-      <article className="h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)] sm:h-[620px] lg:h-[520px]">
-        <div className="grid h-full lg:grid-cols-[1.12fr_0.88fr]">
-          <div className="flex min-h-0 items-center bg-black">
-            <video src={current.videoUrl} poster={current.posterUrl ?? undefined} controls className="aspect-video h-auto max-h-full w-full bg-black object-contain" />
+      <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)]">
+          <div className="flex min-h-[260px] items-center bg-black sm:min-h-[420px] lg:min-h-[500px]">
+            <video
+              key={current.id}
+              src={current.videoUrl}
+              poster={current.posterUrl ?? undefined}
+              controls
+              className="aspect-video h-auto max-h-full w-full bg-black object-contain"
+            />
           </div>
-          <div className="flex min-h-0 flex-col justify-center p-6 sm:p-9">
-            <span className="mb-4 inline-flex w-max items-center gap-2 rounded-full border border-[#22bdf3]/35 bg-[#22bdf3]/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#22bdf3]">
-              <Play size={13} /> Video {index + 1}/{videos.length}
-            </span>
-            <h2 className="text-3xl font-black leading-tight tracking-[-0.055em]">{current.title}</h2>
-            <div className="mt-4 max-h-[220px] overflow-y-auto pr-2 text-sm leading-7 text-slate-400 [scrollbar-color:#22bdf3_rgba(255,255,255,0.08)]">
-              <p>{current.description ?? "Servizio video TG9"}</p>
+          <aside className="flex min-h-[360px] flex-col justify-between border-t border-white/10 p-6 sm:p-9 lg:border-l lg:border-t-0">
+            <div>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex w-max items-center gap-2 rounded-full border border-[#22bdf3]/35 bg-[#22bdf3]/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#22bdf3]">
+                  <Play size={13} /> Clip {index + 1}/{videos.length}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                  <CalendarClock size={13} />
+                  {formatPublicDate(current.publishedAt ?? current.createdAt)}
+                </span>
+              </div>
+              <h2 className="text-3xl font-black leading-tight tracking-[-0.055em] sm:text-4xl">{current.title}</h2>
+              <div className="mt-4 max-h-[210px] overflow-y-auto pr-2 text-sm leading-7 text-slate-400 [scrollbar-color:#22bdf3_rgba(255,255,255,0.08)]">
+                <p>{current.description ?? "Servizio video TG9"}</p>
+              </div>
             </div>
-          </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#22bdf3]">Comandi notizia</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => move(-1)} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-xs font-black uppercase tracking-[0.14em] text-white/80 transition hover:border-[#22bdf3]/60 hover:text-[#22bdf3]">
+                  <ChevronLeft size={16} /> Precedente
+                </button>
+                <button type="button" onClick={() => move(1)} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-xs font-black uppercase tracking-[0.14em] text-white/80 transition hover:border-[#22bdf3]/60 hover:text-[#22bdf3]">
+                  Successiva <ChevronRight size={16} />
+                </button>
+              </div>
+              <div className="mt-4">
+                <SocialShareButtons title={current.title} text={current.description} slug={current.slug} variant="large" pathPrefix="/tg9" label="Condividi TG9" />
+              </div>
+            </div>
+          </aside>
         </div>
       </article>
+
+      <section className="mt-7 rounded-[24px] border border-white/10 bg-[#06111d]/55 p-4 sm:p-5">
+        <div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#22bdf3]">Timeline TG9</p>
+            <p className="mt-1 text-sm text-slate-500">La barra evidenzia la clip selezionata dall’elenco media.</p>
+          </div>
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
+            {current.title}
+          </span>
+        </div>
+        <div className="relative h-24 overflow-hidden rounded-2xl border border-white/10 bg-black/20 px-4 py-5">
+          <div className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/10" />
+          {timelineItems.map(({ video, videoIndex, left, width }) => {
+            const active = videoIndex === index;
+            return (
+              <button
+                key={video.id}
+                type="button"
+                onClick={() => setIndex(videoIndex)}
+                aria-label={`Seleziona clip timeline ${video.title}`}
+                className={`absolute top-1/2 h-12 -translate-y-1/2 rounded-full border px-2 text-left transition ${
+                  active
+                    ? "border-[#22bdf3] bg-[#22bdf3]/20 text-[#22bdf3] shadow-[0_0_24px_rgba(34,189,243,0.2)]"
+                    : "border-white/10 bg-white/[0.035] text-white/40 hover:border-[#22bdf3]/50 hover:text-[#22bdf3]"
+                }`}
+                style={{ left: `calc(1rem + ${left})`, width: `calc(${width} - 0.5rem)`, minWidth: 52, maxWidth: 240 }}
+              >
+                <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em]">
+                  {String(videoIndex + 1).padStart(2, "0")}
+                </span>
+                <span className="block truncate text-[11px] font-bold">{video.title}</span>
+              </button>
+            );
+          })}
+          <div className="pointer-events-none absolute bottom-2 top-2 w-0.5 bg-[#22bdf3] shadow-[0_0_18px_rgba(34,189,243,0.85)]" style={{ left: `calc(1rem + ${(index / Math.max(videos.length, 1)) * 100}%)` }} />
+        </div>
+      </section>
 
       <section className="mt-7 rounded-[24px] border border-white/10 bg-[#06111d]/55 p-4">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#22bdf3]">Archivio TG9</p>
-            <p className="mt-1 text-sm text-slate-500">Sfoglia i video disponibili senza spostare il player principale.</p>
+            <p className="mt-1 text-sm text-slate-500">Carousel dell’elenco media: seleziona una clip per caricarla nel player e nella timeline.</p>
           </div>
           <div className="flex shrink-0 gap-2">
             <button type="button" onClick={() => scrollArchive(-1)} className="grid size-11 place-items-center rounded-full border border-white/10 bg-white/5 hover:border-[#22bdf3]/50" aria-label="Scorri archivio indietro"><ChevronLeft size={20} /></button>
@@ -195,8 +280,22 @@ function EmptyNewsPage({ title, message }: { title: string; message: string }) {
   );
 }
 
-function SocialShareButtons({ title, text, slug, variant = "compact" }: { title: string; text?: string | null; slug: string; variant?: "compact" | "large" }) {
-  const url = getNoticeShareUrl(slug);
+function SocialShareButtons({
+  title,
+  text,
+  slug,
+  variant = "compact",
+  pathPrefix = "/9notice",
+  label = "Condividi notizia",
+}: {
+  title: string;
+  text?: string | null;
+  slug: string;
+  variant?: "compact" | "large";
+  pathPrefix?: "/9notice" | "/tg9";
+  label?: string;
+}) {
+  const url = getShareUrl(pathPrefix, slug);
   const encodedUrl = encodeURIComponent(url);
   const shareText = text ? `${title} — ${text.slice(0, 180)}` : title;
   const encodedTitle = encodeURIComponent(shareText);
@@ -215,7 +314,7 @@ function SocialShareButtons({ title, text, slug, variant = "compact" }: { title:
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2" aria-label="Condividi notizia">
+    <div className="flex flex-wrap items-center gap-2" aria-label={label}>
       <span className={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-white/10 bg-white/5 text-[#22bdf3]`}>
         <Share2 size={variant === "large" ? 17 : 14} />
       </span>
@@ -243,7 +342,12 @@ function SocialShareButtons({ title, text, slug, variant = "compact" }: { title:
   );
 }
 
-function getNoticeShareUrl(slug: string) {
+function getShareUrl(pathPrefix: "/9notice" | "/tg9", slug: string) {
+  if (pathPrefix === "/tg9") {
+    const hash = slug ? `#${encodeURIComponent(slug)}` : "";
+    if (typeof window === "undefined") return `https://www.tvmix.it/tg9${hash}`;
+    return `${window.location.origin}/tg9${hash}`;
+  }
   const safeSlug = slug ? `/${encodeURIComponent(slug)}` : "";
   if (typeof window === "undefined") return `https://www.tvmix.it/9notice${safeSlug}`;
   return `${window.location.origin}/9notice${safeSlug}`;
