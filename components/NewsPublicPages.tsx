@@ -2,6 +2,7 @@
 
 import { CalendarClock, ChevronLeft, ChevronRight, Copy, Play, Send, Share2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import VideoPlayer from "./VideoPlayer";
 
 export type PublicNoticeArticle = {
   id: string;
@@ -30,6 +31,7 @@ export type PublicTg9Video = {
 export type PublicTg9Subclip = {
   id: string;
   title: string | null;
+  vastUrl?: string | null;
   startTime: number;
   endTime: number;
   sortOrder: number;
@@ -115,14 +117,11 @@ export function NoticePublicPage({ notices, initialSlug }: { notices: PublicNoti
 
 export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
   const [index, setIndex] = useState(0);
+  const [activeSubclip, setActiveSubclip] = useState<PublicTg9Subclip | null>(null);
+  const [playbackKey, setPlaybackKey] = useState(0);
   const archiveRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<HTMLVideoElement | null>(null);
   const current = videos[index] ?? null;
   const selectedSubclips = useMemo(() => current?.subclips ?? [], [current]);
-  const timelineDuration = useMemo(
-    () => Math.max(1, ...selectedSubclips.map((subclip) => Math.max(subclip.endTime, subclip.startTime + 1))),
-    [selectedSubclips],
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -138,6 +137,7 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
 
   function move(direction: -1 | 1) {
     setIndex((value) => (value + direction + videos.length) % videos.length);
+    setActiveSubclip(null);
   }
 
   function scrollArchive(direction: -1 | 1) {
@@ -148,10 +148,8 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
   }
 
   function playSubclip(subclip: PublicTg9Subclip) {
-    const player = playerRef.current;
-    if (!player) return;
-    player.currentTime = Math.max(0, subclip.startTime);
-    void player.play().catch(() => undefined);
+    setActiveSubclip(subclip);
+    setPlaybackKey((value) => value + 1);
   }
 
   return (
@@ -166,12 +164,15 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
       <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[#06111d] shadow-[0_30px_100px_rgba(0,0,0,0.36)]">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)]">
           <div className="flex min-h-[260px] items-center bg-black sm:min-h-[420px] lg:min-h-[500px]">
-            <video
-              ref={playerRef}
-              key={current.id}
+            <VideoPlayer
+              key={`${current.id}-${activeSubclip?.id ?? "full"}-${playbackKey}`}
               src={current.videoUrl}
               poster={current.posterUrl ?? undefined}
-              controls
+              title={activeSubclip?.title ?? current.title}
+              vastUrl={activeSubclip?.vastUrl ?? null}
+              seekTo={activeSubclip?.startTime}
+              seekKey={`${activeSubclip?.id ?? "full"}-${playbackKey}`}
+              autoPlay={Boolean(activeSubclip)}
               className="aspect-video h-auto max-h-full w-full bg-black object-contain"
             />
           </div>
@@ -224,8 +225,8 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
           <div className="absolute left-4 right-4 top-12 h-1 rounded-full bg-white/10" />
           {selectedSubclips.length ? (
             selectedSubclips.map((subclip, subclipIndex) => {
-              const left = (Math.max(0, subclip.startTime) / timelineDuration) * 100;
-              const width = (Math.max(1, subclip.endTime - subclip.startTime) / timelineDuration) * 100;
+              const left = (subclipIndex / Math.max(selectedSubclips.length, 1)) * 100;
+              const width = 100 / Math.max(selectedSubclips.length, 1);
               return (
                 <button
                   key={subclip.id}
@@ -239,6 +240,7 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
                     {String(subclipIndex + 1).padStart(2, "0")} · {formatSeconds(subclip.startTime)} / {formatSeconds(subclip.endTime)}
                   </span>
                   <span className="block truncate text-[11px] font-bold">{subclip.title ?? "Sottoclip TG9"}</span>
+                  <span className="block truncate text-[10px] font-black text-current/75">{formatSeconds(subclip.endTime - subclip.startTime)} {subclip.vastUrl ? "· VAST" : ""}</span>
                 </button>
               );
             })
@@ -275,7 +277,10 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
             <button
               key={video.id}
               type="button"
-              onClick={() => setIndex(videoIndex)}
+              onClick={() => {
+                setIndex(videoIndex);
+                setActiveSubclip(null);
+              }}
               className={`w-[260px] shrink-0 overflow-hidden rounded-2xl border bg-[#071321] text-left transition hover:border-[#22bdf3]/50 ${videoIndex === index ? "border-[#22bdf3]" : "border-white/10"}`}
             >
               <div className="aspect-video bg-black">
