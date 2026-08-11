@@ -258,6 +258,32 @@ export type AppearanceBrandInput = Partial<
   >
 >;
 
+export type StaticPageSlug =
+  | "chi-siamo"
+  | "contatti"
+  | "assistenza"
+  | "lavora-con-noi"
+  | "privacy-policy"
+  | "cookie";
+
+export type StaticPageContent = {
+  slug: StaticPageSlug;
+  title: string;
+  subtitle: string | null;
+  body: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  published: boolean;
+  sortOrder: number;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StaticPageInput = Partial<
+  Pick<StaticPageContent, "title" | "subtitle" | "body" | "seoTitle" | "seoDescription" | "published" | "sortOrder">
+>;
+
 export async function fetchAppearanceBrand(): Promise<AppearanceBrandSettings> {
   const response = await adminRequest<{ data: AppearanceBrandSettings }>("appearance/brand");
   return response.data;
@@ -265,6 +291,19 @@ export async function fetchAppearanceBrand(): Promise<AppearanceBrandSettings> {
 
 export async function updateAppearanceBrand(input: AppearanceBrandInput): Promise<AppearanceBrandSettings> {
   const response = await adminRequest<{ data: AppearanceBrandSettings }>("appearance/brand", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return response.data;
+}
+
+export async function fetchStaticPages(): Promise<StaticPageContent[]> {
+  const response = await adminRequest<{ data: StaticPageContent[] }>("settings/pages");
+  return response.data;
+}
+
+export async function updateStaticPage(slug: StaticPageSlug, input: StaticPageInput): Promise<StaticPageContent> {
+  const response = await adminRequest<{ data: StaticPageContent }>(`settings/pages/${slug}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });

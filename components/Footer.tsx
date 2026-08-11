@@ -61,9 +61,10 @@ export function Footer({ links = fallbackLinks, brand }: FooterProps) {
         <div>
           <h3 className="text-sm font-extrabold">Informazioni</h3>
           <div className="mt-4 flex flex-col gap-3 text-sm text-white/55">
-            <a href="#" className="hover:text-white">Chi siamo</a>
-            <a href="#" className="hover:text-white">Contatti</a>
-            <a href="#" className="hover:text-white">Assistenza</a>
+            <a href="/chi-siamo" className="hover:text-white">Chi siamo</a>
+            <a href="/contatti" className="hover:text-white">Contatti</a>
+            <a href="/assistenza" className="hover:text-white">Assistenza</a>
+            <a href="/lavora-con-noi" className="hover:text-white">Lavora con noi</a>
           </div>
         </div>
 
@@ -93,7 +94,7 @@ export function Footer({ links = fallbackLinks, brand }: FooterProps) {
       </div>
 
       <div className="border-t px-5 py-5 text-center text-xs text-white/40 sm:px-8" style={{ borderColor: `${accent}24` }}>
-        © 2026 TVMIX S.r.l. · Privacy · Cookie Policy · Termini di utilizzo
+        © 2026 TVMIX S.r.l. · <a href="/privacy-policy" className="hover:text-white">Privacy Policy</a> · <a href="/cookie" className="hover:text-white">Cookie</a>
       </div>
     </footer>
   );

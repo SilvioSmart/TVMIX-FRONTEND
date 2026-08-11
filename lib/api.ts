@@ -60,6 +60,20 @@ export type BrandSettings = {
   accentColor: string;
 };
 
+export type StaticPageContent = {
+  slug: "chi-siamo" | "contatti" | "assistenza" | "lavora-con-noi" | "privacy-policy" | "cookie";
+  title: string;
+  subtitle?: string | null;
+  body: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  published: boolean;
+  sortOrder: number;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ApiBrandSettings = BrandSettings & {
   id: string;
   logoObjectKey?: string | null;
@@ -197,6 +211,11 @@ async function fetchJson<T>(path: string): Promise<T | null> {
 export async function getBrandSettings(): Promise<BrandSettings> {
   const response = await fetchJson<{ data?: ApiBrandSettings }>("/api/v1/appearance/brand");
   return { ...fallbackBrand, ...(response?.data ?? {}) };
+}
+
+export async function getStaticPage(slug: StaticPageContent["slug"]): Promise<StaticPageContent | null> {
+  const response = await fetchJson<{ data?: StaticPageContent }>(`/api/v1/pages/${slug}`);
+  return response?.data ?? null;
 }
 
 function brandThumbnailFallback(brand: BrandSettings) {

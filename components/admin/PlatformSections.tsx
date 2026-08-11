@@ -3,21 +3,20 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
-  Archive,
   Boxes,
+  FileText,
   GalleryHorizontalEnd,
-  KeyRound,
   LayoutList,
   MenuSquare,
   Palette,
   PanelBottom,
   Save,
-  ShieldCheck,
   Upload,
 } from "lucide-react";
 import type { AdminSection, AppearanceSubnavItem, ContentSubnavKey, LiveSubnavKey, NewsSubnavKey } from "./admin-data";
 import { CatalogSection } from "./CatalogSection";
 import { ContentSection, Header, Input } from "./ContentSection";
+import { ResourceState } from "./AdminResourceUI";
 import { LoadingSection } from "./LoadingSection";
 import { RouteConfigSection } from "./RouteConfigSection";
 import { AppearanceCarouselConfigSection } from "./AppearanceCarouselConfigSection";
@@ -28,10 +27,14 @@ import { NewsSection } from "./NewsSection";
 import { UsersSection } from "./UsersSection";
 import {
   fetchAppearanceBrand,
+  fetchStaticPages,
   updateAppearanceBrand,
+  updateStaticPage,
   uploadBrandAssetToR2,
   type AppearanceBrandSettings,
   type AppearanceMenuKey,
+  type StaticPageContent,
+  type StaticPageSlug,
 } from "./admin-api";
 
 type Props = {
@@ -620,46 +623,148 @@ function brandAssetLabel(kind: "logo" | "favicon" | "default-thumbnail" | "defau
 }
 
 function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) {
+  const [pages, setPages] = useState<StaticPageContent[]>([]);
+  const [activeSlug, setActiveSlug] = useState<StaticPageSlug>("chi-siamo");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const activePage = pages.find((page) => page.slug === activeSlug) ?? pages[0] ?? null;
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    fetchStaticPages()
+      .then((data) => {
+        if (!mounted) return;
+        setPages(data);
+        if (data.length) setActiveSlug(data[0].slug);
+        setError(null);
+      })
+      .catch((err) => {
+        if (mounted) setError(err instanceof Error ? err.message : "Impossibile caricare le pagine");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const updateField = <K extends keyof StaticPageContent>(key: K, value: StaticPageContent[K]) => {
+    if (!activePage) return;
+    setPages((current) =>
+      current.map((page) => (page.slug === activePage.slug ? { ...page, [key]: value } : page)),
+    );
+  };
+
+  async function savePage() {
+    if (!activePage) return;
+    setSaving(true);
+    try {
+      const updated = await updateStaticPage(activePage.slug, {
+        title: activePage.title,
+        subtitle: activePage.subtitle || null,
+        body: activePage.body,
+        seoTitle: activePage.seoTitle || null,
+        seoDescription: activePage.seoDescription || null,
+        published: activePage.published,
+        sortOrder: activePage.sortOrder,
+      });
+      setPages((current) => current.map((page) => (page.slug === updated.slug ? updated : page)));
+      onNotify(`Pagina "${updated.title}" salvata`);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : "Salvataggio non riuscito");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
-      <Header title="Impostazioni" description="Configura sicurezza, API e manutenzione." />
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel icon={ShieldCheck} title="Sicurezza">
-          <p className="text-sm text-slate-400">
-            Sessioni amministrative protette con JWT in cookie HttpOnly.
-          </p>
-        </Panel>
-        <Panel icon={KeyRound} title="API">
-          <Input label="Backend API" value="https://api.tvmix.it/api/v1" onChange={() => undefined} />
-        </Panel>
-        <Panel icon={Archive} title="Backup">
-          <button onClick={() => onNotify("Backup manuale richiesto")} className="admin-secondary-button w-full">
-            Avvia backup ora
-          </button>
-        </Panel>
-      </div>
-    </div>
-  );
-}
+      <Header title="Impostazioni" description="Gestisci i contenuti delle pagine istituzionali del frontend." />
+      <ResourceState loading={loading} error={error} empty={!pages.length ? "Nessuna pagina configurata." : undefined} />
+      {!loading && !error && activePage ? (
+        <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <section className="admin-panel p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-lg bg-[#16b9f4]/10 text-[#22bdf3]">
+                <FileText size={18} />
+              </span>
+              <div>
+                <h3 className="font-semibold">Pagine</h3>
+                <p className="text-xs text-slate-500">Seleziona il modulo da modificare.</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {pages.map((page) => (
+                <button
+                  key={page.slug}
+                  type="button"
+                  onClick={() => setActiveSlug(page.slug)}
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                    activePage.slug === page.slug
+                      ? "border-[#16b9f4] bg-[#16b9f4]/10 text-[#22bdf3]"
+                      : "border-[#26394d] bg-white/[0.02] text-slate-300 hover:border-[#16b9f4]/50"
+                  }`}
+                >
+                  <span className="block text-sm font-black">{page.title}</span>
+                  <span className="mt-1 block text-xs text-slate-500">/{page.slug}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
-function Panel({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof ShieldCheck;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="admin-panel p-5">
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-lg bg-[#16b9f4]/10 text-[#22bdf3]">
-          <Icon size={19} />
-        </span>
-        <h3 className="font-semibold">{title}</h3>
-      </div>
-      <div className="mt-5">{children}</div>
-    </section>
+          <section className="admin-panel p-5">
+            <div className="flex flex-col gap-3 border-b border-[#1b2b3d] pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#22bdf3]">/{activePage.slug}</p>
+                <h3 className="mt-1 text-lg font-bold text-white">{activePage.title}</h3>
+              </div>
+              <label className="flex items-center gap-3 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={activePage.published}
+                  onChange={(event) => updateField("published", event.target.checked)}
+                  className="size-4 accent-[#16b9f4]"
+                />
+                Pubblicata
+              </label>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <Input label="Titolo pagina" value={activePage.title} onChange={(value) => updateField("title", value)} required />
+              <Input label="Ordine" type="number" value={String(activePage.sortOrder)} onChange={(value) => updateField("sortOrder", Number(value) || 0)} />
+              <Input label="Sottotitolo" value={activePage.subtitle ?? ""} onChange={(value) => updateField("subtitle", value)} />
+              <Input label="SEO title" value={activePage.seoTitle ?? ""} onChange={(value) => updateField("seoTitle", value)} />
+              <label className="lg:col-span-2">
+                <span className="admin-label">SEO description</span>
+                <textarea
+                  value={activePage.seoDescription ?? ""}
+                  onChange={(event) => updateField("seoDescription", event.target.value)}
+                  className="admin-input mt-2 h-20 py-3"
+                  maxLength={320}
+                />
+              </label>
+              <label className="lg:col-span-2">
+                <span className="admin-label">Corpo pagina</span>
+                <textarea
+                  value={activePage.body}
+                  onChange={(event) => updateField("body", event.target.value)}
+                  className="admin-input mt-2 min-h-[360px] py-3 leading-7"
+                  placeholder="Inserisci qui il testo che sarà pubblicato nel frontend."
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={() => void savePage()} disabled={saving} className="admin-primary-button">
+                {saving ? "Salvataggio..." : "Salva pagina"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
   );
 }
