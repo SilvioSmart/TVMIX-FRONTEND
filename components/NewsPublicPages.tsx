@@ -31,6 +31,7 @@ export type PublicTg9Video = {
 export type PublicTg9Subclip = {
   id: string;
   title: string | null;
+  slug?: string | null;
   vastUrl?: string | null;
   startTime: number;
   endTime: number;
@@ -128,7 +129,18 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
     const slug = decodeURIComponent(window.location.hash.replace(/^#/, ""));
     if (!slug) return;
     const hashIndex = videos.findIndex((video) => video.slug === slug);
-    if (hashIndex >= 0) setIndex(hashIndex);
+    if (hashIndex >= 0) {
+      setIndex(hashIndex);
+      setActiveSubclip(null);
+      return;
+    }
+    const subclipVideoIndex = videos.findIndex((video) => video.subclips?.some((subclip) => subclip.slug === slug));
+    if (subclipVideoIndex >= 0) {
+      const subclip = videos[subclipVideoIndex]?.subclips?.find((item) => item.slug === slug) ?? null;
+      setIndex(subclipVideoIndex);
+      setActiveSubclip(subclip);
+      if (subclip) setPlaybackKey((value) => value + 1);
+    }
   }, [videos]);
 
   if (!current) {
@@ -204,7 +216,14 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
                 </button>
               </div>
               <div className="mt-4">
-                <SocialShareButtons title={current.title} text={current.description} slug={current.slug} variant="large" pathPrefix="/tg9" label="Condividi TG9" />
+                <SocialShareButtons
+                  title={activeSubclip?.title ?? current.title}
+                  text={current.description}
+                  slug={activeSubclip?.slug ?? current.slug}
+                  variant="large"
+                  pathPrefix="/tg9"
+                  label={activeSubclip ? "Condividi sottoclip" : "Condividi TG9"}
+                />
               </div>
             </div>
           </aside>
