@@ -126,7 +126,8 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const slug = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("clip") || params.get("video") || decodeURIComponent(window.location.hash.replace(/^#/, ""));
     if (!slug) return;
     const hashIndex = videos.findIndex((video) => video.slug === slug);
     if (hashIndex >= 0) {
@@ -371,7 +372,7 @@ function SocialShareButtons({
           key={link.label}
           href={link.href}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           aria-label={`Condividi su ${link.label}`}
           className={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/85 transition hover:border-[#22bdf3]/60 hover:bg-[#22bdf3]/10 hover:text-[#22bdf3]`}
         >
@@ -392,9 +393,9 @@ function SocialShareButtons({
 
 function getShareUrl(pathPrefix: "/9notice" | "/tg9", slug: string) {
   if (pathPrefix === "/tg9") {
-    const hash = slug ? `#${encodeURIComponent(slug)}` : "";
-    if (typeof window === "undefined") return `https://www.tvmix.it/tg9${hash}`;
-    return `${window.location.origin}/tg9${hash}`;
+    const query = slug ? `?clip=${encodeURIComponent(slug)}` : "";
+    if (typeof window === "undefined") return `https://www.tvmix.it/tg9${query}`;
+    return `${window.location.origin}/tg9${query}`;
   }
   const safeSlug = slug ? `/${encodeURIComponent(slug)}` : "";
   if (typeof window === "undefined") return `https://www.tvmix.it/9notice${safeSlug}`;
