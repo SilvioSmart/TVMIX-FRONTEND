@@ -63,8 +63,16 @@ export type BrandSettings = {
 export type StaticPageContent = {
   slug: "chi-siamo" | "contatti" | "assistenza" | "lavora-con-noi" | "privacy-policy" | "cookie";
   title: string;
+  titleFontSize: number;
+  titleAlign: "left" | "center" | "right" | "justify";
   subtitle?: string | null;
+  subtitleFontSize: number;
+  subtitleAlign: "left" | "center" | "right" | "justify";
+  heroImageUrl?: string | null;
   body: string;
+  bodyHtml?: string | null;
+  bodyFontSize: number;
+  bodyAlign: "left" | "center" | "right" | "justify";
   seoTitle?: string | null;
   seoDescription?: string | null;
   published: boolean;

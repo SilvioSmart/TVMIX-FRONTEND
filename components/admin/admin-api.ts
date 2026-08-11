@@ -269,8 +269,16 @@ export type StaticPageSlug =
 export type StaticPageContent = {
   slug: StaticPageSlug;
   title: string;
+  titleFontSize: number;
+  titleAlign: "left" | "center" | "right" | "justify";
   subtitle: string | null;
+  subtitleFontSize: number;
+  subtitleAlign: "left" | "center" | "right" | "justify";
+  heroImageUrl: string | null;
   body: string;
+  bodyHtml: string | null;
+  bodyFontSize: number;
+  bodyAlign: "left" | "center" | "right" | "justify";
   seoTitle: string | null;
   seoDescription: string | null;
   published: boolean;
@@ -281,7 +289,24 @@ export type StaticPageContent = {
 };
 
 export type StaticPageInput = Partial<
-  Pick<StaticPageContent, "title" | "subtitle" | "body" | "seoTitle" | "seoDescription" | "published" | "sortOrder">
+  Pick<
+    StaticPageContent,
+    | "title"
+    | "titleFontSize"
+    | "titleAlign"
+    | "subtitle"
+    | "subtitleFontSize"
+    | "subtitleAlign"
+    | "heroImageUrl"
+    | "body"
+    | "bodyHtml"
+    | "bodyFontSize"
+    | "bodyAlign"
+    | "seoTitle"
+    | "seoDescription"
+    | "published"
+    | "sortOrder"
+  >
 >;
 
 export async function fetchAppearanceBrand(): Promise<AppearanceBrandSettings> {

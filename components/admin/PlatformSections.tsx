@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Boxes,
   FileText,
@@ -28,6 +28,7 @@ import { UsersSection } from "./UsersSection";
 import {
   fetchAppearanceBrand,
   fetchStaticPages,
+  adminRequest,
   updateAppearanceBrand,
   updateStaticPage,
   uploadBrandAssetToR2,
@@ -35,6 +36,8 @@ import {
   type AppearanceMenuKey,
   type StaticPageContent,
   type StaticPageSlug,
+  type ListResponse,
+  type Video,
 } from "./admin-api";
 
 type Props = {
@@ -624,6 +627,7 @@ function brandAssetLabel(kind: "logo" | "favicon" | "default-thumbnail" | "defau
 
 function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) {
   const [pages, setPages] = useState<StaticPageContent[]>([]);
+  const [archive, setArchive] = useState<Video[]>([]);
   const [activeSlug, setActiveSlug] = useState<StaticPageSlug>("chi-siamo");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -633,10 +637,14 @@ function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetchStaticPages()
-      .then((data) => {
+    Promise.all([
+      fetchStaticPages(),
+      adminRequest<ListResponse<Video>>("videos?limit=100"),
+    ])
+      .then(([data, videos]) => {
         if (!mounted) return;
         setPages(data);
+        setArchive(videos.data.filter((video) => video.thumbnailUrl));
         if (data.length) setActiveSlug(data[0].slug);
         setError(null);
       })
@@ -664,8 +672,16 @@ function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) 
     try {
       const updated = await updateStaticPage(activePage.slug, {
         title: activePage.title,
+        titleFontSize: activePage.titleFontSize,
+        titleAlign: activePage.titleAlign,
         subtitle: activePage.subtitle || null,
+        subtitleFontSize: activePage.subtitleFontSize,
+        subtitleAlign: activePage.subtitleAlign,
+        heroImageUrl: activePage.heroImageUrl || null,
         body: activePage.body,
+        bodyHtml: activePage.bodyHtml || null,
+        bodyFontSize: activePage.bodyFontSize,
+        bodyAlign: activePage.bodyAlign,
         seoTitle: activePage.seoTitle || null,
         seoDescription: activePage.seoDescription || null,
         published: activePage.published,
@@ -735,8 +751,54 @@ function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <Input label="Titolo pagina" value={activePage.title} onChange={(value) => updateField("title", value)} required />
               <Input label="Ordine" type="number" value={String(activePage.sortOrder)} onChange={(value) => updateField("sortOrder", Number(value) || 0)} />
+              <BlockStyleControls
+                label="Stile titolo"
+                fontSize={activePage.titleFontSize}
+                align={activePage.titleAlign}
+                onFontSize={(value) => updateField("titleFontSize", value)}
+                onAlign={(value) => updateField("titleAlign", value)}
+              />
+              <div />
               <Input label="Sottotitolo" value={activePage.subtitle ?? ""} onChange={(value) => updateField("subtitle", value)} />
               <Input label="SEO title" value={activePage.seoTitle ?? ""} onChange={(value) => updateField("seoTitle", value)} />
+              <BlockStyleControls
+                label="Stile sottotitolo"
+                fontSize={activePage.subtitleFontSize}
+                align={activePage.subtitleAlign}
+                onFontSize={(value) => updateField("subtitleFontSize", value)}
+                onAlign={(value) => updateField("subtitleAlign", value)}
+              />
+              <div />
+              <div className="lg:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="admin-label">Immagine dopo il sottotitolo</span>
+                  {activePage.heroImageUrl ? (
+                    <button type="button" className="admin-secondary-button !px-3 !py-1.5 text-xs" onClick={() => updateField("heroImageUrl", null)}>
+                      Rimuovi immagine
+                    </button>
+                  ) : null}
+                </div>
+                {activePage.heroImageUrl ? (
+                  <img src={activePage.heroImageUrl} alt={activePage.title} className="mt-3 max-h-56 w-full rounded-xl object-cover" />
+                ) : null}
+                <div className="mt-3 grid max-h-64 gap-3 overflow-y-auto rounded-xl border border-[#26394d] bg-[#06111f] p-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {archive.length ? archive.map((video) => (
+                    <button
+                      key={video.id}
+                      type="button"
+                      onClick={() => updateField("heroImageUrl", video.thumbnailUrl)}
+                      className={`group overflow-hidden rounded-xl border text-left transition ${
+                        activePage.heroImageUrl === video.thumbnailUrl ? "border-[#16b9f4]" : "border-[#26394d] hover:border-[#16b9f4]/60"
+                      }`}
+                    >
+                      <img src={video.thumbnailUrl ?? ""} alt={video.title} className="aspect-video w-full object-cover transition group-hover:scale-105" />
+                      <span className="block truncate px-2 py-2 text-xs font-semibold text-slate-300">{video.title}</span>
+                    </button>
+                  )) : (
+                    <p className="col-span-full text-sm text-slate-500">Nessuna miniatura disponibile nell'archivio.</p>
+                  )}
+                </div>
+              </div>
               <label className="lg:col-span-2">
                 <span className="admin-label">SEO description</span>
                 <textarea
@@ -746,8 +808,24 @@ function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) 
                   maxLength={320}
                 />
               </label>
+              <div className="lg:col-span-2">
+                <BlockStyleControls
+                  label="Stile corpo pagina"
+                  fontSize={activePage.bodyFontSize}
+                  align={activePage.bodyAlign}
+                  onFontSize={(value) => updateField("bodyFontSize", value)}
+                  onAlign={(value) => updateField("bodyAlign", value)}
+                />
+                <RichTextEditor
+                  value={activePage.bodyHtml || activePage.body}
+                  onChange={(html, text) => {
+                    updateField("bodyHtml", html);
+                    updateField("body", text || " ");
+                  }}
+                />
+              </div>
               <label className="lg:col-span-2">
-                <span className="admin-label">Corpo pagina</span>
+                <span className="admin-label">Corpo pagina (testo semplice)</span>
                 <textarea
                   value={activePage.body}
                   onChange={(event) => updateField("body", event.target.value)}
@@ -766,5 +844,125 @@ function SettingsSection({ onNotify }: { onNotify: (message: string) => void }) 
         </div>
       ) : null}
     </div>
+  );
+}
+
+type TextAlignValue = "left" | "center" | "right" | "justify";
+
+function BlockStyleControls({
+  label,
+  fontSize,
+  align,
+  onFontSize,
+  onAlign,
+}: {
+  label: string;
+  fontSize: number;
+  align: TextAlignValue;
+  onFontSize: (value: number) => void;
+  onAlign: (value: TextAlignValue) => void;
+}) {
+  return (
+    <div>
+      <span className="admin-label">{label}</span>
+      <div className="mt-2 grid gap-2 sm:grid-cols-[120px_minmax(0,1fr)]">
+        <input
+          type="number"
+          min={10}
+          max={96}
+          value={fontSize}
+          onChange={(event) => onFontSize(Number(event.target.value) || 16)}
+          className="admin-input"
+          aria-label={`${label} grandezza carattere`}
+        />
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            ["left", "SX"],
+            ["center", "Centro"],
+            ["right", "DX"],
+            ["justify", "Giust."],
+          ].map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onAlign(value as TextAlignValue)}
+              className={`rounded-lg border px-2 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+                align === value
+                  ? "border-[#16b9f4] text-[#22bdf3]"
+                  : "border-[#26394d] text-slate-400 hover:border-[#16b9f4]/60"
+              }`}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RichTextEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (html: string, text: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== value) {
+      ref.current.innerHTML = value;
+    }
+  }, [value]);
+
+  const command = (name: string, argument?: string) => {
+    ref.current?.focus();
+    document.execCommand(name, false, argument);
+    emitChange();
+  };
+
+  const emitChange = () => {
+    const element = ref.current;
+    if (!element) return;
+    onChange(element.innerHTML, element.innerText);
+  };
+
+  return (
+    <div className="mt-4">
+      <span className="admin-label">Corpo pagina - editor formattato</span>
+      <div className="mt-2 flex flex-wrap gap-2 rounded-t-xl border border-[#26394d] bg-[#06111f] p-2">
+        <EditorButton label="Grassetto" onClick={() => command("bold")} />
+        <EditorButton label="Corsivo" onClick={() => command("italic")} />
+        <EditorButton label="Sottolinea" onClick={() => command("underline")} />
+        <EditorButton label="Titolo" onClick={() => command("formatBlock", "h2")} />
+        <EditorButton label="Paragrafo" onClick={() => command("formatBlock", "p")} />
+        <EditorButton label="Elenco" onClick={() => command("insertUnorderedList")} />
+        <EditorButton label="Numerato" onClick={() => command("insertOrderedList")} />
+        <EditorButton
+          label="Link"
+          onClick={() => {
+            const url = window.prompt("Inserisci URL del link");
+            if (url) command("createLink", url);
+          }}
+        />
+        <EditorButton label="Pulisci" onClick={() => command("removeFormat")} />
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={emitChange}
+        className="min-h-[320px] rounded-b-xl border-x border-b border-[#26394d] bg-[#071321] px-4 py-4 leading-7 text-slate-200 outline-none focus:border-[#16b9f4]"
+      />
+    </div>
+  );
+}
+
+function EditorButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="admin-secondary-button !px-3 !py-1.5 text-xs">
+      {label}
+    </button>
   );
 }

@@ -45,15 +45,41 @@ export async function StaticInfoPage({ slug }: { slug: StaticPageContent["slug"]
           >
             {content.brand.platformName}
           </p>
-          <h1 className="mt-4 text-4xl font-black tracking-[-0.06em] text-white sm:text-6xl">
+          <h1
+            className="mt-4 font-black tracking-[-0.06em] text-white"
+            style={{ fontSize: page.titleFontSize, textAlign: page.titleAlign }}
+          >
             {page.title}
           </h1>
           {page.subtitle ? (
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-white/65">{page.subtitle}</p>
+            <p
+              className="mt-4 max-w-3xl leading-8 text-white/65"
+              style={{ fontSize: page.subtitleFontSize, textAlign: page.subtitleAlign }}
+            >
+              {page.subtitle}
+            </p>
           ) : null}
-          <article className="mt-10 whitespace-pre-wrap text-base leading-8 text-white/72">
-            {page.body}
-          </article>
+          {page.heroImageUrl ? (
+            <img
+              src={page.heroImageUrl}
+              alt={page.title}
+              className="mt-8 max-h-[440px] w-full rounded-[1.5rem] object-cover"
+            />
+          ) : null}
+          {page.bodyHtml ? (
+            <article
+              className="mt-10 prose prose-invert max-w-none leading-8 text-white/72"
+              style={{ fontSize: page.bodyFontSize, textAlign: page.bodyAlign }}
+              dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
+            />
+          ) : (
+            <article
+              className="mt-10 whitespace-pre-wrap leading-8 text-white/72"
+              style={{ fontSize: page.bodyFontSize, textAlign: page.bodyAlign }}
+            >
+              {page.body}
+            </article>
+          )}
         </div>
       </section>
       <Footer links={content.footerMenu} brand={content.brand} />
