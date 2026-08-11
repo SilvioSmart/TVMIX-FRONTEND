@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { HomeContent, HomeModule } from "@/lib/api";
 import type { MediaItem } from "@/lib/content";
 import { Footer } from "./Footer";
@@ -22,7 +22,7 @@ export function HomePage({ content }: HomePageProps) {
     setPlayerOpen(true);
   };
 
-  const fallbackModules: HomeModule[] = [
+  const fallbackModules: HomeModule[] = useMemo(() => [
     {
       id: "programmi",
       title: "I più visti",
@@ -60,7 +60,41 @@ export function HomePage({ content }: HomePageProps) {
       items: content.entertainment,
       epg: [],
     },
-  ];
+  ], [content.entertainment, content.liveChannels, content.mostWatched]);
+
+  const linkableMedia = useMemo(() => {
+    const map = new Map<string, MediaItem>();
+    const add = (item?: MediaItem | null) => {
+      if (!item) return;
+      map.set(item.id, item);
+      if (item.slug) map.set(item.slug, item);
+    };
+    add(content.featured);
+    content.heroSlides.forEach((slide) => add(slide.media));
+    content.modules.forEach((module) => {
+      module.items.forEach(add);
+      module.epg.forEach((item) => add(item.video));
+    });
+    content.mostWatched.forEach(add);
+    content.liveChannels.forEach(add);
+    content.entertainment.forEach(add);
+    fallbackModules.forEach((module) => {
+      module.items.forEach(add);
+      module.epg.forEach((item) => add(item.video));
+    });
+    return map;
+  }, [content, fallbackModules]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const mediaKey = params.get("media");
+    if (!mediaKey) return;
+    const media = linkableMedia.get(mediaKey);
+    if (!media) return;
+    setSelectedMedia(media);
+    setPlayerOpen(true);
+  }, [linkableMedia]);
 
   return (
     <div className="public-shell">

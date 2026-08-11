@@ -217,6 +217,7 @@ function mapVideo(video: ApiVideo, brand: BrandSettings = fallbackBrand): MediaI
 
   return {
     id: video.id,
+    slug: video.slug,
     title: video.title,
     subtitle: video.category?.name ?? "On demand",
     description: video.description ?? undefined,

@@ -1,5 +1,6 @@
 export type MediaItem = {
   id: string;
+  slug?: string;
   title: string;
   subtitle?: string;
   image: string;
