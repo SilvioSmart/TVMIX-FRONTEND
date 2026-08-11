@@ -24,6 +24,15 @@ export type PublicTg9Video = {
   posterUrl: string | null;
   publishedAt: string | null;
   createdAt: string;
+  subclips?: PublicTg9Subclip[];
+};
+
+export type PublicTg9Subclip = {
+  id: string;
+  title: string | null;
+  startTime: number;
+  endTime: number;
+  sortOrder: number;
 };
 
 export function NoticePublicPage({ notices, initialSlug }: { notices: PublicNoticeArticle[]; initialSlug?: string }) {
@@ -107,16 +116,12 @@ export function NoticePublicPage({ notices, initialSlug }: { notices: PublicNoti
 export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
   const [index, setIndex] = useState(0);
   const archiveRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<HTMLVideoElement | null>(null);
   const current = videos[index] ?? null;
-  const timelineItems = useMemo(
-    () =>
-      videos.map((video, videoIndex) => ({
-        video,
-        videoIndex,
-        left: `${(videoIndex / Math.max(videos.length, 1)) * 100}%`,
-        width: `${100 / Math.max(videos.length, 1)}%`,
-      })),
-    [videos],
+  const selectedSubclips = useMemo(() => current?.subclips ?? [], [current]);
+  const timelineDuration = useMemo(
+    () => Math.max(1, ...selectedSubclips.map((subclip) => Math.max(subclip.endTime, subclip.startTime + 1))),
+    [selectedSubclips],
   );
 
   useEffect(() => {
@@ -142,6 +147,13 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
     });
   }
 
+  function playSubclip(subclip: PublicTg9Subclip) {
+    const player = playerRef.current;
+    if (!player) return;
+    player.currentTime = Math.max(0, subclip.startTime);
+    void player.play().catch(() => undefined);
+  }
+
   return (
     <section className="mx-auto max-w-[1500px] px-4 pb-10 pt-28 text-white sm:px-6 sm:pt-32 lg:px-8">
       <div className="mb-7">
@@ -155,6 +167,7 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)]">
           <div className="flex min-h-[260px] items-center bg-black sm:min-h-[420px] lg:min-h-[500px]">
             <video
+              ref={playerRef}
               key={current.id}
               src={current.videoUrl}
               poster={current.posterUrl ?? undefined}
@@ -204,34 +217,45 @@ export function Tg9PublicPage({ videos }: { videos: PublicTg9Video[] }) {
             <p className="mt-1 text-sm text-slate-500">La barra evidenzia la clip selezionata dall’elenco media.</p>
           </div>
           <span className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
-            {current.title}
+            {current.title} · {selectedSubclips.length} sottoclip
           </span>
         </div>
-        <div className="relative h-24 overflow-hidden rounded-2xl border border-white/10 bg-black/20 px-4 py-5">
-          <div className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/10" />
-          {timelineItems.map(({ video, videoIndex, left, width }) => {
-            const active = videoIndex === index;
-            return (
-              <button
-                key={video.id}
-                type="button"
-                onClick={() => setIndex(videoIndex)}
-                aria-label={`Seleziona clip timeline ${video.title}`}
-                className={`absolute top-1/2 h-12 -translate-y-1/2 rounded-full border px-2 text-left transition ${
-                  active
-                    ? "border-[#22bdf3] bg-[#22bdf3]/20 text-[#22bdf3] shadow-[0_0_24px_rgba(34,189,243,0.2)]"
-                    : "border-white/10 bg-white/[0.035] text-white/40 hover:border-[#22bdf3]/50 hover:text-[#22bdf3]"
-                }`}
-                style={{ left: `calc(1rem + ${left})`, width: `calc(${width} - 0.5rem)`, minWidth: 52, maxWidth: 240 }}
-              >
-                <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em]">
-                  {String(videoIndex + 1).padStart(2, "0")}
-                </span>
-                <span className="block truncate text-[11px] font-bold">{video.title}</span>
-              </button>
-            );
-          })}
-          <div className="pointer-events-none absolute bottom-2 top-2 w-0.5 bg-[#22bdf3] shadow-[0_0_18px_rgba(34,189,243,0.85)]" style={{ left: `calc(1rem + ${(index / Math.max(videos.length, 1)) * 100}%)` }} />
+        <div className="relative min-h-28 overflow-hidden rounded-2xl border border-white/10 bg-black/20 px-4 py-5">
+          <div className="absolute left-4 right-4 top-12 h-1 rounded-full bg-white/10" />
+          {selectedSubclips.length ? (
+            selectedSubclips.map((subclip, subclipIndex) => {
+              const left = (Math.max(0, subclip.startTime) / timelineDuration) * 100;
+              const width = (Math.max(1, subclip.endTime - subclip.startTime) / timelineDuration) * 100;
+              return (
+                <button
+                  key={subclip.id}
+                  type="button"
+                  onClick={() => playSubclip(subclip)}
+                  aria-label={`Riproduci sottoclip ${subclip.title ?? subclipIndex + 1}`}
+                  className="absolute top-6 h-12 rounded-full border border-[#22bdf3]/60 bg-[#22bdf3]/15 px-2 text-left text-[#22bdf3] shadow-[0_0_24px_rgba(34,189,243,0.16)] transition hover:bg-[#22bdf3]/25"
+                  style={{ left: `calc(1rem + ${left}%)`, width: `max(70px, calc(${width}% - 0.5rem))`, maxWidth: "calc(100% - 2rem)" }}
+                >
+                  <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em]">
+                    {String(subclipIndex + 1).padStart(2, "0")} · {formatSeconds(subclip.startTime)} / {formatSeconds(subclip.endTime)}
+                  </span>
+                  <span className="block truncate text-[11px] font-bold">{subclip.title ?? "Sottoclip TG9"}</span>
+                </button>
+              );
+            })
+          ) : (
+            <div className="flex min-h-16 items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.025] text-center text-sm text-slate-500">
+              Nessuna sottoclip pubblicata per questa clip TG9.
+            </div>
+          )}
+          {selectedSubclips.length ? (
+            <div className="mt-20 flex flex-wrap gap-2 text-[11px] font-bold text-slate-500">
+              {selectedSubclips.map((subclip, subclipIndex) => (
+                <button key={`${subclip.id}-label`} type="button" onClick={() => playSubclip(subclip)} className="rounded-full border border-white/10 px-3 py-1 transition hover:border-[#22bdf3]/60 hover:text-[#22bdf3]">
+                  {String(subclipIndex + 1).padStart(2, "0")} · {formatSeconds(subclip.endTime - subclip.startTime)}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -358,4 +382,12 @@ function formatPublicDate(value: string) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatSeconds(value: number) {
+  const safe = Math.max(0, Math.floor(value));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
