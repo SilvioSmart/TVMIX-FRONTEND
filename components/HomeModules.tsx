@@ -1291,6 +1291,12 @@ function PublicPlaylistTimeline({ module, now }: { module: HomeModule; now: numb
 function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (item: MediaItem) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const stream = module.liveStream;
+  const liveStreams =
+    module.liveStreams && module.liveStreams.length
+      ? module.liveStreams
+      : stream && stream.streamType !== "PLAYLIST"
+        ? [stream]
+        : [];
   const [now, setNow] = useState(() => Date.now());
   const [playlistPlayback, setPlaylistPlayback] = useState<PlaylistPlayback | null>(null);
   const playlistState = stream?.streamType === "PLAYLIST" ? activePlaylistItem(module, now) : null;
@@ -1352,6 +1358,55 @@ function LiveEpgModule({ module, onSelect }: { module: HomeModule; onSelect: (it
 
   const scroll = (direction: number) =>
     railRef.current?.scrollBy({ left: direction * railRef.current.clientWidth * 0.8, behavior: "smooth" });
+
+  if (stream?.streamType !== "PLAYLIST") {
+    return (
+      <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto relative scroll-mt-24 overflow-hidden py-8 sm:py-10 lg:py-12">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(239,68,68,0.16),transparent_32%),linear-gradient(180deg,rgba(2,7,17,0.2),#020711_92%)]" />
+        <div className="relative z-10 px-[3%]">
+          <div className="mb-5 flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-end">
+            <div>
+              <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-300">
+                <span className="size-2 rounded-full bg-red-400 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
+                Live streaming
+              </p>
+              <h2 className="mt-1 max-w-4xl text-[clamp(1.35rem,2.45vw,2.7rem)] font-black uppercase leading-[0.92] tracking-[-0.055em]">
+                {module.title}
+              </h2>
+              {module.subtitle ? <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/58">{module.subtitle}</p> : null}
+            </div>
+          </div>
+
+          {liveStreams.length ? (
+            <div className="grid gap-4 lg:grid-cols-4">
+              {liveStreams.slice(0, 4).map((item) => (
+                <article key={item.id} className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#050b14]/88 shadow-[0_18px_58px_rgba(0,0,0,0.35)]">
+                  <div className="relative">
+                    <VideoPlayer
+                      src={item.hlsUrl}
+                      poster={item.posterUrl ?? undefined}
+                      title={item.name}
+                      vastUrl={item.vastUrl}
+                      className="aspect-video"
+                    />
+                    <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${item.status === "LIVE" ? "bg-red-500 text-white" : "bg-slate-700 text-slate-100"}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="line-clamp-1 text-base font-black uppercase tracking-[-0.03em] text-white">{item.name}</h3>
+                    {item.description ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/55">{item.description}</p> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyModuleNotice text="Nessun canale live streaming configurato." />
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id={`module-${module.id}`} className="sonicplaylist__bg content-auto group/epg relative scroll-mt-24 overflow-hidden py-8 sm:py-10 lg:py-12">

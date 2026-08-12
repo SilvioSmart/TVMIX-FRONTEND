@@ -214,7 +214,7 @@ export function LiveSection({
 
   return (
     <div className="space-y-5">
-      <Header title="Dirette TV" description="Configura i canali lineari, verifica lo streaming e componi la guida EPG.">
+      <Header title="Dirette TV" description="Configura canali live streaming e playlist lineari sincronizzate.">
         <button onClick={() => setEditing(null)} className="admin-primary-button">
           <Plus size={17} /> {activeMode === "PLAYLIST" ? "Nuova playlist" : "Nuovo canale"}
         </button>
@@ -246,7 +246,7 @@ export function LiveSection({
               key={stream.id}
               stream={stream}
               onEdit={() => setEditing(stream)}
-              onEpg={() => setEpgStream(stream)}
+              onEpg={stream.streamType === "PLAYLIST" ? () => setEpgStream(stream) : undefined}
               onRemove={() => void remove(stream.id)}
             />
           ))}
@@ -278,7 +278,7 @@ export function LiveSection({
         />
       ) : null}
 
-      {epgStream ? (
+      {epgStream && epgStream.streamType === "PLAYLIST" ? (
         <EpgEditor stream={epgStream} onClose={() => setEpgStream(null)} onNotify={onNotify} />
       ) : null}
     </div>
@@ -293,7 +293,7 @@ function LiveStreamCard({
 }: {
   stream: LiveStream;
   onEdit: () => void;
-  onEpg: () => void;
+  onEpg?: () => void;
   onRemove: () => void;
 }) {
   return (
@@ -330,12 +330,15 @@ function LiveStreamCard({
               </div>
             </div>
             {stream.posterUrl ? <p className="mt-3 truncate text-xs text-slate-500">Copertina: {stream.posterUrl}</p> : null}
+            {stream.vastUrl ? <p className="mt-1 truncate text-xs text-amber-200">VAST: {stream.vastUrl}</p> : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onEpg} className="admin-secondary-button">
-              <CalendarClock size={16} /> {stream.streamType === "PLAYLIST" ? "MEDIALIST" : "Guida EPG"}
-            </button>
+            {onEpg ? (
+              <button type="button" onClick={onEpg} className="admin-secondary-button">
+                <CalendarClock size={16} /> MEDIALIST
+              </button>
+            ) : null}
             <button aria-label={`Modifica ${stream.name}`} onClick={onEdit} className="admin-icon-button">
               <Pencil size={17} />
             </button>
@@ -345,7 +348,7 @@ function LiveStreamCard({
           </div>
         </div>
       </div>
-      <InlineEpgRail stream={stream} onOpenEditor={onEpg} />
+      {stream.streamType === "PLAYLIST" && onEpg ? <InlineEpgRail stream={stream} onOpenEditor={onEpg} /> : null}
     </section>
   );
 }
@@ -362,12 +365,12 @@ function LiveEditor({
   onSave: (body: object) => Promise<void>;
 }) {
   const [name, setName] = useState(stream?.name ?? "");
-  const [slug, setSlug] = useState(stream?.slug ?? "");
   const [hlsUrl, setHlsUrl] = useState(stream?.hlsUrl ?? (streamType === "PLAYLIST" ? playlistHlsUrl("") : ""));
   const [posterUrl, setPosterUrl] = useState(stream?.posterUrl ?? "");
+  const [vastUrl, setVastUrl] = useState(stream?.vastUrl ?? "");
   const [status, setStatus] = useState(stream?.status ?? "OFFLINE");
   const generatedSlug = slugify(name);
-  const effectiveSlug = streamType === "PLAYLIST" ? generatedSlug : slug;
+  const effectiveSlug = generatedSlug;
 
   return (
     <AdminModal title={stream ? "Modifica canale" : "Nuovo canale"} onClose={onClose}>
@@ -381,19 +384,16 @@ function LiveEditor({
             hlsUrl: streamType === "PLAYLIST" ? playlistHlsUrl(effectiveSlug) : hlsUrl,
             posterUrl: posterUrl || null,
             status,
+            vastUrl: vastUrl || null,
           });
         }}
         className="grid gap-4 sm:grid-cols-2"
       >
         <Input label={streamType === "PLAYLIST" ? "Nome playlist" : "Nome"} value={name} onChange={setName} required />
-        {streamType === "PLAYLIST" ? (
-          <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
-            <span className="admin-label">Slug generato</span>
-            <p className="mt-1 break-all font-mono text-sm text-[#22bdf3]">{generatedSlug || "inserisci-il-nome"}</p>
-          </div>
-        ) : (
-          <Input label="Slug" value={slug} onChange={setSlug} required />
-        )}
+        <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
+          <span className="admin-label">Slug generato dal nome</span>
+          <p className="mt-1 break-all font-mono text-sm text-[#22bdf3]">{generatedSlug || "inserisci-il-nome"}</p>
+        </div>
         <div className="rounded-lg border border-[#203248] bg-[#071321] px-3.5 py-3">
           <span className="admin-label">Tipo canale</span>
           <p className="mt-1 text-sm font-semibold text-white">{streamTypeLabels[streamType]}</p>
@@ -418,6 +418,9 @@ function LiveEditor({
         )}
         <div className="sm:col-span-2">
           <Input label="URL copertina" type="url" value={posterUrl} onChange={setPosterUrl} />
+        </div>
+        <div className="sm:col-span-2">
+          <Input label="Stringa VAST" type="url" value={vastUrl} onChange={setVastUrl} placeholder="https://..." />
         </div>
         <div className="flex items-end justify-end gap-2">
           <button type="button" onClick={onClose} className="admin-secondary-button">

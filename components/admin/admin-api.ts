@@ -167,6 +167,7 @@ export type LiveStream = {
   hlsUrl: string;
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
   posterUrl: string | null;
+  vastUrl: string | null;
   startedAt: string | null;
   endedAt: string | null;
   updatedAt: string;

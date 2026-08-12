@@ -48,6 +48,7 @@ type ApiLiveChannel = {
   description?: string | null;
   hlsUrl: string;
   posterUrl?: string | null;
+  vastUrl?: string | null;
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
 };
 
@@ -108,6 +109,7 @@ export type LiveModuleStream = {
   streamType?: "LIVE_STREAMING" | "PLAYLIST";
   hlsUrl: string;
   posterUrl?: string | null;
+  vastUrl?: string | null;
   status: "OFFLINE" | "LIVE" | "SCHEDULED";
 };
 
@@ -121,6 +123,7 @@ export type HomeModule = {
   sortOrder: number;
   items: MediaItem[];
   liveStream?: LiveModuleStream | null;
+  liveStreams?: LiveModuleStream[];
   epg: EpgItem[];
 };
 
@@ -131,6 +134,7 @@ type ApiEpgItem = Omit<EpgItem, "video"> & {
 type ApiHomeModule = Omit<HomeModule, "items" | "epg"> & {
   items?: ApiVideo[];
   epg?: ApiEpgItem[];
+  liveStreams?: LiveModuleStream[];
 };
 
 type ApiMenuItem = {
@@ -285,6 +289,7 @@ function mapLiveChannel(channel: ApiLiveChannel, brand: BrandSettings = fallback
     description: channel.description ?? undefined,
     image: channel.posterUrl || (channel.status === "LIVE" ? brandThumbnailFallback(brand) : brandSignalFallback(brand)),
     hlsUrl: proxyMediaUrl(channel.hlsUrl),
+    vastUrl: channel.vastUrl ?? undefined,
     live: channel.status === "LIVE",
   };
 }
@@ -338,11 +343,20 @@ function mapCarouselSlide(slide: ApiCarouselSlide, brand: BrandSettings = fallba
 function mapHomeModule(module: ApiHomeModule, brand: BrandSettings = fallbackBrand): HomeModule {
   return {
     ...module,
+    liveStream: module.liveStream ? mapLiveModuleStream(module.liveStream) : module.liveStream,
+    liveStreams: module.liveStreams?.map(mapLiveModuleStream) ?? [],
     items: module.items?.map((item) => mapVideo(item, brand)) ?? [],
     epg: module.epg?.map((item) => ({
       ...item,
       video: item.video ? mapVideo(item.video, brand) : null,
     })) ?? [],
+  };
+}
+
+function mapLiveModuleStream(stream: LiveModuleStream): LiveModuleStream {
+  return {
+    ...stream,
+    hlsUrl: proxyMediaUrl(stream.hlsUrl) ?? stream.hlsUrl,
   };
 }
 
