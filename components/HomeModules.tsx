@@ -296,8 +296,8 @@ function MediaThumbnail({
       onClick={() => onSelect(item)}
       className={`carousel-card group/card relative shrink-0 snap-start overflow-hidden rounded-md bg-panel text-left ${
         poster
-          ? "aspect-[2/3] w-[42vw] max-w-[210px] sm:w-[22vw] lg:w-[14vw] xl:w-[11vw]"
-          : "aspect-video w-[42vw] max-w-[260px] sm:w-[24vw] lg:w-[16vw] xl:w-[13vw]"
+          ? "aspect-[2/3] w-[34vw] max-w-[150px] sm:w-[22vw] sm:max-w-[210px] lg:w-[14vw] xl:w-[11vw]"
+          : "aspect-video w-[38vw] max-w-[190px] sm:w-[24vw] sm:max-w-[260px] lg:w-[16vw] xl:w-[13vw]"
       }`}
     >
       <Image
@@ -310,12 +310,12 @@ function MediaThumbnail({
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
       <div className="absolute bottom-3 left-[5%] right-[5%]">
-        <span className="carousel-mask-reveal mb-2 inline-grid size-8 place-items-center rounded-full bg-white text-ink shadow-xl">
+        <span className="carousel-mask-reveal mb-1.5 inline-grid size-7 place-items-center rounded-full bg-white text-ink shadow-xl sm:mb-2 sm:size-8">
           <Play size={14} fill="currentColor" />
         </span>
         <div className="carousel-mask-reveal text-left">
-          <p className="text-sm font-extrabold leading-tight">{item.title}</p>
-          <p className="mt-0.5 text-[11px] font-medium text-white/65">{item.subtitle}</p>
+          <p className="line-clamp-2 text-xs font-extrabold leading-tight sm:text-sm">{item.title}</p>
+          <p className="mt-0.5 line-clamp-1 text-[10px] font-medium text-white/65 sm:text-[11px]">{item.subtitle}</p>
         </div>
       </div>
     </button>
@@ -378,7 +378,7 @@ function SonicLivePlayer({
 }) {
   if (!item) {
     return (
-      <div className="sonicplaylist__player min-h-[300px] w-full max-w-[510px] rounded-[18px] border border-white/10 bg-white/[0.04]" />
+      <div className="sonicplaylist__player min-h-[220px] w-full max-w-[510px] rounded-[18px] border border-white/10 bg-white/[0.04] sm:min-h-[300px]" />
     );
   }
 
@@ -419,7 +419,7 @@ function SonicLivePlayer({
           </>
         )}
       </div>
-      <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+      <div className="flex min-h-[130px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-3 sm:min-h-[178px] sm:p-5">
         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-300">
           {item.live ? "In diretta" : item.subtitle || "Live"}
         </p>
@@ -475,7 +475,7 @@ function SonicPlaylistFeatured({
         )}
       </div>
 
-      <div className="flex min-h-[178px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-4 sm:p-5">
+      <div className="flex min-h-[132px] flex-col border-t border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-3 sm:min-h-[178px] sm:p-5">
         <h3 className="line-clamp-1 text-[clamp(1.05rem,1.65vw,1.65rem)] font-black uppercase leading-none tracking-[-0.045em] text-white">
           {item.title}
         </h3>
@@ -554,7 +554,7 @@ function SonicPlaylistThumbnail({
           onPlay();
         }
       }}
-      className={`sonicplaylist__thumb group/thumb relative flex w-[87vw] min-w-[318px] max-w-[395px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] lg:w-[20.5vw] lg:max-w-[320px] ${
+      className={`sonicplaylist__thumb group/thumb relative flex w-[54vw] min-w-[188px] max-w-[226px] shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border bg-[#050b14] text-left shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition duration-300 sm:w-[56vw] sm:min-w-[318px] sm:max-w-[395px] lg:w-[20.5vw] lg:max-w-[320px] ${
         active ? "border-cyan ring-2 ring-cyan/35" : "border-white/10 hover:border-white/35"
       }`}
       aria-label={`Riproduci ${item.title} nel player del modulo`}
@@ -565,25 +565,25 @@ function SonicPlaylistThumbnail({
           alt=""
           fill
           loading="lazy"
-          sizes="395px"
+          sizes="(min-width: 640px) 395px, 226px"
           className="object-cover transition duration-500 group-hover/thumb:scale-95"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
         <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
-          <span className="inline-flex size-32 items-center justify-center text-white/60 drop-shadow-[0_12px_28px_rgba(0,0,0,0.68)]">
-            <Play size={116} fill="currentColor" strokeWidth={1.05} className="translate-x-2 opacity-60" />
+          <span className="inline-flex size-20 items-center justify-center text-white/60 drop-shadow-[0_12px_28px_rgba(0,0,0,0.68)] sm:size-32">
+            <Play size={78} fill="currentColor" strokeWidth={1.05} className="translate-x-1 opacity-60 sm:size-[116px] sm:translate-x-2" />
           </span>
         </div>
       </div>
-      <div className="relative flex min-h-[142px] flex-col border-t border-white/10 p-3">
-        <p className="line-clamp-2 min-w-0 text-[13px] font-black uppercase leading-[1.03] tracking-[-0.035em] text-white">
+      <div className="relative flex min-h-[108px] flex-col border-t border-white/10 p-2.5 sm:min-h-[142px] sm:p-3">
+        <p className="line-clamp-2 min-w-0 text-[11px] font-black uppercase leading-[1.03] tracking-[-0.035em] text-white sm:text-[13px]">
           {item.title}
         </p>
-        <p className="mt-2 line-clamp-2 text-[10px] font-semibold leading-4 text-white/58">
+        <p className="mt-1.5 line-clamp-2 text-[9px] font-semibold leading-3 text-white/58 sm:mt-2 sm:text-[10px] sm:leading-4">
           {item.description || item.subtitle || "Contenuto disponibile nel catalogo TVMIX."}
         </p>
-        <div className="mt-auto flex min-h-9 items-center justify-between gap-2 pt-2 opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100">
-          <div className="flex min-w-0 items-center justify-start gap-1.5">
+        <div className="mt-auto flex min-h-7 items-center justify-between gap-1.5 pt-1.5 opacity-0 transition duration-300 group-hover/thumb:opacity-100 group-focus-within/thumb:opacity-100 sm:min-h-9 sm:gap-2 sm:pt-2">
+          <div className="flex min-w-0 items-center justify-start gap-1">
             {mediaSocialLinks(item).map((link) => (
               <a
                 key={link.label}
@@ -592,9 +592,9 @@ function SonicPlaylistThumbnail({
                 rel="noreferrer"
                 onClick={stopActionPropagation}
                 aria-label={`Condividi ${item.title} su ${link.label}`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-[11px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+                className="inline-flex size-7 items-center justify-center rounded-full border border-white/18 bg-transparent text-[9px] font-black text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan sm:size-9 sm:text-[11px]"
               >
-                {link.label === "Telegram" ? <Send size={15} /> : link.icon}
+                {link.label === "Telegram" ? <Send size={12} className="sm:size-[15px]" /> : link.icon}
               </a>
             ))}
             <button
@@ -604,9 +604,9 @@ function SonicPlaylistThumbnail({
                 void copyMediaShareLink(item);
               }}
               aria-label={`Copia link ${item.title}`}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+              className="inline-flex size-7 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan sm:size-9"
             >
-              <Copy size={15} />
+              <Copy size={12} className="sm:size-[15px]" />
             </button>
           </div>
           <button
@@ -616,9 +616,9 @@ function SonicPlaylistThumbnail({
               onInfo();
             }}
             aria-label={`Informazioni ${item.title}`}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-white/18 bg-transparent text-white/82 transition hover:border-cyan/70 hover:bg-cyan/10 hover:text-cyan sm:size-9"
           >
-            <ChevronDown size={17} />
+            <ChevronDown size={13} className="sm:size-[17px]" />
           </button>
         </div>
         <div className="mt-2 flex items-end justify-between gap-3">

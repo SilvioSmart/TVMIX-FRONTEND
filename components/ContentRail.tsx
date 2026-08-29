@@ -71,14 +71,14 @@ export function ContentRail({ id, title, items, onSelect }: ContentRailProps) {
               key={item.id}
               type="button"
               onClick={() => onSelect(item)}
-              className="carousel-card group/card relative aspect-video w-[76vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-md bg-panel text-left sm:w-[40vw] lg:w-[25vw] xl:w-[22vw]"
+              className="carousel-card group/card relative aspect-video w-[58vw] max-w-[230px] shrink-0 snap-start overflow-hidden rounded-md bg-panel text-left sm:w-[40vw] sm:max-w-[340px] lg:w-[25vw] xl:w-[22vw]"
             >
               <Image
                 src={item.image}
                 alt=""
                 fill
                 loading="lazy"
-                sizes="94vw"
+                sizes="(min-width: 640px) 40vw, 230px"
                 className="object-cover transition duration-500 group-hover/card:scale-[1.04]"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
@@ -90,16 +90,16 @@ export function ContentRail({ id, title, items, onSelect }: ContentRailProps) {
                 </span>
               ) : null}
 
-              <div className="absolute bottom-3 left-[3%] right-[3%] flex flex-col items-start sm:bottom-4">
-                <span className="carousel-mask-reveal mb-2 inline-grid size-9 place-items-center rounded-full bg-white text-ink shadow-xl">
-                  <Play size={15} fill="currentColor" />
+              <div className="absolute bottom-2 left-[3%] right-[3%] flex flex-col items-start sm:bottom-4">
+                <span className="carousel-mask-reveal mb-1.5 inline-grid size-7 place-items-center rounded-full bg-white text-ink shadow-xl sm:mb-2 sm:size-9">
+                  <Play size={13} fill="currentColor" />
                 </span>
 
                 <div className="carousel-mask-reveal w-full text-left">
-                  <p className="text-sm font-extrabold sm:text-base">
+                  <p className="line-clamp-2 text-xs font-extrabold leading-tight sm:text-base">
                     {item.title}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-medium text-white/65 sm:text-xs">
+                  <p className="mt-0.5 line-clamp-1 text-[10px] font-medium text-white/65 sm:text-xs">
                     {item.subtitle}
                   </p>
                   {item.progress ? (
